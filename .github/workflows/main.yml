@@ -45,7 +45,7 @@ jobs:
           echo "Initializing log file for Clash Aggregator at $(date '+%Y-%m-%d %H:%M:%S')" > clash_aggregator/clash_aggregator.log
 
       - name: Aggregate and Filter Nodes # 步骤6: 运行您的节点聚合和过滤脚本
-        id: aggregate_nodes # 为此步骤分配一个ID (虽然在此版本中未被其他步骤引用，但保留无害)
+        id: aggregate_nodes
         run: |
           echo "Starting Clash node aggregation from sources in './clash_aggregator/sources.txt'..."
           # 运行 Python 脚本
@@ -74,8 +74,13 @@ jobs:
         run: |
           git config --global user.name 'github-actions[bot]' # 配置Git用户名为GitHub Actions机器人
           git config --global user.email 'github-actions[bot]@users.noreply.github.com' # 配置Git用户邮箱
-          # 将生成的 Clash 配置、日志和 IP 缓存文件添加到 Git 暂存区
-          git add ./clash_aggregator/config.yaml ./clash_aggregator/clash_aggregator.log ./clash_aggregator/ip_cache.json
+          
+          # **关键改进：使用 '|| true' 确保即使文件不存在也不会导致 'git add' 失败。**
+          # 这样，即使 ip_cache.json 某次没有生成，工作流也能正常完成。
+          git add ./clash_aggregator/config.yaml || true
+          git add ./clash_aggregator/clash_aggregator.log || true
+          git add ./clash_aggregator/ip_cache.json || true
+          
           # 尝试提交更改，如果文件没有变化，则打印“No changes to commit”并继续，不报错
           # "[skip ci]" 标签可防止本次提交再次触发工作流的无限循环
           git commit -m "Update Clash config, logs, and IP cache [skip ci]" || echo "No changes to commit"
