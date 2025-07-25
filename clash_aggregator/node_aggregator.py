@@ -7,11 +7,15 @@ import json
 import aiohttp
 import asyncio
 import socket
-import time
 import logging
 import argparse
 from urllib.parse import urlparse, unquote
 from datetime import datetime, timedelta
+
+# --- 依赖版本说明 ---
+# PyYAML>=6.0
+# requests>=2.28.1 (仅用于同步部分，逐步替换为 aiohttp)
+# aiohttp>=3.8.1 (异步主力)
 
 # --- 配置日志 ---
 LOG_FILE = 'clash_aggregator.log'
@@ -63,8 +67,7 @@ IP_API_URL = "http://ip-api.com/json/{ip}?fields=status,message,countryCode,regi
 IP_CACHE_FILE = "ip_cache.json"
 IP_API_CONCURRENCY = 10
 IP_API_SEMAPHORE = asyncio.Semaphore(IP_API_CONCURRENCY)
-IP_CACHE_EXPIRY_DAYS = 7  # 缓存过期时间（天）
-
+IP_CACHE_EXPIRY_DAYS = 7
 SOURCES_FILE = os.path.join(os.path.dirname(__file__), 'sources.txt')
 
 # 加载IP缓存并清理过期条目
@@ -94,12 +97,12 @@ def save_ip_cache():
         }
         with open(IP_CACHE_FILE, 'w', encoding='utf-8') as f:
             json.dump(cache_with_timestamp, f, ensure_ascii=False, indent=2)
-        logger.info(f"IP缓存已保存到 {IP_CACHE_FILE}")
+        logger.debug(f"IP缓存已保存到 {IP_CACHE_FILE}")
     except Exception as e:
         logger.error(f"写入IP缓存文件失败：{e}")
 
 async def get_ip_info(ip_address, session):
-    """异步查询IP信息，支持缓存和并发控制"""
+    """异步查询IP信息"""
     if ip_address in IP_CACHE:
         logger.debug(f"从缓存获取 {ip_address} 的IP信息")
         return IP_CACHE[ip_address]
@@ -143,8 +146,8 @@ def resolve_domain_to_ips(domain):
         ips = list(set([info[4][0] for info in addr_info]))
         logger.debug(f"解析域名 '{domain}' 为 IP: {ips}")
         return ips
-    except socket.gaierror as e:
-        logger.warning(f"无法解析域名 '{domain}' 到 IP 地址：{e}")
+    except socket.gaierror:
+        logger.warning(f"无法解析域名 '{domain}' 到 IP 地址")
         return []
     except Exception as e:
         logger.warning(f"解析域名 '{domain}' 时发生意外错误：{e}")
@@ -190,7 +193,7 @@ def parse_vmess_link(link):
             return None
         config = json.loads(decoded_config_str)
         proxy = {
-            'name': config.get('ps', f"vmess-{config.get('add', '')[:8]}"),
+            'name': config.get('ps', f"vmess-{config.get('add', '')[:8]}-{config.get('port', '')}"),
             'type': 'vmess',
             'server': config.get('add'),
             'port': int(config.get('port')),
@@ -498,12 +501,17 @@ def parse_args():
     parser.add_argument('--socks-port', type=int, default=7891, help='Clash SOCKS 端口')
     parser.add_argument('--config-template', default=None, help='Clash 配置文件模板路径')
     parser.add_argument('--strict-ip-filter', action='store_true', help='严格IP筛选模式，IP查询失败的代理将被排除')
+    parser.add_argument('--log-level', choices=['DEBUG', 'INFO', 'WARNING', 'ERROR'], default='INFO', help='日志级别')
     return parser.parse_args()
 
 async def main():
     args = parse_args()
+    
+    # 设置日志级别
+    logging.getLogger().setLevel(getattr(logging, args.log_level))
+    
     all_proxies = {}
-
+    
     if not os.path.exists(SOURCES_FILE):
         logger.error(f"{SOURCES_FILE} 文件未找到")
         sys.exit(1)
@@ -512,9 +520,9 @@ async def main():
         sources = [line.strip() for line in f if line.strip() and not line.startswith('#')]
     logger.info(f"在 {SOURCES_FILE} 中找到 {len(sources)} 个源")
 
-    # 收集所有代理
+    # 收集代理
     for source_url in sources:
-        logger.info(f"\n正在处理源: {source_url}")
+        logger.info(f"正在处理源: {source_url}")
         proxies_from_source = await fetch_and_parse_source(source_url)
         for proxy in proxies_from_source:
             if not isinstance(proxy, dict):
@@ -566,7 +574,6 @@ async def main():
         ip_info_tasks = [get_ip_info(ip, session) for ip in ips_to_query]
         ip_infos = await asyncio.gather(*ip_info_tasks, return_exceptions=True)
 
-    # 保存IP缓存
     save_ip_cache()
 
     # 最终筛选
@@ -576,12 +583,14 @@ async def main():
         if not server_address:
             if not args.strict_ip_filter:
                 final_filtered_proxies.append(proxy)
+                logger.debug(f"保留无服务器地址的代理: {proxy.get('name')}")
             continue
 
         resolved_ips = proxy_server_to_ips.get(server_address, [])
         if not resolved_ips:
             if not args.strict_ip_filter:
                 final_filtered_proxies.append(proxy)
+                logger.debug(f"保留无法解析域名的代理: {proxy.get('name')}")
             continue
 
         ip_matched = False
@@ -623,7 +632,7 @@ async def main():
 
     logger.info(f"总过滤代理数量: {len(final_filtered_proxies)}")
 
-    # 生成或加载Clash配置
+    # 生成Clash配置
     clash_config = {
         'port': args.port,
         'socks-port': args.socks_port,
