@@ -1,52 +1,91 @@
-name: Aggregate and Filter Clash Nodes # 工作流名称
+name: Aggregate and Filter Clash Nodes
 
 on:
   workflow_dispatch: # 允许手动触发
   schedule:
-    - cron: '0 */6 * * *' # 每6小时运行一次，例如 UTC 时间 0点、6点、12点、18点
+    - cron: '0 */6 * * *' # 每6小时运行一次（UTC 0:00, 6:00, 12:00, 18:00）
+
+# 并发控制：确保同一时间只有一个工作流实例运行
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}
+  cancel-in-progress: true
 
 jobs:
   build:
-    runs-on: ubuntu-latest # 在最新的 Ubuntu 运行器上执行
+    runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository # 步骤1: 检出您的代码仓库
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Python # 步骤2: 设置 Python 环境
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.x' # 推荐使用 Python 3.9 或更高版本以获得更好的 async/await 支持
+          python-version: '3.10' # 明确指定 Python 3.10，确保与 aiohttp>=3.8.1 兼容
+          cache: 'pip' # 缓存 pip 依赖，加速安装
 
-      - name: Install dependencies # 步骤3: 安装 Python 依赖
-        run: pip install -r requirements.txt
+      - name: Verify requirements.txt
+        run: |
+          if [ ! -f requirements.txt ]; then
+            echo "Error: requirements.txt not found"
+            exit 1
+          fi
 
-      - name: Aggregate and Filter Nodes # 步骤4: 运行您的节点聚合和过滤脚本
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+        continue-on-error: false # 安装失败时终止工作流
+
+      - name: Initialize log file
+        run: |
+          mkdir -p clash_aggregator
+          touch clash_aggregator/clash_aggregator.log
+          echo "Initializing log file for Clash Aggregator" > clash_aggregator/clash_aggregator.log
+
+      - name: Aggregate and Filter Nodes
         id: aggregate_nodes
         run: |
           echo "Starting node aggregation from sources defined in 'clash_aggregator/sources.txt'..."
-          # 运行 Python 脚本，通过命令行参数指定输出文件和端口
-          # --output 参数将配置文件输出到指定路径
-          # 日志会通过 logging 模块输出到 stderr 和 clash_aggregator.log
           python ./clash_aggregator/node_aggregator.py \
             --output ./clash_aggregator/config.yaml \
             --port 7890 \
-            --socks-port 7891
+            --socks-port 7891 \
+            --log-level INFO
           echo "Node aggregation finished. Check ./clash_aggregator/config.yaml and ./clash_aggregator/clash_aggregator.log for details."
         env:
-          PYTHONUNBUFFERED: 1 # 实时显示 Python 输出
+          PYTHONUNBUFFERED: 1
 
-      - name: Upload Logs # 可选步骤：上传日志文件，方便调试
+      - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: clash-aggregator-logs
-          path: clash_aggregator/clash_aggregator.log
-          if-no-files-found: ignore # 如果没有找到日志文件，则忽略此步骤
+          name: clash-aggregator-artifacts
+          path: |
+            clash_aggregator/config.yaml
+            clash_aggregator/clash_aggregator.log
+            clash_aggregator/ip_cache.json
+          if-no-files-found: warn # 如果文件缺失，发出警告但不失败
 
-      - name: Commit and Push if changed # 步骤5: 如果生成的配置文件有变化，则提交并推送
+      - name: Commit and Push if changed
         run: |
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-          git add ./clash_aggregator/config.yaml ./clash_aggregator/clash_aggregator.log ./clash_aggregator/ip_cache.json # 同时添加配置文件、日志和IP缓存
+          git add ./clash_aggregator/config.yaml ./clash_aggregator/clash_aggregator.log
           git commit -m "Update Clash config and logs [skip ci]" || echo "No changes to commit"
           git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Notify on Failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number || 1,
+              body: 'Clash node aggregation failed. Check the workflow logs for details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'
+            })
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
