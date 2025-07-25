@@ -1,0 +1,118 @@
+name: Node Aggregation & Speedtest
+
+on:
+  workflow_dispatch: # 允许手动触发
+  schedule:
+    - cron: '0 */6 * * *' # 每 6 小时运行一次
+
+jobs:
+  aggregate-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30 # 设置整个Job的最大运行时间
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # --- 关键修改点1：指定工作目录 ---
+      - name: Set Working Directory
+        run: |
+          mkdir -p clash_aggregator # 确保目录存在，尽管通常会自动被检出
+          cd clash_aggregator
+          echo "Current working directory is now: $(pwd)"
+          # 将此目录设置为后续步骤的工作目录，但更推荐直接引用相对路径
+          # export GITHUB_WORKSPACE_CHILD_DIR="clash_aggregator" 
+          # echo "GITHUB_WORKSPACE_CHILD_DIR=${GITHUB_WORKSPACE_CHILD_DIR}" >> $GITHUB_ENV
+
+
+      - name: Set up Python Environment
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install Python Dependencies
+        run: pip install PyYAML requests
+
+      - name: Grant Execute Permission to clash-speedtest
+        run: |
+          echo "Granting execute permission to 'clash-speedtest'..."
+          # --- 关键修改点2：使用相对路径引用工具 ---
+          chmod +x ./clash_aggregator/clash-speedtest # 工具现在在子目录中
+          if [ ! -f "./clash_aggregator/clash-speedtest" ]; then
+            echo "Error: 'clash_aggregator/clash-speedtest' file not found. Please ensure it's in the correct sub-directory."
+            exit 1
+          fi
+
+      - name: Aggregate and Filter Nodes
+        id: aggregate_nodes
+        run: |
+          echo "Starting node aggregation from multiple sources..."
+          # --- 关键修改点3：使用相对路径引用 Python 脚本 ---
+          python ./clash_aggregator/node_aggregator.py \
+            "https://raw.githubusercontent.com/qjlxg/vt/refs/heads/main/clash_config.yaml" \
+            "https://some.free.proxy.provider/clash_nodes.yaml" \
+            "https://another.github.repo/path/to/base64_links.txt" \
+            "https://example.com/daily_links.txt"
+        env:
+          PYTHONUNBUFFERED: 1
+
+      - name: Verify Aggregated Nodes File
+        id: verify_aggregated
+        run: |
+          # node_aggregator.py 仍然会在当前工作目录生成文件
+          AGGREGATED_FILE="filtered_nodes_for_speedtest.yaml"
+          if [ ! -s "$AGGREGATED_FILE" ]; then
+            echo "Warning: '$AGGREGATED_FILE' is empty or has no valid content. This might mean no nodes matched initial filtering or parsing failed."
+            echo "--- $AGGREGATED_FILE Content (first 20 lines) ---"
+            head -n 20 "$AGGREGATED_FILE" || true
+            echo "----------------------------------------"
+            exit 1
+          fi
+          echo "'$AGGREGATED_FILE' file generated, size: $(du -h "$AGGREGATED_FILE" | awk '{print $1}')"
+
+      - name: Run Speed Test
+        id: run_speedtest
+        run: |
+          echo "Starting speed test for aggregated nodes..."
+          # --- 关键修改点4：使用相对路径引用测速工具和输入文件 ---
+          ./clash_aggregator/clash-speedtest \
+            -c filtered_nodes_for_speedtest.yaml \
+            -output optimized_clash_nodes.yaml \
+            -download-size 524288 \
+            -upload-size 524288 \
+            -timeout 30s \
+            -concurrent 50 \
+            -max-latency 5000ms \
+            -min-download-speed 0 \
+            -min-upload-speed 0 \
+            -rename \
+            -fast
+        env:
+          PYTHONUNBUFFERED: 1
+
+      - name: Verify Final Output File
+        id: check_final_file
+        run: |
+          FINAL_OUTPUT_FILE="optimized_clash_nodes.yaml"
+          if [ -f "$FINAL_OUTPUT_FILE" ]; then
+            echo "'$FINAL_OUTPUT_FILE' generated, size: $(du -h "$FINAL_OUTPUT_FILE" | awk '{print $1}')"
+            echo "--- $FINAL_OUTPUT_FILE Content (first 50 lines) ---"
+            head -n 50 "$FINAL_OUTPUT_FILE" || true
+            echo "----------------------------------------"
+            if [ "$(grep -c 'name:' "$FINAL_OUTPUT_FILE")" -eq 0 ]; then
+              echo "Warning: No proxy nodes detected in '$FINAL_OUTPUT_FILE'. All nodes might have failed speed test filtering."
+            fi
+          else
+            echo "Error: '$FINAL_OUTPUT_FILE' was not generated. Speed test might have failed or no nodes passed filtering."
+            exit 1
+          fi
+
+      - name: Commit and Push Optimized Config
+        if: success() && steps.check_final_file.outcome == 'success'
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "Auto: Update optimized Clash nodes (speed-sorted & filtered)"
+          file_pattern: optimized_clash_nodes.yaml # 提交这个文件
+          branch: main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
