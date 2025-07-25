@@ -1,101 +1,52 @@
-name: Node Aggregation & Speedtest
+name: Aggregate and Filter Clash Nodes # 工作流名称
 
 on:
   workflow_dispatch: # 允许手动触发
   schedule:
-    - cron: '0 */6 * * *' # 每 6 小时运行一次
+    - cron: '0 */6 * * *' # 每6小时运行一次，例如 UTC 时间 0点、6点、12点、18点
 
 jobs:
-  aggregate-and-test:
-    runs-on: ubuntu-latest
-    timeout-minutes: 360 # 设置整个Job的最大运行时间
+  build:
+    runs-on: ubuntu-latest # 在最新的 Ubuntu 运行器上执行
 
     steps:
-      - name: Checkout Repository
+      - name: Checkout repository # 步骤1: 检出您的代码仓库
         uses: actions/checkout@v4
 
-      - name: Set up Python Environment
+      - name: Set up Python # 步骤2: 设置 Python 环境
         uses: actions/setup-python@v5
         with:
-          python-version: '3.x'
+          python-version: '3.x' # 推荐使用 Python 3.9 或更高版本以获得更好的 async/await 支持
 
-      - name: Install Python Dependencies
-        run: pip install PyYAML requests
+      - name: Install dependencies # 步骤3: 安装 Python 依赖
+        run: pip install -r requirements.txt
 
-      - name: Grant Execute Permission to clash-speedtest
-        run: |
-          echo "Granting execute permission to './clash_aggregator/clash-speedtest'..."
-          chmod +x ./clash_aggregator/clash-speedtest
-          if [ ! -f "./clash_aggregator/clash-speedtest" ]; then
-            echo "Error: './clash_aggregator/clash-speedtest' file not found. Please ensure it's in the correct sub-directory."
-            exit 1
-          fi
-
-      - name: Aggregate and Filter Nodes
+      - name: Aggregate and Filter Nodes # 步骤4: 运行您的节点聚合和过滤脚本
         id: aggregate_nodes
         run: |
           echo "Starting node aggregation from sources defined in 'clash_aggregator/sources.txt'..."
-          # --- 核心修改点：脚本已修改为自动查找 sources.txt，此处不再传递参数 ---
-          python ./clash_aggregator/node_aggregator.py
+          # 运行 Python 脚本，通过命令行参数指定输出文件和端口
+          # --output 参数将配置文件输出到指定路径
+          # 日志会通过 logging 模块输出到 stderr 和 clash_aggregator.log
+          python ./clash_aggregator/node_aggregator.py \
+            --output ./clash_aggregator/config.yaml \
+            --port 7890 \
+            --socks-port 7891
+          echo "Node aggregation finished. Check ./clash_aggregator/config.yaml and ./clash_aggregator/clash_aggregator.log for details."
         env:
           PYTHONUNBUFFERED: 1 # 实时显示 Python 输出
 
-      - name: Verify Aggregated Nodes File
-        id: verify_aggregated
-        run: |
-          # node_aggregator.py 仍然会在当前工作目录生成文件 (即仓库根目录)
-          AGGREGATED_FILE="filtered_nodes_for_speedtest.yaml"
-          if [ ! -s "$AGGREGATED_FILE" ]; then
-            echo "Warning: '$AGGREGATED_FILE' is empty or has no valid content. This might mean no nodes matched initial filtering or parsing failed."
-            echo "--- $AGGREGATED_FILE Content (first 20 lines) ---"
-            head -n 20 "$AGGREGATED_FILE" || true
-            echo "----------------------------------------"
-            exit 1
-          fi
-          echo "'$AGGREGATED_FILE' file generated, size: $(du -h "$AGGREGATED_FILE" | awk '{print $1}')"
-
-      - name: Run Speed Test
-        id: run_speedtest
-        run: |
-          echo "Starting speed test for aggregated nodes..."
-          ./clash_aggregator/clash-speedtest \
-            -c filtered_nodes_for_speedtest.yaml \
-            -output optimized_clash_nodes.yaml \
-            -download-size 524288 \
-            -upload-size 524288 \
-            -timeout 30s \
-            -concurrent 50 \
-            -max-latency 5000ms \
-            -min-download-speed 0 \
-            -min-upload-speed 0 \
-            -rename \
-            -fast
-        env:
-          PYTHONUNBUFFERED: 1
-
-      - name: Verify Final Output File
-        id: check_final_file
-        run: |
-          FINAL_OUTPUT_FILE="optimized_clash_nodes.yaml"
-          if [ -f "$FINAL_OUTPUT_FILE" ]; then
-            echo "'$FINAL_OUTPUT_FILE' generated, size: $(du -h "$FINAL_OUTPUT_FILE" | awk '{print $1}')"
-            echo "--- $FINAL_OUTPUT_FILE Content (first 50 lines) ---"
-            head -n 50 "$FINAL_OUTPUT_FILE" || true
-            echo "----------------------------------------"
-            if [ "$(grep -c 'name:' "$FINAL_OUTPUT_FILE")" -eq 0 ]; then
-              echo "Warning: No proxy nodes detected in '$FINAL_OUTPUT_FILE'. All nodes might have failed speed test filtering."
-            fi
-          else
-            echo "Error: '$FINAL_OUTPUT_FILE' was not generated. Speed test might have failed or no nodes passed filtering."
-            exit 1
-          fi
-
-      - name: Commit and Push Optimized Config
-        if: success() && steps.check_final_file.outcome == 'success'
-        uses: stefanzweifel/git-auto-commit-action@v5
+      - name: Upload Logs # 可选步骤：上传日志文件，方便调试
+        uses: actions/upload-artifact@v4
         with:
-          commit_message: "Auto: Update optimized Clash nodes (speed-sorted & filtered)"
-          file_pattern: optimized_clash_nodes.yaml
-          branch: main
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          name: clash-aggregator-logs
+          path: clash_aggregator/clash_aggregator.log
+          if-no-files-found: ignore # 如果没有找到日志文件，则忽略此步骤
+
+      - name: Commit and Push if changed # 步骤5: 如果生成的配置文件有变化，则提交并推送
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git add ./clash_aggregator/config.yaml ./clash_aggregator/clash_aggregator.log ./clash_aggregator/ip_cache.json # 同时添加配置文件、日志和IP缓存
+          git commit -m "Update Clash config and logs [skip ci]" || echo "No changes to commit"
+          git push
