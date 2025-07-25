@@ -8,7 +8,7 @@ on:
 jobs:
   aggregate-and-test:
     runs-on: ubuntu-latest
-    timeout-minutes: 30 # 设置整个Job的最大运行时间
+    timeout-minutes: 360 # 设置整个Job的最大运行时间
 
     steps:
       - name: Checkout Repository
@@ -35,8 +35,8 @@ jobs:
         id: aggregate_nodes
         run: |
           echo "Starting node aggregation from sources defined in 'clash_aggregator/sources.txt'..."
-          # --- 核心修改点：不再传递URL参数，脚本会自己读取 sources.txt ---
-          python ./clash_aggregator/node_aggregator.py ./clash_aggregator/sources.txt
+          # --- 核心修改点：脚本已修改为自动查找 sources.txt，此处不再传递参数 ---
+          python ./clash_aggregator/node_aggregator.py
         env:
           PYTHONUNBUFFERED: 1 # 实时显示 Python 输出
 
