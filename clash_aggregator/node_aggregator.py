@@ -1,6 +1,6 @@
 import yaml
 import sys
-import os
+import os # <--- 新增导入
 import base64
 import re
 import requests
@@ -27,11 +27,11 @@ IP_API_URL = "http://ip-api.com/json/{ip}?fields=status,message,countryCode,regi
 # IP API 调用间隔 (秒)。ip-api.com 免费版限速通常是每分钟 45 次请求，所以这里设置为 1.5 秒确保不超限。
 IP_API_COOLDOWN = 1.5 
 
-# 源代码文件路径
-SOURCES_FILE = 'sources.txt'
+# 源代码文件路径 - 修正路径使其指向 'clash_aggregator' 目录内的 sources.txt
+# os.path.dirname(__file__) 会获取当前脚本所在的目录
+SOURCES_FILE = os.path.join(os.path.dirname(__file__), 'sources.txt')
 
 
-# --- 修改 get_ip_info 函数 ---
 def get_ip_info(ip_address):
     """
     通过 ip-api.com 查询 IP 地址的地理位置、ISP 和 ASN 信息。
@@ -72,11 +72,6 @@ def get_ip_info(ip_address):
         print(f"  Warning: An unexpected error occurred during IP lookup for {ip_address}: {e}", file=sys.stderr)
     return None
 
-# 定义其他不变的解析函数 (safe_load_yaml, decode_base64_url_safe, parse_vmess_link, parse_trojan_link, parse_ss_link, parse_vless_link, parse_hysteria2_link, parse_single_link_smart, fetch_and_parse_source, get_proxy_unique_key)
-# 为了避免冗长，这里省略了这些函数的具体内容，它们与之前版本（即您之前收到的完整版本）完全相同。
-# 请确保您使用之前版本中完整的这些函数代码。
-
-# --- 其他解析函数（与之前版本相同，请勿省略） ---
 def safe_load_yaml(content):
     """安全加载YAML内容，并处理可能的Clash配置键。"""
     try:
@@ -405,6 +400,7 @@ def get_proxy_unique_key(proxy):
 def main():
     all_proxies = {} # 使用字典存储代理，键为唯一标识符，值为代理配置
     
+    # 这里的 os.path.exists(SOURCES_FILE) 会因为上面 SOURCES_FILE 的修改而正确工作
     if not os.path.exists(SOURCES_FILE):
         print(f"Error: {SOURCES_FILE} not found.", file=sys.stderr)
         sys.exit(1)
