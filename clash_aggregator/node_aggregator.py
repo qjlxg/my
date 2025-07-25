@@ -5,11 +5,11 @@ import base64
 import re
 import requests
 import json
-from urllib.parse import urlparse, unquote
-import socket # 用于IP解析
+import socket
+import maxminddb # <--- 新增导入
 
-# 定义靠近中国的地区关键词，用于初步筛选节点 (可以根据需要调整，但IP查询会更准)
-REGION_KEYWORDS = ['hk', 'tw', 'sg', 'jp', 'kr', 'ru', 'mo', 'vn', 'ph', 'th', 'my', 'kp', 'mn']
+# 定义靠近中国的地区关键词，用于初步筛选节点
+REGION_KEYWORDS = ['hk', 'tw', 'sg', 'jp', 'kr', 'ru', 'mo', 'vn', 'ph', 'th', 'my', 'kp', 'mn', 'cn'] # 添加 'cn' 以确保包含中国大陆节点
 
 # 定义允许的服务商关键词 (小写)，用于ASN/ISP过滤
 # 例如：'amazon', 'microsoft', 'google', 'digitalocean', 'vultr', 'linode'
@@ -17,19 +17,41 @@ REGION_KEYWORDS = ['hk', 'tw', 'sg', 'jp', 'kr', 'ru', 'mo', 'vn', 'ph', 'th', '
 ALLOWED_ISPS_ASNS = ['amazon', 'microsoft', 'google', 'digitalocean', 'vultr', 'linode', 'alibaba', 'tencent', 'huawei']
 
 # 定义要排除的IP段或关键词 (例如：已知的不稳定或被滥用的服务商，可自行添加)
-# EXCLUDE_ISPS_ASNS = ['alibaba', 'tencent'] # 示例：排除阿里云和腾讯云
-EXCLUDE_ISPS_ASNS = []
+EXCLUDE_ISPS_ASNS = [] # 示例：['alibaba', 'tencent'] # 排除阿里云和腾讯云
 
-# IP查询API
-IP_API_URL = "http://ip-api.com/json/{ip}?fields=status,message,countryCode,regionName,city,isp,org,as,query"
+# 源代码文件路径
+SOURCES_FILE = 'sources.txt'
+
+# GeoLite2 数据库文件路径 (相对于脚本的路径)
+GEOLITE2_DB = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'GeoLite2-City.mmdb')
 
 
-# --- 新增函数：查询IP信息 ---
+# --- 修改 get_ip_info 函数以使用 MaxMindDB ---
+_mmdb_reader = None # 全局变量，用于存储数据库读取器
+
+def init_mmdb_reader():
+    """初始化 MaxMindDB Reader，只在需要时加载数据库。"""
+    global _mmdb_reader
+    if _mmdb_reader is None:
+        try:
+            if not os.path.exists(GEOLITE2_DB):
+                print(f"Error: GeoLite2-City.mmdb not found at {GEOLITE2_DB}. Please download it and place it in the same directory as the script.", file=sys.stderr)
+                return False
+            _mmdb_reader = maxminddb.open_database(GEOLITE2_DB)
+            print(f"Successfully loaded GeoLite2 database from {GEOLITE2_DB}", file=sys.stderr)
+        except Exception as e:
+            print(f"Error loading MaxMindDB database: {e}", file=sys.stderr)
+            _mmdb_reader = None
+            return False
+    return _mmdb_reader is not None
+
 def get_ip_info(ip_address):
     """
-    通过 ip-api.com 查询 IP 地址的地理位置、ISP 和 ASN 信息。
-    注意：ip-api.com 有免费版限制，可能会触发限速。
+    通过 MaxMindDB 查询 IP 地址的地理位置和ASN信息。
     """
+    if not init_mmdb_reader():
+        return None # 数据库未加载，无法查询
+
     try:
         # 尝试将域名解析为IP
         if not re.match(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$", ip_address):
@@ -39,31 +61,46 @@ def get_ip_info(ip_address):
                 print(f"  Warning: Could not resolve hostname '{ip_address}' to IP address.", file=sys.stderr)
                 return None
 
-        response = requests.get(IP_API_URL.format(ip=ip_address), timeout=5)
-        response.raise_for_status() # 检查 HTTP 错误
-        data = response.json()
+        # 查询IP信息
+        response_data = _mmdb_reader.get(ip_address)
         
-        if data.get('status') == 'success':
+        if response_data:
+            # 提取城市信息
+            city_data = response_data.get('city', {}).get('names', {}).get('en', '')
+            # 提取国家信息
+            country_code = response_data.get('country', {}).get('iso_code', '').lower()
+            # 提取省份/州信息 (MaxMindDB中对应的是subdivisions)
+            region_name = response_data.get('subdivisions', [{}])[0].get('names', {}).get('en', '').lower() if response_data.get('subdivisions') else ''
+
+            # 提取ASN信息
+            asn_data = _mmdb_reader.get_with_asn(ip_address)
+            asn_info = asn_data[1] if asn_data and len(asn_data) > 1 else {}
+            asn_org = asn_info.get('autonomous_system_organization', '').lower()
+            asn_number = asn_info.get('autonomous_system_number', '')
+            asn_full = f"as{asn_number} {asn_org}" if asn_number and asn_org else asn_org # 组合成类似 "AS16509 Amazon.com, Inc." 的格式
+
             return {
-                'country_code': data.get('countryCode'),
-                'region_name': data.get('regionName'),
-                'city': data.get('city'),
-                'isp': data.get('isp'), # Internet Service Provider
-                'org': data.get('org'), # Organization name
-                'asn': data.get('as'),  # AS number and name (e.g., "AS16509 Amazon.com, Inc.")
-                'ip': data.get('query')
+                'country_code': country_code,
+                'region_name': region_name, # 注意，这里是省份/州，不是 ip-api 的 regionName
+                'city': city_data.lower(),
+                'isp': asn_org, # ISP通常可以从ASN组织名称中获取
+                'org': asn_org, 
+                'asn': asn_full,
+                'ip': ip_address
             }
         else:
-            print(f"  Warning: IP API query failed for {ip_address}: {data.get('message', 'Unknown error')}", file=sys.stderr)
+            print(f"  Warning: No GeoLite2 data found for IP: {ip_address}", file=sys.stderr)
             return None
-    except requests.exceptions.RequestException as e:
-        print(f"  Warning: IP API request failed for {ip_address}: {e}", file=sys.stderr)
+    except maxminddb.InvalidDatabaseError as e:
+        print(f"  Error: Invalid MaxMindDB database. Please check {GEOLITE2_DB}. Error: {e}", file=sys.stderr)
+        _mmdb_reader = None # 重置读取器，防止后续错误
+        return None
     except Exception as e:
         print(f"  Warning: An unexpected error occurred during IP lookup for {ip_address}: {e}", file=sys.stderr)
     return None
 
-# 定义其他不变的解析函数 (vmess, trojan, ss, vless, hysteria2, safe_load_yaml, decode_base64_url_safe, parse_single_link_smart)
-# 为了避免冗长，这里省略了这些函数的具体内容，它们与之前版本完全相同。
+# 定义其他不变的解析函数 (safe_load_yaml, decode_base64_url_safe, parse_vmess_link, parse_trojan_link, parse_ss_link, parse_vless_link, parse_hysteria2_link, parse_single_link_smart, fetch_and_parse_source, get_proxy_unique_key)
+# 为了避免冗长，这里省略了这些函数的具体内容，它们与之前版本（即您之前收到的完整版本）完全相同。
 # 请确保您使用之前版本中完整的这些函数代码。
 
 # --- 其他解析函数（与之前版本相同，请勿省略） ---
@@ -423,6 +460,10 @@ if __name__ == '__main__':
     all_proxies = {}
     total_parsed_count = 0
 
+    # 尝试初始化数据库读取器
+    if not init_mmdb_reader():
+        print("Error: MaxMindDB database could not be loaded. IP-based filtering will be severely limited.", file=sys.stderr)
+
     for source in source_urls:
         print(f"\n--- Processing source: {source} ---", file=sys.stderr)
         parsed_proxies = fetch_and_parse_source(source)
@@ -440,29 +481,28 @@ if __name__ == '__main__':
                 continue
 
             # --- 核心过滤逻辑修改 ---
-            # 优先使用IP信息进行过滤
-            ip_info = get_ip_info(server_address_or_domain)
-            
-            # 初始化过滤状态
             passes_region_filter = False
             passes_isp_asn_filter = False
 
+            ip_info = get_ip_info(server_address_or_domain) # 使用新的MaxMindDB查询函数
+            
             if ip_info:
-                # 地区过滤
+                # 地区过滤 (MaxMindDB 提供 country_code, region_name (省份), city)
                 country_code = ip_info.get('country_code', '').lower()
-                region_name = ip_info.get('region_name', '').lower()
-                city = ip_info.get('city', '').lower()
+                region_name_mmdb = ip_info.get('region_name', '').lower() # 这是MaxMindDB的省份/州
+                city_mmdb = ip_info.get('city', '').lower()
                 
-                # 检查国家代码或区域名称是否在允许的关键词中
+                # 检查国家代码、省份或城市是否在允许的关键词中
                 if country_code in [kw.lower() for kw in REGION_KEYWORDS] or \
-                   any(kw.lower() in region_name for kw in REGION_KEYWORDS) or \
-                   any(kw.lower() in city for kw in REGION_KEYWORDS):
+                   any(kw.lower() == country_code for kw in REGION_KEYWORDS) or \
+                   any(kw.lower() in region_name_mmdb for kw in REGION_KEYWORDS) or \
+                   any(kw.lower() in city_mmdb for kw in REGION_KEYWORDS):
                     passes_region_filter = True
                 
                 # ISP/ASN 过滤
                 isp_name = ip_info.get('isp', '').lower()
                 org_name = ip_info.get('org', '').lower()
-                asn_name = ip_info.get('asn', '').lower() # AS12345 example.com, Inc.
+                asn_name = ip_info.get('asn', '').lower()
 
                 # 检查是否在允许的服务商列表中 (如果 ALLOWED_ISPS_ASNS 不为空)
                 if ALLOWED_ISPS_ASNS:
@@ -471,9 +511,9 @@ if __name__ == '__main__':
                        any(allowed_isp.lower() in asn_name for allowed_isp in ALLOWED_ISPS_ASNS):
                         passes_isp_asn_filter = True
                     else:
-                        passes_isp_asn_filter = False # 不在允许列表中
+                        passes_isp_asn_filter = False
                 else:
-                    passes_isp_asn_filter = True # 如果ALLOW_ISPS_ASNS为空，表示不进行此过滤
+                    passes_isp_asn_filter = True # 如果ALLOWED_ISPS_ASNS为空，表示不进行此过滤
 
                 # 检查是否在排除的服务商列表中 (如果 EXCLUDE_ISPS_ASNS 不为空)
                 if EXCLUDE_ISPS_ASNS:
@@ -483,7 +523,7 @@ if __name__ == '__main__':
                         print(f"  Info: Skipping proxy '{proxy.get('name', 'Unnamed')}' ({server_address_or_domain}) due to excluded ISP/ASN: {isp_name}/{asn_name}", file=sys.stderr)
                         continue # 直接跳过
             else:
-                # 如果IP查询失败，退回到旧的基于名称/服务器地址的关键词过滤
+                # 如果IP查询失败 (无论是域名解析失败还是MMDB查询失败)，退回到旧的基于名称/服务器地址的关键词过滤
                 print(f"  Info: IP lookup failed for {server_address_or_domain}. Falling back to keyword matching for region.", file=sys.stderr)
                 # 仍然尝试使用旧的 REGION_KEYWORDS 逻辑
                 if any(kw.lower() in server_address_or_domain.lower() for kw in REGION_KEYWORDS) or \
@@ -516,3 +556,8 @@ if __name__ == '__main__':
     print(f"\n--- Aggregation Summary ---", file=sys.stderr)
     print(f"Total proxies parsed from all sources: {total_parsed_count}", file=sys.stderr)
     print(f"Unique, region-filtered proxies saved to '{output_file}': {len(final_proxies_list)}", file=sys.stderr)
+
+    # 关闭数据库连接
+    if _mmdb_reader:
+        _mmdb_reader.close()
+        print("GeoLite2 database closed.", file=sys.stderr)
