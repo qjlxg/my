@@ -14,17 +14,6 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      # --- 关键修改点1：指定工作目录 ---
-      - name: Set Working Directory
-        run: |
-          mkdir -p clash_aggregator # 确保目录存在，尽管通常会自动被检出
-          cd clash_aggregator
-          echo "Current working directory is now: $(pwd)"
-          # 将此目录设置为后续步骤的工作目录，但更推荐直接引用相对路径
-          # export GITHUB_WORKSPACE_CHILD_DIR="clash_aggregator" 
-          # echo "GITHUB_WORKSPACE_CHILD_DIR=${GITHUB_WORKSPACE_CHILD_DIR}" >> $GITHUB_ENV
-
-
       - name: Set up Python Environment
         uses: actions/setup-python@v5
         with:
@@ -35,31 +24,26 @@ jobs:
 
       - name: Grant Execute Permission to clash-speedtest
         run: |
-          echo "Granting execute permission to 'clash-speedtest'..."
-          # --- 关键修改点2：使用相对路径引用工具 ---
-          chmod +x ./clash_aggregator/clash-speedtest # 工具现在在子目录中
+          echo "Granting execute permission to './clash_aggregator/clash-speedtest'..."
+          chmod +x ./clash_aggregator/clash-speedtest
           if [ ! -f "./clash_aggregator/clash-speedtest" ]; then
-            echo "Error: 'clash_aggregator/clash-speedtest' file not found. Please ensure it's in the correct sub-directory."
+            echo "Error: './clash_aggregator/clash-speedtest' file not found. Please ensure it's in the correct sub-directory."
             exit 1
           fi
 
       - name: Aggregate and Filter Nodes
         id: aggregate_nodes
         run: |
-          echo "Starting node aggregation from multiple sources..."
-          # --- 关键修改点3：使用相对路径引用 Python 脚本 ---
-          python ./clash_aggregator/node_aggregator.py \
-            "https://raw.githubusercontent.com/qjlxg/vt/refs/heads/main/clash_config.yaml" \
-            "https://some.free.proxy.provider/clash_nodes.yaml" \
-            "https://another.github.repo/path/to/base64_links.txt" \
-            "https://example.com/daily_links.txt"
+          echo "Starting node aggregation from sources defined in 'clash_aggregator/sources.txt'..."
+          # --- 核心修改点：不再传递URL参数，脚本会自己读取 sources.txt ---
+          python ./clash_aggregator/node_aggregator.py ./clash_aggregator/sources.txt
         env:
-          PYTHONUNBUFFERED: 1
+          PYTHONUNBUFFERED: 1 # 实时显示 Python 输出
 
       - name: Verify Aggregated Nodes File
         id: verify_aggregated
         run: |
-          # node_aggregator.py 仍然会在当前工作目录生成文件
+          # node_aggregator.py 仍然会在当前工作目录生成文件 (即仓库根目录)
           AGGREGATED_FILE="filtered_nodes_for_speedtest.yaml"
           if [ ! -s "$AGGREGATED_FILE" ]; then
             echo "Warning: '$AGGREGATED_FILE' is empty or has no valid content. This might mean no nodes matched initial filtering or parsing failed."
@@ -74,7 +58,6 @@ jobs:
         id: run_speedtest
         run: |
           echo "Starting speed test for aggregated nodes..."
-          # --- 关键修改点4：使用相对路径引用测速工具和输入文件 ---
           ./clash_aggregator/clash-speedtest \
             -c filtered_nodes_for_speedtest.yaml \
             -output optimized_clash_nodes.yaml \
@@ -112,7 +95,7 @@ jobs:
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "Auto: Update optimized Clash nodes (speed-sorted & filtered)"
-          file_pattern: optimized_clash_nodes.yaml # 提交这个文件
+          file_pattern: optimized_clash_nodes.yaml
           branch: main
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
