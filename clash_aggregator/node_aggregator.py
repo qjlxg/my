@@ -6,25 +6,74 @@ import re
 import requests
 import json
 from urllib.parse import urlparse, unquote
+import socket # 用于IP解析
 
-# 定义靠近中国的地区关键词，用于初步筛选节点
-REGION_KEYWORDS = ['hk', 'tw', 'sg', 'jp', 'kr', 'ru']
+# 定义靠近中国的地区关键词，用于初步筛选节点 (可以根据需要调整，但IP查询会更准)
+REGION_KEYWORDS = ['hk', 'tw', 'sg', 'jp', 'kr', 'ru', 'mo', 'vn', 'ph', 'th', 'my', 'kp', 'mn']
 
-# --- 核心修改点：不再硬编码 NODE_SOURCES，而是从文件读取 ---
-# 源代码文件路径
-SOURCES_FILE = 'sources.txt'
-# --- 核心修改点结束 ---
+# 定义允许的服务商关键词 (小写)，用于ASN/ISP过滤
+# 例如：'amazon', 'microsoft', 'google', 'digitalocean', 'vultr', 'linode'
+# 如果不希望过滤服务商，可以留空列表 []
+ALLOWED_ISPS_ASNS = ['amazon', 'microsoft', 'google', 'digitalocean', 'vultr', 'linode', 'alibaba', 'tencent', 'huawei']
+
+# 定义要排除的IP段或关键词 (例如：已知的不稳定或被滥用的服务商，可自行添加)
+# EXCLUDE_ISPS_ASNS = ['alibaba', 'tencent'] # 示例：排除阿里云和腾讯云
+EXCLUDE_ISPS_ASNS = []
+
+# IP查询API
+IP_API_URL = "http://ip-api.com/json/{ip}?fields=status,message,countryCode,regionName,city,isp,org,as,query"
 
 
+# --- 新增函数：查询IP信息 ---
+def get_ip_info(ip_address):
+    """
+    通过 ip-api.com 查询 IP 地址的地理位置、ISP 和 ASN 信息。
+    注意：ip-api.com 有免费版限制，可能会触发限速。
+    """
+    try:
+        # 尝试将域名解析为IP
+        if not re.match(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$", ip_address):
+            try:
+                ip_address = socket.gethostbyname(ip_address)
+            except socket.gaierror:
+                print(f"  Warning: Could not resolve hostname '{ip_address}' to IP address.", file=sys.stderr)
+                return None
+
+        response = requests.get(IP_API_URL.format(ip=ip_address), timeout=5)
+        response.raise_for_status() # 检查 HTTP 错误
+        data = response.json()
+        
+        if data.get('status') == 'success':
+            return {
+                'country_code': data.get('countryCode'),
+                'region_name': data.get('regionName'),
+                'city': data.get('city'),
+                'isp': data.get('isp'), # Internet Service Provider
+                'org': data.get('org'), # Organization name
+                'asn': data.get('as'),  # AS number and name (e.g., "AS16509 Amazon.com, Inc.")
+                'ip': data.get('query')
+            }
+        else:
+            print(f"  Warning: IP API query failed for {ip_address}: {data.get('message', 'Unknown error')}", file=sys.stderr)
+            return None
+    except requests.exceptions.RequestException as e:
+        print(f"  Warning: IP API request failed for {ip_address}: {e}", file=sys.stderr)
+    except Exception as e:
+        print(f"  Warning: An unexpected error occurred during IP lookup for {ip_address}: {e}", file=sys.stderr)
+    return None
+
+# 定义其他不变的解析函数 (vmess, trojan, ss, vless, hysteria2, safe_load_yaml, decode_base64_url_safe, parse_single_link_smart)
+# 为了避免冗长，这里省略了这些函数的具体内容，它们与之前版本完全相同。
+# 请确保您使用之前版本中完整的这些函数代码。
+
+# --- 其他解析函数（与之前版本相同，请勿省略） ---
 def safe_load_yaml(content):
     """安全加载YAML内容，并处理可能的Clash配置键。"""
     try:
         data = yaml.safe_load(content)
         if isinstance(data, dict):
-            # 检查是否是完整的Clash配置，如果是，提取proxies
             if 'proxies' in data and isinstance(data['proxies'], list):
                 return data['proxies']
-            # 检查是否有proxy-providers，尝试提取
             if 'proxy-providers' in data and isinstance(data['proxy-providers'], dict):
                 print("Warning: 'proxy-providers' found in YAML, but not directly processed as static proxies.", file=sys.stderr)
         return []
@@ -350,15 +399,18 @@ if __name__ == '__main__':
         print(f"Using custom sources file: {custom_sources_file}", file=sys.stderr)
         read_sources_file = custom_sources_file
     else:
-        print(f"Using default sources file: {SOURCES_FILE}", file=sys.stderr)
-        read_sources_file = SOURCES_FILE
+        # 获取当前脚本的目录
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        read_sources_file = os.path.join(script_dir, SOURCES_FILE)
+        print(f"Using default sources file: {read_sources_file}", file=sys.stderr)
 
     # 读取来源链接列表
     try:
         with open(read_sources_file, 'r', encoding='utf-8') as f:
+            # 过滤掉空行和注释行
             source_urls = [line.strip() for line in f if line.strip() and not line.strip().startswith('#')]
     except FileNotFoundError:
-        print(f"Error: Sources file '{read_sources_file}' not found. Please create it and add your subscription URLs.", file=sys.stderr)
+        print(f"Error: Sources file '{read_sources_file}' not found. Please create it in the same directory as the script and add your subscription URLs.", file=sys.stderr)
         sys.exit(1)
     except Exception as e:
         print(f"Error reading sources file '{read_sources_file}': {e}", file=sys.stderr)
@@ -381,31 +433,76 @@ if __name__ == '__main__':
                 print(f"  Warning: Skipping malformed proxy entry: {proxy}", file=sys.stderr)
                 continue
 
-            server_address = proxy.get('server')
-            if not server_address:
+            # 获取服务器地址（可能是域名或IP）
+            server_address_or_domain = proxy.get('server')
+            if not server_address_or_domain:
                 print(f"  Warning: Skipping proxy '{proxy.get('name', 'Unnamed')}' (type: {proxy.get('type')}) as it has no 'server' key.", file=sys.stderr)
                 continue
-            
-            matched_region = False
-            for keyword in REGION_KEYWORDS:
-                if keyword.lower() in server_address.lower():
-                    matched_region = True
-                    break
-            proxy_name = proxy.get('remark') or proxy.get('name', '')
-            if not matched_region: 
-                for keyword in REGION_KEYWORDS:
-                    if keyword.lower() in proxy_name.lower():
-                        matched_region = True
-                        break
 
-            if matched_region:
+            # --- 核心过滤逻辑修改 ---
+            # 优先使用IP信息进行过滤
+            ip_info = get_ip_info(server_address_or_domain)
+            
+            # 初始化过滤状态
+            passes_region_filter = False
+            passes_isp_asn_filter = False
+
+            if ip_info:
+                # 地区过滤
+                country_code = ip_info.get('country_code', '').lower()
+                region_name = ip_info.get('region_name', '').lower()
+                city = ip_info.get('city', '').lower()
+                
+                # 检查国家代码或区域名称是否在允许的关键词中
+                if country_code in [kw.lower() for kw in REGION_KEYWORDS] or \
+                   any(kw.lower() in region_name for kw in REGION_KEYWORDS) or \
+                   any(kw.lower() in city for kw in REGION_KEYWORDS):
+                    passes_region_filter = True
+                
+                # ISP/ASN 过滤
+                isp_name = ip_info.get('isp', '').lower()
+                org_name = ip_info.get('org', '').lower()
+                asn_name = ip_info.get('asn', '').lower() # AS12345 example.com, Inc.
+
+                # 检查是否在允许的服务商列表中 (如果 ALLOWED_ISPS_ASNS 不为空)
+                if ALLOWED_ISPS_ASNS:
+                    if any(allowed_isp.lower() in isp_name for allowed_isp in ALLOWED_ISPS_ASNS) or \
+                       any(allowed_isp.lower() in org_name for allowed_isp in ALLOWED_ISPS_ASNS) or \
+                       any(allowed_isp.lower() in asn_name for allowed_isp in ALLOWED_ISPS_ASNS):
+                        passes_isp_asn_filter = True
+                    else:
+                        passes_isp_asn_filter = False # 不在允许列表中
+                else:
+                    passes_isp_asn_filter = True # 如果ALLOW_ISPS_ASNS为空，表示不进行此过滤
+
+                # 检查是否在排除的服务商列表中 (如果 EXCLUDE_ISPS_ASNS 不为空)
+                if EXCLUDE_ISPS_ASNS:
+                    if any(exclude_isp.lower() in isp_name for exclude_isp in EXCLUDE_ISPS_ASNS) or \
+                       any(exclude_isp.lower() in org_name for exclude_isp in EXCLUDE_ISPS_ASNS) or \
+                       any(exclude_isp.lower() in asn_name for exclude_isp in EXCLUDE_ISPS_ASNS):
+                        print(f"  Info: Skipping proxy '{proxy.get('name', 'Unnamed')}' ({server_address_or_domain}) due to excluded ISP/ASN: {isp_name}/{asn_name}", file=sys.stderr)
+                        continue # 直接跳过
+            else:
+                # 如果IP查询失败，退回到旧的基于名称/服务器地址的关键词过滤
+                print(f"  Info: IP lookup failed for {server_address_or_domain}. Falling back to keyword matching for region.", file=sys.stderr)
+                # 仍然尝试使用旧的 REGION_KEYWORDS 逻辑
+                if any(kw.lower() in server_address_or_domain.lower() for kw in REGION_KEYWORDS) or \
+                   any(kw.lower() in (proxy.get('remark') or proxy.get('name', '')).lower() for kw in REGION_KEYWORDS):
+                    passes_region_filter = True
+                passes_isp_asn_filter = True # 如果IP查询失败，不进行ISP/ASN过滤
+
+            # 最终判断是否通过所有过滤
+            if passes_region_filter and passes_isp_asn_filter:
                 proxy_key = get_proxy_unique_key(proxy)
                 if proxy_key and proxy_key not in all_proxies:
                     if 'tls' in proxy and isinstance(proxy['tls'], str):
                         proxy['tls'] = proxy['tls'].lower() == 'true'
                     all_proxies[proxy_key] = proxy
             else:
-                print(f"  Info: Skipping proxy '{proxy.get('name', 'Unnamed')}' (server/host: {server_address}) as it does not match close-to-China regions.", file=sys.stderr)
+                # 打印更详细的跳过原因
+                if not passes_region_filter:
+                    print(f"  Info: Skipping proxy '{proxy.get('name', 'Unnamed')}' ({server_address_or_domain}) as it does not match close-to-China regions based on IP info or keyword.", file=sys.stderr)
+                # ISP/ASN的跳过在上面已处理
 
     final_proxies_list = list(all_proxies.values())
     
