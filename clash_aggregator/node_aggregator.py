@@ -1,13 +1,13 @@
 import yaml
 import sys
-import os # <--- 新增导入
+import os
 import base64
 import re
 import requests
 import json
 from urllib.parse import urlparse, unquote
 import socket
-import time # <--- 新增导入
+import time
 
 # 定义靠近中国的地区关键词，用于初步筛选节点 (可以根据需要调整，但IP查询会更准)
 # 增加常见缩写和中文名称，提高关键词匹配的准确性，以防IP查询失败。
@@ -25,7 +25,7 @@ EXCLUDE_ISPS_ASNS = [] # 示例：['iran', 'russia telecom'] # 排除伊朗和�
 IP_API_URL = "http://ip-api.com/json/{ip}?fields=status,message,countryCode,regionName,city,isp,org,as,query"
 
 # IP API 调用间隔 (秒)。ip-api.com 免费版限速通常是每分钟 45 次请求，所以这里设置为 1.5 秒确保不超限。
-IP_API_COOLDOWN = 1.5 
+IP_API_COOLDOWN = 1.5
 
 # 源代码文件路径 - 修正路径使其指向 'clash_aggregator' 目录内的 sources.txt
 # os.path.dirname(__file__) 会获取当前脚本所在的目录
@@ -47,12 +47,12 @@ def get_ip_info(ip_address):
                 return None
 
         # 增加延时以避免触发 IP API 的速率限制
-        time.sleep(IP_API_COOLDOWN) 
+        time.sleep(IP_API_COOLDOWN)
 
         response = requests.get(IP_API_URL.format(ip=ip_address), timeout=5)
         response.raise_for_status() # 检查 HTTP 错误
         data = response.json()
-        
+
         if data.get('status') == 'success':
             return {
                 'country_code': data.get('countryCode', '').lower(),
@@ -143,7 +143,7 @@ def parse_trojan_link(link):
         name_part = parts.group(5) if parts.group(5) else ""
 
         name = unquote(name_part[1:]) if name_part else f"trojan-{server[:8]}"
-        
+
         query_params = dict(re.findall(r"(\w+)=([^&]+)", query_str[1:])) if query_str else {}
 
         proxy = {
@@ -162,12 +162,12 @@ def parse_trojan_link(link):
             proxy['sni'] = query_params['peer']
         elif 'sni' in query_params:
             proxy['sni'] = query_params['sni']
-        
+
         if query_params.get('type') == 'ws':
             proxy['network'] = 'ws'
             proxy['ws-path'] = query_params.get('path', '/')
             proxy['ws-headers'] = {'Host': query_params.get('host') or server}
-        
+
         return proxy
     except Exception as e:
         print(f"Warning: Failed to parse Trojan link '{link[:50]}...': {e}", file=sys.stderr)
@@ -192,15 +192,36 @@ def parse_ss_link(link):
                 method, password = decoded_mp.split(':', 1)
             else:
                 password = decoded_mp
-        
+
         server_decoded = server_info_b64
         try:
-            server_decoded = decode_base64_url_safe(server_info_b64.split('/')[0])
+            # 尝试解码 Base64 部分，例如 "ss://base64encoded_server_info#name"
+            # 但有时 Base64 字符串后面直接跟 #name，所以要确保只解码服务器信息部分
+            potential_base64_part = server_info_b64.split('/')[0] # 取 ? 或 # 之前的部分
+            server_decoded = decode_base64_url_safe(potential_base64_part)
         except Exception:
-            pass
+            # 如果不是Base64编码，或者解码失败，就直接使用原始字符串
+            server_decoded = server_info_b64
 
-        server_host, server_port_str = server_decoded.split(':', 1)
+        # 分割 host 和 port
+        if ':' in server_decoded:
+            server_host, server_port_and_params = server_decoded.split(':', 1)
+        else:
+            # 如果没有端口，则链接格式不正确
+            print(f"Warning: SS link '{link[:50]}...' missing port.", file=sys.stderr)
+            return None
+
+        # 提取纯数字端口，忽略后面的查询参数或路径
+        server_port_str = server_port_and_params.split('?')[0].split('/')[0]
+        # 再次确认，去除可能存在的非数字字符，虽然 int() 会失败但这是预防性的
+        server_port_str = ''.join(filter(str.isdigit, server_port_str))
+
+        if not server_port_str:
+            print(f"Warning: SS link '{link[:50]}...' has empty or non-numeric port after cleaning.", file=sys.stderr)
+            return None
+
         port = int(server_port_str)
+
 
         proxy = {
             'name': name,
@@ -211,6 +232,37 @@ def parse_ss_link(link):
             'password': password,
             'udp': True
         }
+
+        # 进一步解析插件信息（如果存在）
+        query_params = dict(re.findall(r"(\w+)=([^&]+)", server_port_and_params.split('?', 1)[1])) if '?' in server_port_and_params else {}
+        if 'plugin' in query_params:
+            proxy['plugin'] = query_params['plugin']
+            plugin_opts = {}
+            # 解析 v2ray-plugin 参数
+            if proxy['plugin'] == 'v2ray-plugin':
+                plugin_mode = query_params.get('mode', '')
+                if 'websocket' in plugin_mode: # 检查是否包含 websocket
+                    plugin_opts['mode'] = 'websocket'
+                    # 其他websocket参数
+                    if 'path' in query_params:
+                        plugin_opts['path'] = query_params['path']
+                    if 'host' in query_params:
+                        plugin_opts['host'] = query_params['host']
+                    if 'tls' in query_params and query_params['tls'] == 'tls':
+                        plugin_opts['tls'] = True
+                elif 'grpc' in plugin_mode:
+                    plugin_opts['mode'] = 'grpc'
+                    if 'serviceName' in query_params:
+                        plugin_opts['serviceName'] = query_params['serviceName']
+            # 解析 obfs-local 参数 (简单的示例，您可能需要更复杂的逻辑)
+            elif proxy['plugin'] == 'obfs-local':
+                plugin_opts['mode'] = query_params.get('mode', 'http') # 'http' or 'tls'
+                if 'obfs-host' in query_params:
+                    plugin_opts['host'] = query_params['obfs-host']
+
+            if plugin_opts:
+                proxy['plugin-opts'] = plugin_opts
+
         return proxy
     except Exception as e:
         print(f"Warning: Failed to parse SS link '{link[:50]}...': {e}", file=sys.stderr)
@@ -349,7 +401,7 @@ def fetch_and_parse_source(source_path_or_url):
     if proxies:
         print(f"  Parsed as Clash YAML. Found {len(proxies)} proxies.", file=sys.stderr)
         return proxies
-    
+
     try:
         decoded_content_b64 = decode_base64_url_safe(content)
         links = decoded_content_b64.splitlines()
@@ -373,7 +425,7 @@ def get_proxy_unique_key(proxy):
     """生成代理的唯一键用于去重。"""
     if not isinstance(proxy, dict) or 'type' not in proxy:
         return None
-    
+
     p_type = proxy['type']
     p_server = proxy.get('server')
     p_port = proxy.get('port')
@@ -399,7 +451,7 @@ def get_proxy_unique_key(proxy):
 
 def main():
     all_proxies = {} # 使用字典存储代理，键为唯一标识符，值为代理配置
-    
+
     # 这里的 os.path.exists(SOURCES_FILE) 会因为上面 SOURCES_FILE 的修改而正确工作
     if not os.path.exists(SOURCES_FILE):
         print(f"Error: {SOURCES_FILE} not found.", file=sys.stderr)
@@ -444,7 +496,7 @@ def main():
             if keyword in proxy_name_lower:
                 name_match = True
                 break
-        
+
         # 2. IP 地理位置和 ASN/ISP 筛选
         ip_info = None
         if server_address:
@@ -453,9 +505,9 @@ def main():
         ip_match = False
         if ip_info:
             country_code = ip_info.get('country_code', '')
-            isp = ip_info.get('isp', '')
-            org = ip_info.get('org', '')
-            asn = ip_info.get('asn', '') # AS number and name
+            isp = ip_info.get('isp', '').lower()
+            org = ip_info.get('org', '').lower()
+            asn = ip_info.get('asn', '').lower() # AS number and name
 
             # 检查是否在允许的地区关键词中
             if country_code in REGION_KEYWORDS:
@@ -466,13 +518,13 @@ def main():
                     if allowed_term in isp or allowed_term in org or allowed_term in asn:
                         ip_match = True
                         break
-            
+
             # 检查是否在排除列表中
             for exclude_term in EXCLUDE_ISPS_ASNS:
                 if exclude_term in isp or exclude_term in org or exclude_term in asn or exclude_term in country_code:
                     ip_match = False # 如果匹配到排除项，则强制不匹配
                     break
-        
+
         # 综合判断：如果IP查询成功，以IP信息为准；否则，以名称匹配为准。
         # 如果IP查询失败，并且名称也没有匹配到关键词，则跳过。
         if ip_info: # IP查询成功
