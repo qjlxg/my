@@ -93,7 +93,8 @@ def parse_trojan(data: str) -> Optional[Dict[str, Any]]:
     try:
         parsed_url = urlparse("trojan://" + data)
         
-        password = parsed_url.username
+        # 确保 password 字段即使缺失或为空，也能赋一个空字符串
+        password = parsed_url.username if parsed_url.username else ""
         server = parsed_url.hostname
         port = parsed_url.port if parsed_url.port else 443
         name = unquote(parsed_url.fragment) if parsed_url.fragment else generate_node_name('trojan', server, port)
@@ -105,7 +106,7 @@ def parse_trojan(data: str) -> Optional[Dict[str, Any]]:
             'type': 'trojan',
             'server': server,
             'port': port,
-            'password': password,
+            'password': password, # 现在保证是一个字符串
             'tls': True
         }
         
@@ -144,7 +145,7 @@ def parse_ss(data: str) -> Optional[Dict[str, Any]]:
                 'server': server,
                 'port': port,
                 'cipher': method,
-                'password': password
+                'password': password if password else "", # 确保 password 字段即使缺失或为空，也能赋一个空字符串
             }
             return ensure_node_name(node, 'ss')
         else:
@@ -208,7 +209,8 @@ def parse_hysteria2(data: str) -> Optional[Dict[str, Any]]:
     try:
         parsed_url = urlparse("hysteria2://" + data)
         
-        password = parsed_url.username
+        # 确保 password 字段即使缺失或为空，也能赋一个空字符串
+        password = parsed_url.username if parsed_url.username else ""
         server = parsed_url.hostname
         port = parsed_url.port if parsed_url.port else 443
         name = unquote(parsed_url.fragment) if parsed_url.fragment else generate_node_name('hysteria2', server, port)
@@ -220,7 +222,7 @@ def parse_hysteria2(data: str) -> Optional[Dict[str, Any]]:
             'type': 'hysteria2',
             'server': server,
             'port': port,
-            'password': password,
+            'password': password, # 现在保证是一个字符串
             'tls': True
         }
         
@@ -257,8 +259,13 @@ def parse_ssr(data: str) -> Optional[Dict[str, Any]]:
         obfs = parts[4]
         
         password_encoded_and_params = parts[5]
-        password_base64 = password_encoded_and_params.split('/?')[0]
-        password = base64.b64decode(password_base64.replace('-', '+').replace('_', '/') + '==').decode('utf-8')
+        password_base64_part = password_encoded_and_params.split('/?')[0]
+        
+        # 确保 password 字段即使 base64 解码失败或为空，也能赋一个空字符串
+        try:
+            password = base64.b64decode(password_base64_part.replace('-', '+').replace('_', '/') + '==').decode('utf-8')
+        except Exception:
+            password = "" # 如果解码失败或部分为空，默认设为空字符串
 
         params = {}
         if '/?' in password_encoded_and_params:
@@ -280,7 +287,7 @@ def parse_ssr(data: str) -> Optional[Dict[str, Any]]:
             'server': server,
             'port': port,
             'cipher': method,
-            'password': password,
+            'password': password, # 现在保证是一个字符串
             'protocol': protocol_type,
             'protocol-param': protocol_param,
             'obfs': obfs,
@@ -346,6 +353,7 @@ def parse_content(content: str) -> List[Dict[str, Any]]:
                     else:
                         print(f"Warning: Non-dict or missing type item found in YAML proxies: {str(proxy)[:100]}")
             else: 
+                # 处理单个 YAML 节点的情况，例如 'type: vmess' 这种
                 if all(k in data for k in ['type', 'server', 'port']):
                      nodes.append(ensure_node_name(data, data.get('type', 'unknown')))
                 
@@ -354,6 +362,7 @@ def parse_content(content: str) -> List[Dict[str, Any]]:
                 if isinstance(item, dict) and 'type' in item:
                     nodes.append(ensure_node_name(item, item.get('type', 'unknown')))
                 elif isinstance(item, str):
+                    # 如果列表项是字符串，尝试按行解析 (例如 base64 编码的订阅链接)
                     parsed_from_line = parse_line_as_node(item)
                     for node in parsed_from_line:
                         nodes.append(ensure_node_name(node, node.get('type', 'unknown')))
@@ -362,6 +371,7 @@ def parse_content(content: str) -> List[Dict[str, Any]]:
             print(f"Content parsed as YAML, found {len(nodes)} nodes.")
             return nodes
     except yaml.YAMLError as e:
+        # print(f"Content is not valid YAML: {e}") # 生产环境中可以不打印详细错误
         pass
 
     try:
@@ -374,6 +384,7 @@ def parse_content(content: str) -> List[Dict[str, Any]]:
                     else:
                         print(f"Warning: Non-dict or missing type item found in JSON proxies: {str(proxy)[:100]}")
             else:
+                # 处理单个 JSON 节点的情况
                 if all(k in data for k in ['type', 'server', 'port']):
                      nodes.append(ensure_node_name(data, data.get('type', 'unknown')))
         elif isinstance(data, list):
@@ -389,15 +400,17 @@ def parse_content(content: str) -> List[Dict[str, Any]]:
             print(f"Content parsed as JSON, found {len(nodes)} nodes.")
             return nodes
     except json.JSONDecodeError as e:
+        # print(f"Content is not valid JSON: {e}") # 生产环境中可以不打印详细错误
         pass
 
+    # 如果既不是 YAML 也不是 JSON，则尝试按行解析原始文本内容
     for i, line in enumerate(content.splitlines()):
         line_nodes = parse_line_as_node(line)
         if line_nodes:
             for node in line_nodes:
                 nodes.append(ensure_node_name(node, node.get('type', 'unknown')))
         else:
-            if line.strip():
+            if line.strip(): # 只打印非空行的解析失败信息
                 print(f"Could not parse line {i+1} as a node: {line.strip()[:100]}...")
 
     return nodes
@@ -446,7 +459,6 @@ def save_nodes_to_yaml(nodes: List[Dict[str, Any]], output_filepath: str):
         current_name = original_name
         
         # 如果名称已经存在，则添加递增的后缀
-        # 注意：这里修改为只对原始名称进行计数，然后生成带后缀的唯一名称
         # 这样可以避免 "name #1 #2" 这种层叠的命名
         suffix_counter = 0
         while True:
@@ -474,7 +486,6 @@ def save_nodes_to_yaml(nodes: List[Dict[str, Any]], output_filepath: str):
     except Exception as e:
         print(f"Error saving nodes to {output_filepath}: {e}")
 
-
 async def main():
     urls = [
         "https://igdux.top/~250630",
@@ -495,7 +506,7 @@ async def main():
         "https://raw.githubusercontent.com/qjlxg/vt/refs/heads/main/data/nodes.txt"
     ]
 
-    all_fetched_nodes: List[Dict[str, Any]] = [] # 新增：用于收集所有URL的节点
+    all_fetched_nodes: List[Dict[str, Any]] = [] # 用于收集所有URL的节点
 
     async with aiohttp.ClientSession() as session:
         tasks = []
@@ -508,7 +519,7 @@ async def main():
         for nodes_from_url in results:
             all_fetched_nodes.extend(nodes_from_url)
     
-    # 新增：将所有收集到的节点保存到 all.yaml
+    # 将所有收集到的节点保存到 all.yaml
     all_output_filepath = os.path.join('sc', 'all.yaml')
     save_nodes_to_yaml(all_fetched_nodes, all_output_filepath)
 
@@ -528,7 +539,7 @@ async def fetch_and_parse_nodes(session: aiohttp.ClientSession, url: str) -> Lis
     # output_filename = get_output_filename(url)
     # output_filepath = os.path.join('sc', output_filename)
     # save_nodes_to_yaml(nodes, output_filepath) # 注意：这里会再次对每个文件的节点进行名称去重
-                                              # 如果你只需要一个 all.yaml，可以注释掉这部分
+                                                # 如果你只需要一个 all.yaml，可以注释掉这部分
 
     return nodes
 
