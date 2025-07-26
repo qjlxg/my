@@ -15,9 +15,16 @@ jobs:
       - name: 检出仓库 # 第一步：将你的 GitHub 仓库代码克隆到 Actions 运行环境中
         uses: actions/checkout@v4 # 使用 actions/checkout@v4 动作来完成此操作
 
+      # --- 缓存 Docker 镜像层 ---
+      - name: 缓存 Docker 镜像层
+        uses: actions/cache@v4 # 使用 actions/cache 动作进行缓存
+        with:
+          path: /var/lib/docker # Docker 镜像层通常存储在这个路径
+          key: ${{ runner.os }}-docker-${{ hashFiles('**/Dockerfile') }}-${{ hashFiles('.github/workflows/*.yml') }} # 缓存键，当 Dockerfile 或工作流文件更改时失效
+          restore-keys: |
+            ${{ runner.os }}-docker- # 恢复键，用于部分匹配缓存
+
       # --- 使用 Docker 镜像运行 beck-8/subs-check ---
-      # 这个核心步骤将复杂的 Docker 命令写入一个临时脚本，然后执行它。
-      # 这样可以最大程度地避免 YAML 解析和 Shell 语法问题。
       - name: 使用 subs-check 处理多个订阅并保存
         shell: bash # 强制使用 Bash shell 来执行此步骤的脚本
         run: |
@@ -37,13 +44,8 @@ jobs:
           echo "使用 subs-check 处理订阅并测速、排序..."
           
           # **核心改动**：将 docker run 命令写入一个临时脚本文件 (run_subs_check.sh)
-          # 使用 'cat <<EOF > run_subs_check.sh' 语法，可以方便地写入多行内容到文件
           cat <<EOF > run_subs_check.sh
           #!/bin/bash
-          # 确保脚本使用 bash 执行
-          
-          # **关键修正**：现在指定了 'subs-check' 的完整路径 '/app/subs-check'。
-          # 这样可以确保 Docker 在容器内能找到并执行正确的程序。
           docker run --rm -v "${{ github.workspace }}:/app/output" "ghcr.io/beck-8/subs-check:latest" /app/subs-check check -t 30000 -c 50 -o "/app/output/${OUTPUT_PATH}" -proxy-api-url "$SUBSCRIPTION_URL_META,$SUBSCRIPTION_URL_SS_TXT" -download-url "https://speed.cloudflare.com/__down?bytes=10485760" -upload-url "https://speed.cloudflare.com/__up" -stream-test "youtube,netflix" -rename "{{.Emoji}}{{.Country}} | {{.Speed | printf \\"%.2f\\"}}MB/s | {{.Remark}}" -filter "speed > 0.1" -sort "speed:desc"
           EOF
 
