@@ -47,12 +47,9 @@ jobs:
           echo "正在安装 faceair/clash-speedtest..."
           # go install 会将二进制文件安装到 GOPATH/bin 目录下
           go install github.com/faceair/clash-speedtest@latest || { echo "错误：安装 faceair/clash-speedtest 失败！"; exit 1; }
-          # 验证是否安装成功并查看版本信息 (可选)
-          clash-speedtest -v || { echo "错误：clash-speedtest 命令不可用！"; exit 1; }
+          # 验证是否安装成功并查看帮助信息 (可选，现在使用 -h)
+          clash-speedtest -h || { echo "错误：clash-speedtest 命令不可用！"; exit 1; } # <--- 修正：将 -v 改为 -h
           echo "faceair/clash-speedtest 安装成功。"
-
-      # --- 移除原有步骤 4: 赋予 clash-speedtest 执行权限 (不再需要，go install 会处理) ---
-      # 原有步骤 4 已经移除
 
       # 步骤 5: 下载完整的 Clash 配置
       - name: 下载完整的 Clash 配置
@@ -94,17 +91,15 @@ jobs:
         run: |
           if [ ! -s "filtered_nodes.yaml" ]; then
             echo "警告: 'filtered_nodes.yaml' 文件为空或无有效内容。可能没有节点符合过滤条件。"
-            # 使用 `echo "name=value" >> $GITHUB_OUTPUT` 来设置输出变量
             echo "FILTERED_NODES_EMPTY=true" >> $GITHUB_OUTPUT 
             head -n 20 filtered_nodes.yaml || true
-            exit 0 # 如果文件为空，不中断工作流，但设置警告
+            exit 0
           fi
           echo "filtered_nodes.yaml 文件大小: $(du -h filtered_nodes.yaml | awk '{print $1}')"
           echo "FILTERED_NODES_EMPTY=false" >> $GITHUB_OUTPUT
 
       # 步骤 8: 备份旧的 Clash 配置
       - name: 备份旧的 Clash 配置
-        # 仅当 filtered_nodes.yaml 不为空时才执行备份，避免无有效节点时也备份
         if: steps.check_filtered_file.outputs.FILTERED_NODES_EMPTY == 'false'
         run: |
           if [ ! -f "clash.yaml" ]; then
@@ -118,40 +113,13 @@ jobs:
           cp clash.yaml sc/clash_${TIMESTAMP}.yaml
           echo "旧配置备份完成。"
 
-      # # 步骤 9: 运行速度测试 - 阶段一：快速延迟测试 (使用 -fast 模式) - 保持注释，但使用新命令
-      # - name: 运行速度测试 - 阶段一：快速延迟测试
-      #   id: latency_test_run 
-      #   if: steps.check_filtered_file.outputs.FILTERED_NODES_EMPTY == 'false'
-      #   run: |
-      #     echo "开始运行所有节点的快速延迟测试..."
-      #     # --- 使用新安装的 clash-speedtest，直接调用命令 ---
-      #     clash-speedtest \
-      #       -c filtered_nodes.yaml \
-      #       -output ./latency_tested_nodes.yaml \
-      #       -timeout 10s \
-      #       -fast # 启用快速模式，只测延迟
-      #     # --- 结束 ---
-      #     echo "快速延迟测试完成，结果保存到 latency_tested_nodes.yaml"
-          
-      #     if [ ! -s "latency_tested_nodes.yaml" ]; then
-      #       echo "LATENCY_TESTED_NODES_EMPTY=true" >> $GITHUB_OUTPUT
-      #       echo "警告: 'latency_tested_nodes.yaml' 文件为空或无有效内容。可能所有节点延迟都过高。"
-      #       exit 1 
-      #     else
-      #       echo "LATENCY_TESTED_NODES_EMPTY=false" >> $GITHUB_OUTPUT
-      #     fi
-      #     echo "latency_tested_nodes.yaml 文件大小: $(du -h latency_tested_nodes.yaml | awk '{print $1}')"
-
-      # 步骤 10: 运行速度测试 - 阶段二：下载/上传速度测试 (对通过延迟测试的节点)
-      # 此时直接使用 filtered_nodes.yaml 作为输入
+      # 步骤 10: 运行速度测试 - 阶段二：下载/上传速度测试
       - name: 运行速度测试 - 阶段二：下载/上传速度测试
-        # 仅当 filtered_nodes.yaml 不为空时才执行
         if: success() && steps.check_filtered_file.outputs.FILTERED_NODES_EMPTY == 'false'
         run: |
           echo "开始运行所有节点的完整速度测试（跳过快速延迟测试阶段）..."
-          # --- 使用新安装的 clash-speedtest，直接调用命令 ---
           clash-speedtest \
-            -c ./filtered_nodes.yaml \ # 直接使用过滤后的节点作为输入
+            -c ./filtered_nodes.yaml \
             -output ./clash.yaml \
             -download-size 5 \
             -upload-size 1 \
@@ -161,13 +129,11 @@ jobs:
             -min-download-speed 1 \
             -min-upload-speed 0 \
             -rename
-          # --- 结束 ---
           echo "全速测试完成，结果保存到 clash.yaml"
 
       # 步骤 11: 验证生成的 clash.yaml 文件
       - name: 验证生成的 clash.yaml 文件
         id: check_final_file
-        # 仅当 filtered_nodes.yaml 不为空时才检查
         if: success() && steps.check_filtered_file.outputs.FILTERED_NODES_EMPTY == 'false'
         run: |
           if [ -f "clash.yaml" ]; then
@@ -177,7 +143,7 @@ jobs:
             echo "----------------------------------------"
             if [ "$(grep -c 'name:' clash.yaml)" -eq 0 ]; then
               echo "警告: 'clash.yaml' 文件中没有检测到代理节点。可能所有节点都未通过速度测试后的过滤。"
-              exit 1 # 如果最终没有节点，则中断并标记失败
+              exit 1
             fi
           else
             echo "错误: 未生成 'clash.yaml'。速度测试可能失败或没有通过过滤的节点。"
@@ -186,7 +152,6 @@ jobs:
 
       # 步骤 12: 提交并推送排序后的配置文件 (包含备份文件)
       - name: 提交并推送排序后的配置文件
-        # 仅当 check_final_file 步骤成功时才提交
         if: success() && steps.check_final_file.outcome == 'success'
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
