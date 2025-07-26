@@ -1,93 +1,78 @@
 # 工作流名称
-name: 订阅检查与节点更新 (Subconverter - Vercel 二进制直连)
+name: 订阅检查与节点更新 (Subconverter Docker - 官方镜像)
 
 # 触发工作流的事件
 on:
+  push:
+    branches:
+      - main # 当有代码推送到 main 分支时自动触发
   workflow_dispatch: # 允许手动从 GitHub Actions 页面触发此工作流
   schedule:
     - cron: '0 */6 * * *' # 每 6 小时运行一次 (例如，每天的 0点、6点、12点、18点)
 
 jobs:
   update-clash-config:
-    runs-on: ubuntu-latest # 在最新的 Ubuntu 环境上运行
+    runs-on: ubuntu-latest # 在最新的 Ubuntu 环境上运行，提供必要的 Docker 支持
 
     steps:
       - name: 检出仓库 # 第一步：将你的 GitHub 仓库代码克隆到 Actions 运行环境中
         uses: actions/checkout@v4 # 使用 actions/checkout@v4 动作来完成此操作
 
-      - name: 下载 subconverter 二进制文件
-        run: |
-          # **重要更新**: 使用 subconverter-vercel 的直接二进制下载链接
-          # 这个链接通常指向一个单一的、已经编译好的 Linux AMD64 可执行文件
-          # 请定期检查 https://github.com/subconverter-vercel/subconverter/releases 获取最新版本和正确的下载链接
-          # 目前我找到的最稳定的直接二进制链接是这样，它是一个独立的exe文件
-          SUB_CONVERTER_URL="https://github.com/subconverter-vercel/subconverter/releases/download/v0.8.1/subconverter-linux-amd64"
-          DOWNLOAD_FILENAME="subconverter" # 直接命名为 subconverter，因为这是一个单一文件
+      # --- 缓存 Docker 镜像层 (可选，加速后续运行) ---
+      - name: 缓存 Docker 镜像层
+        uses: actions/cache@v4 # 使用 actions/cache 动作进行缓存
+        with:
+          path: /var/lib/docker # Docker 镜像层通常存储在这个路径
+          key: ${{ runner.os }}-docker-subconverter-official-${{ hashFiles('.github/workflows/*.yml') }} # 缓存键
+          restore-keys: |
+            ${{ runner.os }}-docker-subconverter-official-
 
-          echo "尝试下载 subconverter 二进制文件 (${SUB_CONVERTER_URL})..."
-          # 使用 wget 尝试下载，增加超时和重试，并模拟 User-Agent
-          # 这是下载单一文件的最直接方式
-          wget -q -O "${DOWNLOAD_FILENAME}" "${SUB_CONVERTER_URL}" \
-            --timeout=60 --tries=5 --header="User-Agent: Mozilla/5.0" || \
-          curl -L -o "${DOWNLOAD_FILENAME}" "${SUB_CONVERTER_URL}" --retry 5 --retry-delay 5 # 如果 wget 失败，回退到 curl
-          
-          echo "检查下载文件信息..."
-          ls -l "${DOWNLOAD_FILENAME}" # 列出文件详细信息
-          file "${DOWNLOAD_FILENAME}" # 检查文件类型 (应该显示 ELF 64-bit LSB executable)
-
-          # 检查下载是否成功（文件大小是否合理，不为0或9字节）
-          DOWNLOADED_SIZE=$(stat -c%s "${DOWNLOAD_FILENAME}")
-          echo "下载文件大小: ${DOWNLOADED_SIZE} 字节"
-          # 假设二进制文件至少 5MB，如果小于此值，可能是下载失败
-          if [ "${DOWNLOADED_SIZE}" -lt 5000000 ]; then 
-              echo "错误: 下载的文件过小或不完整。预期文件大小应大于5MB。请检查下载链接或网络问题。"
-              if [ "${DOWNLOADED_SIZE}" -lt 1000 ]; then # 如果文件非常小，打印其内容以帮助调试
-                  echo "文件内容（前500字节）:"
-                  head -c 500 "${DOWNLOAD_FILENAME}"
-              fi
-              exit 1
-          fi
-
-          # 确保下载的二进制文件可执行
-          chmod +x "${DOWNLOAD_FILENAME}"
-          EXEC_PATH="./${DOWNLOAD_FILENAME}"
-
-          echo "subconverter 已准备就绪，执行路径: ${EXEC_PATH}"
-          echo "SUB_CONVERTER_EXEC_PATH=${EXEC_PATH}" >> "$GITHUB_ENV"
-
-
-      - name: 使用 subconverter 处理订阅并生成 Clash 配置
+      - name: 使用 subconverter 处理订阅并保存
         shell: bash # 强制使用 Bash shell 来执行此步骤的脚本
         run: |
-          # 从环境变量获取 subconverter 的执行路径
-          if [ -z "${SUB_CONVERTER_EXEC_PATH}" ]; then
-            echo "错误: SUB_CONVERTER_EXEC_PATH 环境变量未设置。"
-            exit 1
-          fi
-
-          # 定义你的订阅链接。subconverter 可以同时处理多个，用 | 分隔
+          # 定义你的订阅链接
           SUBSCRIPTION_URL_META="https://raw.githubusercontent.com/qjlxg/ss/refs/heads/master/list.meta.yml"
           SUBSCRIPTION_URL_SS_TXT="https://raw.githubusercontent.com/qjlxg/aggregator/refs/heads/main/ss.txt"
           
           # 定义输出文件存放的目录和最终的文件名
           OUTPUT_DIR="sc"
-          OUTPUT_FILENAME="clash_config.yaml" # 输出文件名
+          OUTPUT_FILENAME="clash_config.yaml"
           OUTPUT_PATH="${OUTPUT_DIR}/${OUTPUT_FILENAME}"
 
           echo "创建输出目录 ${OUTPUT_DIR}..."
           mkdir -p "$OUTPUT_DIR"
 
+          echo "启动 subconverter Docker 容器..."
+          # 运行 subconverter 官方 Docker 镜像
+          # -d: 后台运行
+          # --rm: 容器停止后自动删除
+          # --name: 给容器一个名字方便管理
+          # -p 25500:25500: 映射端口，因为我们从宿主机（GitHub Actions Runner）curl 访问
+          # docker.io/subconverter/subconverter:latest 是官方镜像
+          docker run -d --rm --name subconverter_instance -p 25500:25500 docker.io/subconverter/subconverter:latest
+
+          echo "等待 subconverter 服务启动..."
+          # 增加等待时间，确保服务完全启动并监听端口
+          sleep 25 # 增加到 25 秒，确保服务完全启动
+
+          # 增强的端口检查循环，确保服务就绪
+          for i in $(seq 1 10); do
+            if nc -z localhost 25500 &>/dev/null; then
+              echo "subconverter 服务已在 25500 端口监听。"
+              break
+            fi
+            echo "等待 subconverter 服务监听端口... (${i}/10)"
+            sleep 2
+          done
+
+          if ! nc -z localhost 25500 &>/dev/null; then
+            echo "错误: subconverter 服务未能在 25500 端口启动。请检查容器日志。"
+            docker logs subconverter_instance # 打印容器日志以便调试
+            exit 1
+          fi
+
           echo "使用 subconverter 处理订阅并生成 Clash 配置..."
           
-          # 启动 subconverter 作为后台服务
-          # 将标准错误重定向到 /dev/null，避免其内部日志污染 Actions 日志
-          "${SUB_CONVERTER_EXEC_PATH}" 2> /dev/null &
-          SUB_CONVERTER_PID=$! # 获取后台进程的 PID
-
-          # 等待 subconverter 服务启动完成
-          echo "等待 subconverter 服务启动..."
-          sleep 20 # 给予足够时间启动
-
           # URL 编码订阅链接
           ENCODED_META_URL=$(echo "$SUBSCRIPTION_URL_META" | sed 's/\//%2F/g; s/:/%3A/g; s/?/%3F/g; s/&/%26/g; s/=/%3D/g')
           ENCODED_SS_TXT_URL=$(echo "$SUBSCRIPTION_URL_SS_TXT" | sed 's/\//%2F/g; s/:/%3A/g; s/?/%3F/g; s/&/%26/g; s/=/%3D/g')
@@ -98,11 +83,15 @@ jobs:
           echo "从 subconverter API 获取配置: ${CONVERSION_API_ENDPOINT}"
 
           # 使用 curl 获取配置并保存
+          # -sS: 静默模式，但显示错误
+          # -L: 遵循重定向
+          # -f: 失败时（HTTP 状态码 >= 400）不输出到文件，直接报错
+          # --retry 5 --retry-delay 5: 增加重试机制，以防服务刚刚启动还没完全准备好
           curl -sSLf --retry 5 --retry-delay 5 -o "${OUTPUT_PATH}" "${CONVERSION_API_ENDPOINT}"
           
-          # 停止 subconverter 进程
-          echo "停止 subconverter 服务..."
-          kill $SUB_CONVERTER_PID || true # 使用 || true 确保即使进程已经停止，脚本也不会因kill失败而中断
+          # 停止并移除 subconverter 容器
+          echo "停止并移除 subconverter 容器..."
+          docker stop subconverter_instance
 
           # 检查文件是否成功生成，如果文件不存在，则工作流失败
           if [ ! -f "$OUTPUT_PATH" ]; then
@@ -134,7 +123,7 @@ jobs:
           file_pattern: "${OUTPUT_PATH}" 
           branch: main # 指定目标分支
           commit_user_name: github-actions[bot]
-          commit_user_email: 41898282+github-actions[bot]@users.noreply.github.com
+          commit_user_email: "41898282+github-actions[bot]@users.noreply.github.com"
           commit_author: qjlxg <12179157+qjlxg@users.noreply.github.com>
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
