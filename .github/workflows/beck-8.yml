@@ -9,89 +9,107 @@ on:
   workflow_dispatch: # 允许手动触发
 
 permissions:
-  contents: write # 授予写权限
+  contents: write # 授予写入权限，用于推送结果文件
 
 jobs:
   test-node-speed:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest # 使用最新的 Ubuntu runner
 
     steps:
-      - name: Checkout THIS repository
+      - name: Checkout repository # 检出你的代码
         uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }} # 用于克隆您自己的仓库
 
-      - name: Set up Python
+      - name: Set up Python # 设置 Python 环境
         uses: actions/setup-python@v5
         with:
-          python-version: '3.x'
+          python-version: '3.10' # 推荐使用 3.10 或更高版本
 
-      - name: Install Python dependencies
-        run: pip install requests pyyaml
-
-      - name: Set up Docker
-        uses: docker/setup-buildx-action@v3
-
-      # --- 新增步骤：克隆并构建 Subconverter 镜像 ---
-      - name: Clone Subconverter repository and Build Docker image
+      - name: Install Python dependencies # 安装 Python 依赖
         run: |
-          echo "Cloning Subconverter repository..."
-          # 使用 git clone 拉取 Subconverter 源代码
-          git clone https://github.com/tindyhr/subconverter.git subconverter-src
-          
-          echo "Building Subconverter Docker image..."
-          cd subconverter-src
-          # 检查 Dockerfile 是否存在
-          if [ -f "Dockerfile" ]; then
-            docker build -t my-subconverter:latest .
+          python -m pip install --upgrade pip
+          pip install requests pysocks pyyaml
+
+      # --- 下载并安装 Xray ---
+      - name: Download and Install Xray
+        id: download_xray # 添加 ID 以便后续判断是否成功
+        run: |
+          XRAY_VERSION="1.8.8" # 你可以指定Xray版本
+          ARCH=$(uname -m)
+          if [ "$ARCH" = "x86_64" ]; then
+            ARCH="64"
+          elif [ "$ARCH" = "aarch64" ]; then
+            ARCH="arm64"
           else
-            echo "Error: Dockerfile not found in subconverter-src. Check repository structure."
+            echo "Unsupported architecture: $ARCH"
             exit 1
           fi
-          cd .. # 回到工作目录
-        # 如果 git clone subconverter 遇到问题，尝试提供 token
-        # env:
-        #   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      # -----------------------------------------------
-
-      # 启动我们自己构建的 Subconverter 容器
-      - name: Run My Subconverter Container
-        run: |
-          docker run -d --name subconverter -p 25500:25500 my-subconverter:latest
-          echo "Waiting for My Subconverter to start..."
-          sleep 10
-          docker logs subconverter || true
-
-      # 启动 Clash 容器 (Clash 官方镜像目前还算稳定，先保留)
-      - name: Run Clash Container
-        run: |
-          mkdir -p sc # 确保输出目录存在
-          docker run -d --name clash_core \
-            -p 9090:9090 \
-            -v $(pwd)/sc:/output \
-            -v /tmp/clash_config.yaml:/root/.config/clash/config.yaml:ro \
-            dreamacro/clash:latest # 依然尝试 Clash 官方镜像
-          echo "Clash container started."
-          sleep 15 # 给Clash更多时间启动和加载配置
-
-      - name: Run Node Speed Test Script
-        run: |
-          python scripts/main.py
+          XRAY_FILE="Xray-linux-${ARCH}v8.zip"
+          XRAY_URL="https://github.com/XTLS/Xray-core/releases/download/v${XRAY_VERSION}/${XRAY_FILE}"
+          echo "Downloading Xray from: ${XRAY_URL}"
+          
+          # 使用 curl 下载并检查状态
+          curl -L -o xray.zip "${XRAY_URL}"
+          
+          # 检查下载是否成功
+          if [ ! -f xray.zip ]; then
+            echo "Xray download failed."
+            exit 1
+          fi
+          
+          unzip xray.zip xray -d . # 解压Xray可执行文件到当前目录
+          chmod +x ./xray # 添加执行权限
+          echo "Xray installed successfully."
         env:
-          # 将输出路径传递给脚本
-          OUTPUT_FILE_PATH: ${{ github.workspace }}/sc/NodeDownloadSpeedTest.yaml
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # 用于解决可能的GitHub下载限速问题
 
-      - name: Check output file
+      # --- 下载并安装 Hysteria2 ---
+      - name: Download and Install Hysteria2
+        id: download_hysteria2
+        run: |
+          HY2_VERSION="2.1.0" # Hysteria2版本
+          ARCH=$(uname -m)
+          if [ "$ARCH" = "x86_64" ]; then
+            ARCH="amd64"
+          elif [ "$ARCH" = "aarch64" ]; then
+            ARCH="arm64"
+          else
+            echo "Unsupported architecture: $ARCH"
+            exit 1
+          fi
+          HY2_FILE="hysteria-linux-${ARCH}"
+          HY2_URL="https://github.com/apernet/hysteria/releases/download/v${HY2_VERSION}/${HY2_FILE}"
+          echo "Downloading Hysteria2 from: ${HY2_URL}"
+          
+          # 使用 curl 下载并检查状态
+          curl -L -o hysteria2 "${HY2_URL}"
+          
+          if [ ! -f hysteria2 ]; then
+            echo "Hysteria2 download failed."
+            exit 1
+          fi
+
+          chmod +x ./hysteria2 # 添加执行权限
+          echo "Hysteria2 installed successfully."
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run Node Speed Test Script # 运行你的 Python 脚本
+        run: python test_node_speed.py
+
+      - name: Check output files # 检查生成的文件
         run: |
           ls -l sc/ || echo "No files in sc directory"
-          cat sc/NodeDownloadSpeedTest.yaml || echo "Output file not found"
+          cat sc/${{ env.PROJECT_NAME }}.txt || echo "Output TXT file not found"
+          cat sc/${{ env.PROJECT_NAME }}.yaml || echo "Output YAML file not found"
+        env:
+          PROJECT_NAME: NodeDownloadSpeedTest # 和 Python 脚本中的 PROJECT_NAME 保持一致
 
-      - name: Commit and push results
+      - name: Commit and push results # 提交并推送结果文件
         run: |
           git config --global user.name 'GitHub Action'
           git config --global user.email 'action@github.com'
-          git add sc/NodeDownloadSpeedTest.yaml
+          git add sc/* # 添加 sc 目录下的所有文件
           git commit -m "Update node speed test results" || echo "No changes to commit"
-          git push origin main
+          git push origin main # 推送到 main 分支
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # 使用 GITHUB_TOKEN 进行认证
