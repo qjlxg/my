@@ -1,0 +1,20 @@
+source:
+  - name: custom_nodes
+    type: file
+    url: https://raw.githubusercontent.com/qjlxg/aggregator/refs/heads/main/ss.txt
+proxy:
+  - type: ss
+  - type: ssr
+  - type: vmess
+  - type: vless
+  - type: trojan
+  - type: hysteria2
+check:
+  interval: 3600
+  timeout: 10
+  concurrency: 4
+  speedtest: true
+  speedtest_url: https://speed.cloudflare.com/__down?bytes=10000000
+output:
+  path: sc/NodeDownloadSpeedTest.yaml
+  format: yaml
