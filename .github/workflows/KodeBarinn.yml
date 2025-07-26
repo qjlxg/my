@@ -35,21 +35,21 @@ jobs:
         run: |
           pip install PyYAML
 
-      # --- 新增步骤：设置 Go 环境 ---
+      # --- 设置 Go 环境 ---
       - name: 设置 Go 环境
         uses: actions/setup-go@v5
         with:
           go-version: '1.22' # 推荐使用较新的 Go 版本，例如 1.22 或更高
 
-      # --- 新增步骤：安装 faceair/clash-speedtest 工具 ---
-      - name: 安装 faceair/clash-speedtest 工具
+      # --- 安装 starudream/clash-speedtest 工具 ---
+      - name: 安装 starudream/clash-speedtest 工具
         run: |
-          echo "正在安装 faceair/clash-speedtest..."
+          echo "正在安装 starudream/clash-speedtest..."
           # go install 会将二进制文件安装到 GOPATH/bin 目录下
-          go install github.com/faceair/clash-speedtest@latest || { echo "错误：安装 faceair/clash-speedtest 失败！"; exit 1; }
-          # 验证是否安装成功并查看帮助信息 (可选，现在使用 -h)
-          clash-speedtest -h || { echo "错误：clash-speedtest 命令不可用！"; exit 1; } # <--- 修正：将 -v 改为 -h
-          echo "faceair/clash-speedtest 安装成功。"
+          go install github.com/starudream/clash-speedtest@latest || { echo "错误：安装 starudream/clash-speedtest 失败！"; exit 1; }
+          # 验证是否安装成功并查看帮助信息
+          clash-speedtest -h || { echo "错误：clash-speedtest 命令不可用！"; exit 1; }
+          echo "starudream/clash-speedtest 安装成功。"
 
       # 步骤 5: 下载完整的 Clash 配置
       - name: 下载完整的 Clash 配置
@@ -117,18 +117,18 @@ jobs:
       - name: 运行速度测试 - 阶段二：下载/上传速度测试
         if: success() && steps.check_filtered_file.outputs.FILTERED_NODES_EMPTY == 'false'
         run: |
-          echo "开始运行所有节点的完整速度测试（跳过快速延迟测试阶段）..."
+          echo "开始运行所有节点的完整速度测试..."
+          # --- 使用 starudream/clash-speedtest，并使用常见参数 ---
           clash-speedtest \
             -c ./filtered_nodes.yaml \
             -output ./clash.yaml \
             -download-size 5 \
-            -upload-size 1 \
             -timeout 38s \
             -concurrent 50 \
             -max-latency 5000ms \
-            -min-download-speed 1 \
-            -min-upload-speed 0 \
-            -rename
+            -min-download-speed 1
+            # 移除：-upload-size, -min-upload-speed, -rename (此处假设这些参数可能不支持)
+          # --- 结束 ---
           echo "全速测试完成，结果保存到 clash.yaml"
 
       # 步骤 11: 验证生成的 clash.yaml 文件
@@ -150,7 +150,7 @@ jobs:
             exit 1
           fi
 
-      # 步骤 12: 提交并推送排序后的配置文件 (包含备份文件)
+      # 12: 提交并推送排序后的配置文件 (包含备份文件)
       - name: 提交并推送排序后的配置文件
         if: success() && steps.check_final_file.outcome == 'success'
         uses: stefanzweifel/git-auto-commit-action@v5
