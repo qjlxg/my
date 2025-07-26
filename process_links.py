@@ -32,7 +32,7 @@ def parse_node(node_string):
             if 'type' in config:
                 node_data['ws-headers'] = {'Host': config['host']} if 'host' in config else {}
                 node_data['ws-path'] = config['path']
-
+            
         elif node_string.startswith("trojan://"):
             parsed_url = urlparse(node_string)
             password = parsed_url.username
@@ -60,7 +60,7 @@ def parse_node(node_string):
             name = unquote(parts[1]) if len(parts) > 1 else "shadowsocks-node"
 
             decoded_info = base64.b64decode(encoded_info + '==').decode('utf-8') # Add padding for base64
-
+            
             # Use regex to extract method, password, server, port
             match = re.match(r'(.+?):(.+?)@(.+?):(\d+)', decoded_info)
             if match:
@@ -101,12 +101,12 @@ def parse_node(node_string):
                 obfs = parts[4]
                 password_base64 = parts[5].split('/?')[0]
                 password = base64.b64decode(password_base64.replace('_', '/').replace('-', '+') + '==').decode('utf-8')
-
+                
                 params = {}
                 if '/?' in decoded_data:
                     query_string = decoded_data.split('/?')[1]
                     params = dict(qc.split("=") for qc in query_string.split("&"))
-
+                
                 name = unquote(base64.b64decode(params.get('remarks', '').replace('_', '/').replace('-', '+') + '==').decode('utf-8')) if 'remarks' in params else f"ssr-{server}"
                 obfsparam = unquote(base64.b64decode(params.get('obfsparam', '').replace('_', '/').replace('-', '+') + '==').decode('utf-8')) if 'obfsparam' in params else ''
                 protparam = unquote(base64.b64decode(params.get('protoparam', '').replace('_', '/').replace('-', '+') + '==').decode('utf-8')) if 'protoparam' in params else ''
@@ -130,7 +130,7 @@ def parse_node(node_string):
             server = parsed_url.hostname
             port = parsed_url.port
             name = unquote(parsed_url.fragment) if parsed_url.fragment else f"vless-{server}"
-
+            
             params = dict(qc.split("=") for qc in parsed_url.query.split("&")) if parsed_url.query else {}
 
             node_data['name'] = name
@@ -153,14 +153,14 @@ def parse_node(node_string):
                 node_data['ws-path'] = params['path']
             elif 'path' in params: # For gRPC
                 node_data['grpc-service-name'] = params['serviceName'] if 'serviceName' in params else ''
-
+            
         elif node_string.startswith("hysteria2://"):
             parsed_url = urlparse(node_string)
             password = parsed_url.username
             server = parsed_url.hostname
             port = parsed_url.port
             name = unquote(parsed_url.fragment) if parsed_url.fragment else f"hysteria2-{server}"
-
+            
             params = dict(qc.split("=") for qc in parsed_url.query.split("&")) if parsed_url.query else {}
 
             node_data['name'] = name
@@ -176,7 +176,7 @@ def parse_node(node_string):
                 node_data['alpn'] = params['alpn'].split(',')
             if 'fastopen' in params:
                 node_data['fast-open'] = True if params['fastopen'] == '1' else False
-
+            
         else:
             # Attempt to decode as base64 first, then treat as plain text or YAML/JSON
             try:
@@ -258,29 +258,29 @@ def parse_plain_text(content):
 async def fetch_and_parse(session, url):
     print(f"Fetching from {url}")
     try:
-        # 核心修正：添加 await 关键字
-        async with await session.get(url, timeout=30) as response: # 这里！
-            response.raise_for_status()
-            content = await response.text()
-
-            all_nodes = []
-            # First, try to parse the entire content as a single YAML or JSON structure (e.g., Clash config)
-            parsed_structure = parse_plain_text(content)
-            if isinstance(parsed_structure, list):
-                all_nodes.extend(parsed_structure)
-            elif isinstance(parsed_structure, dict): # Should only happen if it was a single node in the structure
-                all_nodes.append(parsed_structure)
-            else: # If not a YAML/JSON structure, try line by line
-                lines = content.strip().split('\n')
-                for line in lines:
-                    line = line.strip()
-                    if line:
-                        node = parse_node(line)
-                        if node:
-                            all_nodes.append(node)
-                        else:
-                            print(f"Could not parse line from {url}: {line[:50]}...") # Log problematic lines
-            return url, all_nodes
+        # 关键修改：移除这里的 async with，只保留 await
+        response = await session.get(url, timeout=30)
+        response.raise_for_status() # 这行会检查HTTP状态码，如果不是2xx则抛出异常
+        content = await response.text()
+            
+        all_nodes = []
+        # First, try to parse the entire content as a single YAML or JSON structure (e.g., Clash config)
+        parsed_structure = parse_plain_text(content)
+        if isinstance(parsed_structure, list):
+            all_nodes.extend(parsed_structure)
+        elif isinstance(parsed_structure, dict): # Should only happen if it was a single node in the structure
+            all_nodes.append(parsed_structure)
+        else: # If not a YAML/JSON structure, try line by line
+            lines = content.strip().split('\n')
+            for line in lines:
+                line = line.strip()
+                if line:
+                    node = parse_node(line)
+                    if node:
+                        all_nodes.append(node)
+                    else:
+                        print(f"Could not parse line from {url}: {line[:50]}...") # Log problematic lines
+        return url, all_nodes
     except httpx.RequestError as e:
         print(f"Error fetching {url}: {e}")
         return url, []
@@ -324,7 +324,7 @@ async def main():
         # Determine filename
         parsed_url = urlparse(url)
         path_segments = parsed_url.path.split('/')
-
+        
         # Get the last segment of the path, or hostname if path is empty
         if path_segments and path_segments[-1]:
             filename = path_segments[-1]
@@ -335,7 +335,7 @@ async def main():
             filename = parsed_url.hostname.replace('.', '_').replace('-', '_')
 
         output_filename = os.path.join(output_dir, f"{filename}.yaml")
-
+        
         # Ensure 'proxies' is the root key for Clash compatibility
         clash_config = {'proxies': nodes}
 
