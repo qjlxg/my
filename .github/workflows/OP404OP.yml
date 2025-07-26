@@ -88,27 +88,44 @@ jobs:
         id: download_op404op_tool # 给这个步骤一个ID，以便后续引用其结果
         run: |
           # 访问 https://github.com/OP404OP/clash-speedtest/releases 获取最新版本链接
-          # ！！！请定期检查并更新这里的 TOOL_VERSION 为最新版本！！！
-          TOOL_VERSION="v1.6.3" # 当前最新版本，请根据实际情况更新
-          TOOL_URL="https://github.com/OP404OP/clash-speedtest/releases/download/${TOOL_VERSION}/clash-speedtest-linux-amd64"
+          # ！！！重要：请定期检查并更新这里的 TOOL_VERSION 为最新版本！！！
+          # 当前根据 GitHub Releases 页面，v1.6.3 是最新版，Linux AMD64 文件名为 clash-speedtest-linux-x86_64
+          TOOL_VERSION="v1.6.3"
+          TOOL_FILENAME="clash-speedtest-linux-x86_64" # 确认这个文件名是针对 Linux AMD64 的
+          TOOL_URL="https://github.com/OP404OP/clash-speedtest/releases/download/${TOOL_VERSION}/${TOOL_FILENAME}"
           OUTPUT_PATH="./clash-speedtest-op404op" # 避免与你的原有工具名称冲突
 
           echo "尝试从 $TOOL_URL 下载 OP404OP/clash-speedtest 工具..."
           curl -S -L -v --retry 5 --retry-delay 5 --connect-timeout 10 --max-time 60 --output "$OUTPUT_PATH" "$TOOL_URL"
 
           if [ $? -ne 0 ]; then
-            echo "错误: curl 命令执行失败，无法下载 OP404OP/clash-speedtest 工具。"
+            echo "错误: curl 命令执行失败，无法下载 OP404OP/clash-speedtest 工具。请检查 TOOL_URL 是否正确或网络问题。"
             exit 1
           fi
           if [ ! -f "$OUTPUT_PATH" ]; then
-            echo "错误: $OUTPUT_PATH 文件不存在。"
+            echo "错误: $OUTPUT_PATH 文件不存在。下载可能未成功。"
             exit 1
           fi
           if [ ! -s "$OUTPUT_PATH" ]; then
-            echo "错误: $OUTPUT_PATH 文件为空。"
+            echo "错误: $OUTPUT_PATH 文件为空。下载的文件内容可能不正确。"
+            head -n 20 "$OUTPUT_PATH" || true # 打印文件开头帮助诊断
             exit 1
           fi
+
           echo "OP404OP/clash-speedtest 工具下载成功，大小: $(du -h "$OUTPUT_PATH" | awk '{print $1}')"
+
+          # ***关键检查：验证文件类型是否为可执行二进制文件***
+          echo "检查下载文件的类型..."
+          FILE_TYPE_INFO=$(file "$OUTPUT_PATH")
+          echo "文件类型信息: $FILE_TYPE_INFO"
+
+          # 确保文件是 ELF 64-bit LSB executable (Linux AMD64 的可执行文件标识)
+          if ! echo "$FILE_TYPE_INFO" | grep -q "ELF 64-bit LSB executable"; then
+              echo "错误: 下载的文件不是预期的 Linux AMD64 可执行文件。可能是下载了错误的文件或文件已损坏。"
+              echo "请检查 TOOL_URL 和 TOOL_FILENAME 是否正确指向了 'clash-speedtest-linux-x86_64' 二进制文件。"
+              exit 1
+          fi
+
           chmod +x "$OUTPUT_PATH" # 赋予执行权限
           echo "赋予 OP404OP/clash-speedtest 执行权限完成。"
           # 设置一个输出变量，表示工具是否成功下载
@@ -134,13 +151,13 @@ jobs:
             -min-upload-speed 0 \
             -unlock \ # 启用流媒体解锁检测
             -risk \ # 启用 IP 风险检测
-            -rename
+            -rename # 根据 OP404OP 文档，此参数通常用于重命名节点，可保留
           echo "OP404OP/clash-speedtest 测试完成，结果保存到 sc/OP404OP.yaml"
 
       # 步骤 9: 验证 OP404OP/clash-speedtest 生成的文件
       # 检查生成的 sc/OP404OP.yaml 文件是否有效
       - name: 验证 OP404OP/clash-speedtest 生成的文件
-        # 仅当 OP404OP 工具下载成功时才检查
+        # 仅当 OP404OP 工具下载成功时才检查 (因为上一步可能因为节点问题仍旧失败)
         if: success() && steps.download_op404op_tool.outputs.OP_TOOL_DOWNLOADED == 'true'
         run: |
           if [ -f "sc/OP404OP.yaml" ]; then
