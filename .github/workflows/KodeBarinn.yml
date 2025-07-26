@@ -1,0 +1,97 @@
+name: Mihomo Node Speed Test
+
+on:
+  push:
+    branches:
+      - KodeBarinn.yml # 当有代码推送到 main 分支时自动运行。如果您使用 master 分支，请改为 master。
+  # workflow_dispatch: # 如果需要手动触发，请取消注释此行
+  # schedule:
+  #   - cron: '0 */6 * * *' # 如果需要定时触发，请取消注释此行
+
+jobs:
+  test-and-filter:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+
+    steps:
+      - name: ⬇️ 检出仓库代码
+        uses: actions/checkout@v4
+
+      - name: 🛠️ 设置 Rust 编程环境
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+
+      - name: 📦 安装 mihomo-speedtest-rs 工具
+        run: |
+          echo "正在安装 mihomo-speedtest-rs，这是一个基于 Rust 的高性能代理测试工具..."
+          cargo install mihomo-speedtest-rs
+          echo "mihomo-speedtest-rs 工具已成功安装。"
+
+      - name: ⬇️ 下载 Mihomo 核心二进制文件
+        id: download_mihomo
+        run: |
+          echo "正在检测 Mihomo 最新稳定版本..."
+          MIHOMO_VERSION=$(curl -s "https://api.github.com/repos/MetaCubeX/mihomo/releases/latest" | grep -Po '"tag_name": "\K[^"]*"' | head -n 1)
+          echo "检测到 Mihomo 最新版本: ${MIHOMO_VERSION}"
+          
+          MIHOMO_URL="https://github.com/MetaCubeX/mihomo/releases/download/${MIHOMO_VERSION}/mihomo-linux-amd64-${MIHOMO_VERSION}.gz"
+          echo "正在从 ${MIHOMO_URL} 下载 Mihomo 核心..."
+          
+          wget -q -O mihomo.gz "${MIHOMO_URL}"
+          gunzip mihomo.gz
+          chmod +x mihomo
+          
+          sudo mv mihomo /usr/local/bin/mihomo
+          echo "Mihomo 核心已成功安装到 /usr/local/bin/mihomo。"
+
+      - name: ⬇️ 下载原始 Clash 订阅配置
+        id: download_config
+        run: |
+          echo "开始下载原始 Clash 订阅配置文件..."
+          curl -sSLo original_clash_config.yaml "https://raw.githubusercontent.com/qjlxg/ss/refs/heads/master/list_raw.txt"
+          
+          if [ ! -f ./original_clash_config.yaml ] || [ ! -s ./original_clash_config.yaml ]; then
+            echo "❗️ 错误: original_clash_config.yaml 文件未成功下载或为空。请检查订阅链接是否有效。"
+            exit 1
+          fi
+          echo "原始 Clash 订阅配置下载完成。"
+          node_count=$(grep -c '^- name:' original_clash_config.yaml || true) 
+          echo "原始订阅约包含 ${node_count} 个节点。"
+
+      - name: 🚀 运行 mihomo-speedtest-rs 进行节点测试与过滤
+        id: mihomo_test
+        run: |
+          echo "开始使用 mihomo-speedtest-rs 进行综合节点测试和智能过滤..."
+          /usr/local/bin/mihomo-speedtest \
+            --config ./original_clash_config.yaml \
+            --use-mihomo \
+            --mihomo-binary /usr/local/bin/mihomo \
+            --max-latency 1000ms \
+            --min-download-speed 3 \
+            --download-size 5 \
+            --upload-size 1 \
+            --timeout 60s \
+            --max-concurrent 100 \
+            --filter "sg|jp|kr|us|ca|de|fr|uk|nl" \
+            --block "cn|china|中国|大陆|北京|上海" \
+            --output ./KodeBarinn.yaml \
+            --verbose
+
+          if [ ! -f ./KodeBarinn.yaml ] || [ ! -s ./KodeBarinn.yaml ]; then
+            echo "❗️ 错误: KodeBarinn.yaml 文件未生成或为空。这意味着没有节点通过所有设定的测试和过滤条件。"
+            exit 1
+          fi
+          echo "mihomo-speedtest-rs 测试和过滤已完成，合格节点已保存到 KodeBarinn.yaml。"
+          final_node_count=$(grep -c '^- name:' KodeBarinn.yaml || true)
+          echo "最终生成了 ${final_node_count} 个合格节点。"
+
+      - name: ⬆️ 上传合格的 Clash 配置到 Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: mihomo-tested-config
+          path: KodeBarinn.yaml
+          retention-days: 7
+          if-no-files-found: ignore
