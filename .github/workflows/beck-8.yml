@@ -16,71 +16,57 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout THIS repository
+      - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.GITHUB_TOKEN }} # 用于克隆您自己的仓库
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install Python dependencies
+        run: pip install requests pyyaml
 
       - name: Set up Docker
         uses: docker/setup-buildx-action@v3
 
-      - name: Create config directory
-        run: mkdir -p config
-
-      - name: Create config.yaml
+      # 启动 Subconverter 容器
+      - name: Run Subconverter Container
         run: |
-          cat << EOF > config/config.yaml
-          sources:
-            - name: custom_nodes_from_url
-              type: url
-              url: https://raw.githubusercontent.com/qjlxg/ss/refs/heads/master/list.meta.yml
-          check:
-            interval: 3600
-            timeout: 20
-            concurrency: 2
-            speedtest:
-              enabled: true
-              url: https://speed.cloudflare.com/__down?bytes=5000000
-              timeout: 15
-              connections: 5
-          output:
-            path: /output/NodeDownloadSpeedTest.yaml
-            format: yaml
-          EOF
+          # 启动 Subconverter 容器在后台运行
+          docker run -d --name subconverter -p 25500:25500 ttfw/subconverter:latest
+          echo "Waiting for Subconverter to start..."
+          # 简单等待一下，确保服务启动
+          sleep 10
+          # 检查 Subconverter 是否成功启动
+          docker logs subconverter || true # 打印日志，即使失败也继续
 
-      # --- 使用 actions/checkout 克隆 Proxy-Go 仓库 ---
-      - name: Clone Proxy-Go repository
-        uses: actions/checkout@v4
-        with:
-          repository: wangzhe0622/Proxy-Go # 指定要克隆的仓库
-          path: proxy-go-src             # 克隆到 proxy-go-src 目录
-          # 对于公共仓库，通常不需要 token，但如果网络问题，可以尝试提供
-          # token: ${{ secrets.GITHUB_TOKEN }} # 如果仍然失败，可以取消注释尝试
-                                              # 但这通常只用于私有仓库
-
-      - name: Build Proxy-Go Docker image
+      # 启动 Clash 容器
+      - name: Run Clash Container
         run: |
-          cd proxy-go-src
-          docker build -t my-proxy-go:latest .
-          cd .. # 回到工作目录
-      # --------------------------------------------------
-
-      - name: Run Proxy-Go for speed test
-        run: |
-          mkdir -p sc
-          rm -f sc/* || true # 清理旧文件
-          docker run --rm --name proxy-go-tester \
-            -v $(pwd)/config/config.yaml:/etc/proxy-go/config.yaml:ro \
+          mkdir -p sc # 确保输出目录存在
+          # 启动 Clash 容器，并挂载配置和输出目录
+          # 使用 `dreamacro/clash` 官方镜像
+          # -p 9090:9090 暴露 API 端口
+          # -v /tmp/clash_config.yaml:/root/.config/clash/config.yaml 这是Clash默认配置文件路径
+          docker run -d --name clash_core \
+            -p 9090:9090 \
             -v $(pwd)/sc:/output \
-            my-proxy-go:latest
+            # 将在 /tmp/clash_config.yaml 生成的配置挂载到Clash容器的默认路径
+            -v /tmp/clash_config.yaml:/root/.config/clash/config.yaml:ro \
+            dreamacro/clash:latest # 使用 Clash 官方镜像
+          echo "Clash container started."
+          # 额外等待Clash完全启动和加载配置
+          sleep 15 # 给Clash更多时间启动和加载配置
 
-          EXIT_CODE=$(docker inspect -f '{{.State.ExitCode}}' proxy-go-tester)
-          echo "Proxy-Go container exited with code: $EXIT_CODE"
-          if [ "$EXIT_CODE" -ne 0 ]; then
-            echo "Proxy-Go exited with an error. Checking logs..."
-            docker logs proxy-go-tester
-            exit 1
-          fi
+      - name: Run Node Speed Test Script
+        run: |
+          python scripts/main.py
+        env:
+          # 将输出路径传递给脚本
+          OUTPUT_FILE_PATH: ${{ github.workspace }}/sc/NodeDownloadSpeedTest.yaml
 
       - name: Check output file
         run: |
