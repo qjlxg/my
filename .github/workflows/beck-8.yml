@@ -1,104 +1,42 @@
-# 工作流名称
-name: 订阅检查与节点更新 (公共 Subconverter API)
+name: Test Node Download Speed
 
-# 触发工作流的事件
 on:
   push:
     branches:
-      - main # 当有代码推送到 main 分支时自动触发
-  workflow_dispatch: # 允许手动从 GitHub Actions 页面触发此工作流
+      - main
   schedule:
-    - cron: '0 */6 * * *' # 每 6 小时运行一次 (例如，每天的 0点、6点、12点、18点)
+    - cron: '0 0 * * *'  # 每天 UTC 00:00 运行
+  workflow_dispatch:  # 允许手动触发
 
 jobs:
-  update-clash-config:
-    runs-on: ubuntu-latest # 在最新的 Ubuntu 环境上运行
+  test-node-speed:
+    runs-on: ubuntu-latest
 
     steps:
-      - name: 检出仓库 # 第一步：将你的 GitHub 仓库代码克隆到 Actions 运行环境中
-        uses: actions/checkout@v4 # 使用 actions/checkout@v4 动作来完成此操作
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - name: 使用公共 Subconverter API 处理订阅并保存
-        shell: bash # 强制使用 Bash shell 来执行此步骤的脚本
+      - name: Set up Docker
+        uses: docker/setup-buildx-action@v3
+
+      - name: Run proxypool
         run: |
-          # **重要提示：请替换为稳定且你信任的公共 Subconverter API 地址！**
-          # 这是一个示例地址，你可能需要根据实际情况查找和替换
-          # 示例: 你可以搜索 "subconverter public api" 或 "subconverter online" 
-          # 注意：某些公共API可能需要特定的请求头或参数。
-          # 常用的公共API通常是 Vercel 部署的版本
-          # 例如：https://sub.xyz.com/sub?
-          PUBLIC_SUB_API_BASE_URL="https://sub.xeton.dev/sub?" # 这是一个常用且相对稳定的示例API
+          mkdir -p sc
+          docker run -d --name proxypool \
+            -v $(pwd)/config:/config \
+            -v $(pwd)/sc:/output \
+            asdlokj1qpi23/proxypool \
+            -c /config/config.yaml
+          sleep 300  # 等待测试完成
+          docker stop proxypool
+          docker rm proxypool
 
-          # 定义你的订阅链接
-          SUBSCRIPTION_URL_META="https://raw.githubusercontent.com/qjlxg/ss/refs/heads/master/list.meta.yml"
-          SUBSCRIPTION_URL_SS_TXT="https://raw.githubusercontent.com/qjlxg/aggregator/refs/heads/main/ss.txt"
-          
-          # 定义输出文件存放的目录和最终的文件名
-          OUTPUT_DIR="sc"
-          OUTPUT_FILENAME="clash_config.yaml"
-          OUTPUT_PATH="${OUTPUT_DIR}/${OUTPUT_FILENAME}"
-
-          echo "创建输出目录 ${OUTPUT_DIR}..."
-          mkdir -p "$OUTPUT_DIR"
-
-          echo "准备调用公共 Subconverter API..."
-          
-          # URL 编码订阅链接
-          ENCODED_META_URL=$(echo "$SUBSCRIPTION_URL_META" | sed 's/\//%2F/g; s/:/%3A/g; s/?/%3F/g; s/&/%26/g; s/=/%3D/g')
-          ENCODED_SS_TXT_URL=$(echo "$SUBSCRIPTION_URL_SS_TXT" | sed 's/\//%2F/g; s/:/%3A/g; s/?/%3F/g; s/&/%26/g; s/=/%3D/g')
-
-          # 组合公共 API 的完整 URL 参数
-          # target=clashr 适用于 Clash Meta (OpenClash)
-          # sc=true 开启速度测试 (speed check) - 注意：公共API可能不都支持或有额外费用
-          # fast_url 测速地址 - 同样，取决于API是否支持
-          # filter=speed%3E0.1 过滤速度 - 同样，取决于API是否支持
-          
-          # 移除本地测速相关的参数，因为公共API的测速能力我们无法控制
-          # 如果公共API支持，你可以加上这些参数
-          # 比如：&sc=true&fast_url=http%3A%2F%2Fspeed.cloudflare.com%2F__down%3Fbytes%3D10485760&filter=speed%3E0.1
-          CONVERSION_API_FULL_URL="${PUBLIC_SUB_API_BASE_URL}url=${ENCODED_META_URL}|${ENCODED_SS_TXT_URL}&target=clashr&tfo=true&udp=true&rename=true"
-          
-          echo "调用公共 Subconverter API: ${CONVERSION_API_FULL_URL}"
-
-          # 使用 curl 获取配置并保存
-          # -sS: 静默模式，但显示错误
-          # -L: 遵循重定向
-          # -f: 失败时（HTTP 状态码 >= 400）不输出到文件，直接报错
-          # --retry 5 --retry-delay 5: 增加重试机制，以防网络暂时抖动
-          curl -sSLf --retry 5 --retry-delay 5 -o "${OUTPUT_PATH}" "${CONVERSION_API_FULL_URL}"
-          
-          # 检查文件是否成功生成，如果文件不存在，则工作流失败
-          if [ ! -f "$OUTPUT_PATH" ]; then
-            echo "错误: 公共 Subconverter API 未能生成文件 ${OUTPUT_PATH}。"
-            echo "请检查 API 地址是否有效，或订阅链接是否有问题。"
-            exit 1
-          fi
-          echo "Clash 配置已通过公共 Subconverter API 生成并保存到 ${OUTPUT_PATH}。"
-
-      # --- 解决非快进问题：在提交前拉取远程最新代码 ---
-      - name: 拉取远程最新代码 (解决非快进问题)
-        if: success() # 仅当所有前面的步骤都成功时才执行此步骤
+      - name: Commit and push results
         run: |
-          echo "尝试拉取远程 main 分支的最新更改..."
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git pull --rebase origin main
-          if [ $? -ne 0 ]; then # 检查上一个 Git 命令的退出状态码，如果非零则表示失败
-            echo "错误: git pull --rebase 失败。可能存在无法自动解决的冲突，请检查仓库历史。"
-            exit 1 # 终止工作流并标记为失败
-          fi
-          echo "远程代码拉取并rebase成功。"
-
-      # --- 提交并推送更新后的配置文件 ---
-      - name: 提交并推送更新后的配置文件
-        if: success() # 仅当所有前面的步骤都成功时才执行此步骤
-        uses: stefanzweifel/git-auto-commit-action@v5
-        with:
-          commit_message: "更新 Clash 配置：从公共 Subconverter API 获取节点并保存到 sc/clash_config.yaml"
-          file_pattern: "${OUTPUT_PATH}" 
-          branch: main # 指定目标分支
-          commit_user_name: github-actions[bot]
-          commit_user_email: "41898282+github-actions[bot]@users.noreply.github.com"
-          commit_author: qjlxg <12179157+qjlxg@users.noreply.github.com>
+          git config --global user.name 'GitHub Action'
+          git config --global user.email 'action@github.com'
+          git add sc/*
+          git commit -m "Update node speed test results" || echo "No changes to commit"
+          git push
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
