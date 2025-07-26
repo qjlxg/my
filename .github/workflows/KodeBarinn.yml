@@ -58,11 +58,17 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # 使用 GitHub Token 提高 API 请求配额
         run: |
           echo "正在检测 Mihomo 最新稳定版本..."
-          MIHOMO_VERSION=$(curl -s -H "Authorization: token $GITHUB_TOKEN" "https://api.github.com/repos/MetaCubeX/mihomo/releases/latest" | grep -Po '"tag_name": "\K[^"]*"' | head -n 1)
+          # 调试：打印 API 请求的原始响应
+          RESPONSE=$(curl -s -H "Authorization: token $GITHUB_TOKEN" "https://api.github.com/repos/MetaCubeX/mihomo/releases/latest")
+          echo "GitHub API 响应: $RESPONSE"
+          
+          MIHOMO_VERSION=$(echo "$RESPONSE" | grep -Po '"tag_name": "\K[^"]*"' | head -n 1)
           if [ -z "$MIHOMO_VERSION" ]; then
             echo "错误：无法获取 Mihomo 最新版本号，请检查 GitHub API 或网络连接。"
             exit 1
           fi
+          # 清理版本号，确保不包含非法字符
+          MIHOMO_VERSION=$(echo "$MIHOMO_VERSION" | tr -d '\n\r"')
           echo "version=$MIHOMO_VERSION" >> $GITHUB_ENV
           echo "检测到 Mihomo 最新版本: $MIHOMO_VERSION"
 
@@ -77,7 +83,9 @@ jobs:
 
       - name: ⬇️ 下载 Mihomo 核心二进制文件
         run: |
+          set -x # 启用调试，打印每条命令
           CACHE_HIT="${{ steps.cache-mihomo.outputs.cache-hit }}"
+          echo "缓存命中状态: $CACHE_HIT"
           
           if [ "$CACHE_HIT" = "true" ]; then
             echo "Mihomo 核心已从缓存中恢复，跳过下载。"
@@ -100,11 +108,12 @@ jobs:
           MIHOMO_URL="https://github.com/MetaCubeX/mihomo/releases/download/${MIHOMO_VERSION}/mihomo-linux-amd64-${MIHOMO_VERSION}.gz"
           echo "正在从 ${MIHOMO_URL} 下载 Mihomo 核心..."
           
-          wget -q -O mihomo.gz "${MIHOMO_URL}" || { echo "错误：下载 Mihomo 核心失败！"; exit 1; }
+          wget -q -O mihomo.gz "${MIHOMO_URL}" || { echo "错误：下载 Mihomo 核心失败！请检查 URL 或网络连接。"; exit 1; }
           gunzip mihomo.gz || { echo "错误：解压 Mihomo 核心失败！"; exit 1; }
           chmod +x mihomo
           sudo mv mihomo /usr/local/bin/mihomo
           echo "Mihomo 核心已成功安装到 /usr/local/bin/mihomo。"
+          set +x # 关闭调试
 
       - name: ⬇️ 下载原始 Clash 订阅配置
         id: download_config
