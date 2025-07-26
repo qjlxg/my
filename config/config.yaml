@@ -17,5 +17,5 @@ check:
   speedtest_url: https://speed.cloudflare.com/__down?bytes=5000000
   debug: true
 output:
-  path: /output/NodeDownloadSpeedTest.yaml
+  path: /sc/NodeDownloadSpeedTest.yaml
   format: yaml
