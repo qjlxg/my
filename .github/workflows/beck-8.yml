@@ -1,5 +1,5 @@
 # 工作流名称
-name: 订阅检查与节点更新 (Subconverter Docker - 官方镜像)
+name: 订阅检查与节点更新 (公共 Subconverter API)
 
 # 触发工作流的事件
 on:
@@ -12,24 +12,23 @@ on:
 
 jobs:
   update-clash-config:
-    runs-on: ubuntu-latest # 在最新的 Ubuntu 环境上运行，提供必要的 Docker 支持
+    runs-on: ubuntu-latest # 在最新的 Ubuntu 环境上运行
 
     steps:
       - name: 检出仓库 # 第一步：将你的 GitHub 仓库代码克隆到 Actions 运行环境中
         uses: actions/checkout@v4 # 使用 actions/checkout@v4 动作来完成此操作
 
-      # --- 缓存 Docker 镜像层 (可选，加速后续运行) ---
-      - name: 缓存 Docker 镜像层
-        uses: actions/cache@v4 # 使用 actions/cache 动作进行缓存
-        with:
-          path: /var/lib/docker # Docker 镜像层通常存储在这个路径
-          key: ${{ runner.os }}-docker-subconverter-official-${{ hashFiles('.github/workflows/*.yml') }} # 缓存键
-          restore-keys: |
-            ${{ runner.os }}-docker-subconverter-official-
-
-      - name: 使用 subconverter 处理订阅并保存
+      - name: 使用公共 Subconverter API 处理订阅并保存
         shell: bash # 强制使用 Bash shell 来执行此步骤的脚本
         run: |
+          # **重要提示：请替换为稳定且你信任的公共 Subconverter API 地址！**
+          # 这是一个示例地址，你可能需要根据实际情况查找和替换
+          # 示例: 你可以搜索 "subconverter public api" 或 "subconverter online" 
+          # 注意：某些公共API可能需要特定的请求头或参数。
+          # 常用的公共API通常是 Vercel 部署的版本
+          # 例如：https://sub.xyz.com/sub?
+          PUBLIC_SUB_API_BASE_URL="https://sub.xeton.dev/sub?" # 这是一个常用且相对稳定的示例API
+
           # 定义你的订阅链接
           SUBSCRIPTION_URL_META="https://raw.githubusercontent.com/qjlxg/ss/refs/heads/master/list.meta.yml"
           SUBSCRIPTION_URL_SS_TXT="https://raw.githubusercontent.com/qjlxg/aggregator/refs/heads/main/ss.txt"
@@ -42,63 +41,39 @@ jobs:
           echo "创建输出目录 ${OUTPUT_DIR}..."
           mkdir -p "$OUTPUT_DIR"
 
-          echo "启动 subconverter Docker 容器..."
-          # 运行 subconverter 官方 Docker 镜像
-          # -d: 后台运行
-          # --rm: 容器停止后自动删除
-          # --name: 给容器一个名字方便管理
-          # -p 25500:25500: 映射端口，因为我们从宿主机（GitHub Actions Runner）curl 访问
-          # docker.io/subconverter/subconverter:latest 是官方镜像
-          docker run -d --rm --name subconverter_instance -p 25500:25500 docker.io/subconverter/subconverter:latest
-
-          echo "等待 subconverter 服务启动..."
-          # 增加等待时间，确保服务完全启动并监听端口
-          sleep 25 # 增加到 25 秒，确保服务完全启动
-
-          # 增强的端口检查循环，确保服务就绪
-          for i in $(seq 1 10); do
-            if nc -z localhost 25500 &>/dev/null; then
-              echo "subconverter 服务已在 25500 端口监听。"
-              break
-            fi
-            echo "等待 subconverter 服务监听端口... (${i}/10)"
-            sleep 2
-          done
-
-          if ! nc -z localhost 25500 &>/dev/null; then
-            echo "错误: subconverter 服务未能在 25500 端口启动。请检查容器日志。"
-            docker logs subconverter_instance # 打印容器日志以便调试
-            exit 1
-          fi
-
-          echo "使用 subconverter 处理订阅并生成 Clash 配置..."
+          echo "准备调用公共 Subconverter API..."
           
           # URL 编码订阅链接
           ENCODED_META_URL=$(echo "$SUBSCRIPTION_URL_META" | sed 's/\//%2F/g; s/:/%3A/g; s/?/%3F/g; s/&/%26/g; s/=/%3D/g')
           ENCODED_SS_TXT_URL=$(echo "$SUBSCRIPTION_URL_SS_TXT" | sed 's/\//%2F/g; s/:/%3A/g; s/?/%3F/g; s/&/%26/g; s/=/%3D/g')
 
-          # 组合 API URL 参数
-          CONVERSION_API_ENDPOINT="http://localhost:25500/sub?url=${ENCODED_META_URL}|${ENCODED_SS_TXT_URL}&target=clashr&sc=true&fast_url=http%3A%2F%2Fspeed.cloudflare.com%2F__down%3Fbytes%3D10485760&tfo=true&udp=true&rename=true&filter=speed%3E0.1"
+          # 组合公共 API 的完整 URL 参数
+          # target=clashr 适用于 Clash Meta (OpenClash)
+          # sc=true 开启速度测试 (speed check) - 注意：公共API可能不都支持或有额外费用
+          # fast_url 测速地址 - 同样，取决于API是否支持
+          # filter=speed%3E0.1 过滤速度 - 同样，取决于API是否支持
           
-          echo "从 subconverter API 获取配置: ${CONVERSION_API_ENDPOINT}"
+          # 移除本地测速相关的参数，因为公共API的测速能力我们无法控制
+          # 如果公共API支持，你可以加上这些参数
+          # 比如：&sc=true&fast_url=http%3A%2F%2Fspeed.cloudflare.com%2F__down%3Fbytes%3D10485760&filter=speed%3E0.1
+          CONVERSION_API_FULL_URL="${PUBLIC_SUB_API_BASE_URL}url=${ENCODED_META_URL}|${ENCODED_SS_TXT_URL}&target=clashr&tfo=true&udp=true&rename=true"
+          
+          echo "调用公共 Subconverter API: ${CONVERSION_API_FULL_URL}"
 
           # 使用 curl 获取配置并保存
           # -sS: 静默模式，但显示错误
           # -L: 遵循重定向
           # -f: 失败时（HTTP 状态码 >= 400）不输出到文件，直接报错
-          # --retry 5 --retry-delay 5: 增加重试机制，以防服务刚刚启动还没完全准备好
-          curl -sSLf --retry 5 --retry-delay 5 -o "${OUTPUT_PATH}" "${CONVERSION_API_ENDPOINT}"
+          # --retry 5 --retry-delay 5: 增加重试机制，以防网络暂时抖动
+          curl -sSLf --retry 5 --retry-delay 5 -o "${OUTPUT_PATH}" "${CONVERSION_API_FULL_URL}"
           
-          # 停止并移除 subconverter 容器
-          echo "停止并移除 subconverter 容器..."
-          docker stop subconverter_instance
-
           # 检查文件是否成功生成，如果文件不存在，则工作流失败
           if [ ! -f "$OUTPUT_PATH" ]; then
-            echo "错误: subconverter 未能生成文件 ${OUTPUT_PATH}。"
+            echo "错误: 公共 Subconverter API 未能生成文件 ${OUTPUT_PATH}。"
+            echo "请检查 API 地址是否有效，或订阅链接是否有问题。"
             exit 1
           fi
-          echo "Clash 配置已通过 subconverter 生成并保存到 ${OUTPUT_PATH}。"
+          echo "Clash 配置已通过公共 Subconverter API 生成并保存到 ${OUTPUT_PATH}。"
 
       # --- 解决非快进问题：在提交前拉取远程最新代码 ---
       - name: 拉取远程最新代码 (解决非快进问题)
@@ -119,7 +94,7 @@ jobs:
         if: success() # 仅当所有前面的步骤都成功时才执行此步骤
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "更新 Clash 配置：从多订阅源获取节点并保存到 sc/clash_config.yaml"
+          commit_message: "更新 Clash 配置：从公共 Subconverter API 获取节点并保存到 sc/clash_config.yaml"
           file_pattern: "${OUTPUT_PATH}" 
           branch: main # 指定目标分支
           commit_user_name: github-actions[bot]
