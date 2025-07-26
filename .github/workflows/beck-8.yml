@@ -16,10 +16,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout THIS repository
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }} # 用于克隆您自己的仓库
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -32,33 +32,46 @@ jobs:
       - name: Set up Docker
         uses: docker/setup-buildx-action@v3
 
-      # 启动 Subconverter 容器
-      - name: Run Subconverter Container
+      # --- 新增步骤：克隆并构建 Subconverter 镜像 ---
+      - name: Clone Subconverter repository and Build Docker image
         run: |
-          # 启动 Subconverter 容器在后台运行
-          docker run -d --name subconverter -p 25500:25500 ttfw/subconverter:latest
-          echo "Waiting for Subconverter to start..."
-          # 简单等待一下，确保服务启动
-          sleep 10
-          # 检查 Subconverter 是否成功启动
-          docker logs subconverter || true # 打印日志，即使失败也继续
+          echo "Cloning Subconverter repository..."
+          # 使用 git clone 拉取 Subconverter 源代码
+          git clone https://github.com/tindyhr/subconverter.git subconverter-src
+          
+          echo "Building Subconverter Docker image..."
+          cd subconverter-src
+          # 检查 Dockerfile 是否存在
+          if [ -f "Dockerfile" ]; then
+            docker build -t my-subconverter:latest .
+          else
+            echo "Error: Dockerfile not found in subconverter-src. Check repository structure."
+            exit 1
+          fi
+          cd .. # 回到工作目录
+        # 如果 git clone subconverter 遇到问题，尝试提供 token
+        # env:
+        #   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # -----------------------------------------------
 
-      # 启动 Clash 容器
+      # 启动我们自己构建的 Subconverter 容器
+      - name: Run My Subconverter Container
+        run: |
+          docker run -d --name subconverter -p 25500:25500 my-subconverter:latest
+          echo "Waiting for My Subconverter to start..."
+          sleep 10
+          docker logs subconverter || true
+
+      # 启动 Clash 容器 (Clash 官方镜像目前还算稳定，先保留)
       - name: Run Clash Container
         run: |
           mkdir -p sc # 确保输出目录存在
-          # 启动 Clash 容器，并挂载配置和输出目录
-          # 使用 `dreamacro/clash` 官方镜像
-          # -p 9090:9090 暴露 API 端口
-          # -v /tmp/clash_config.yaml:/root/.config/clash/config.yaml 这是Clash默认配置文件路径
           docker run -d --name clash_core \
             -p 9090:9090 \
             -v $(pwd)/sc:/output \
-            # 将在 /tmp/clash_config.yaml 生成的配置挂载到Clash容器的默认路径
             -v /tmp/clash_config.yaml:/root/.config/clash/config.yaml:ro \
-            dreamacro/clash:latest # 使用 Clash 官方镜像
+            dreamacro/clash:latest # 依然尝试 Clash 官方镜像
           echo "Clash container started."
-          # 额外等待Clash完全启动和加载配置
           sleep 15 # 给Clash更多时间启动和加载配置
 
       - name: Run Node Speed Test Script
