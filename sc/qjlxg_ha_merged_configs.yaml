@@ -1180,7 +1180,6 @@ proxies:
   cipher: auto
   tls: true
   skip-cert-verify: true
-  sni: ''
   network: ws
   ws-path: /mail/
 - name: '@ConfigforVPN'
@@ -1504,6 +1503,7 @@ proxies:
   cipher: auto
   tls: true
   skip-cert-verify: true
+  sni: xc133.meiziba5566.com
   network: ws
   ws-path: /268f7e36
   ws-headers:
@@ -2697,6 +2697,17 @@ proxies:
   uuid: df0680ca-e43c-498d-ed86-8e196eedd012
   network: grpc
   grpc-service-name: ''
+- name: 🇭🇰香港4 | ⬇️ 1.1MB/s
+  type: vmess
+  server: hk2.lrzdx.uk
+  port: 443
+  uuid: db69d5bc-d36c-4903-f471-74b98c5cefe5
+  alterId: 0
+  cipher: auto
+  tls: true
+  skip-cert-verify: false
+  network: ws
+  ws-path: /register
 - name: 🇺🇸美国12 | ⬇️ 3.4MB/s
   type: vmess
   server: xcf029.facai2024.com
@@ -2739,6 +2750,17 @@ proxies:
   ws-path: /wfdef
   ws-headers:
     Host: a.886968.xyz
+- name: 🇺🇸美国20 | ⬇️ 1.8MB/s
+  type: vmess
+  server: ray.skymirror.cc
+  port: 443
+  uuid: c99929e1-9c82-4a33-d11e-f177247b8f63
+  alterId: 0
+  cipher: auto
+  tls: true
+  skip-cert-verify: false
+  network: ws
+  ws-path: /
 - name: 🇺🇸美国17 | ⬇️ 4.4MB/s
   type: vmess
   server: xc011-2.meiziba5566.com
@@ -2795,6 +2817,17 @@ proxies:
   ws-path: /xcmg1234
   ws-headers:
     Host: xcmg19.dtkj0328.com
+- name: 🇺🇸美国21 | ⬇️ 2.2MB/s
+  type: vmess
+  server: xc115-1.meiziba5566.com
+  port: 443
+  uuid: f40a8d65-a9ac-42ce-ebcc-9e6447a9866d
+  alterId: 0
+  cipher: auto
+  tls: true
+  skip-cert-verify: false
+  network: ws
+  ws-path: /f40a8d65
 - name: 🇺🇸美国104 | ⬇️ 3.3MB/s
   type: vmess
   server: cloudgetservice.mcloudservice.site
@@ -2823,6 +2856,17 @@ proxies:
   ws-path: /6b95d340
   ws-headers:
     Host: xc125-1.meiziba5566.com
+- name: 🇺🇸美国19 | ⬇️ 2.1MB/s
+  type: vmess
+  server: xcf036.facai2024.com
+  port: 443
+  uuid: 96c585de-c7e4-41cb-a232-9aba535ea9ac
+  alterId: 0
+  cipher: auto
+  tls: true
+  skip-cert-verify: false
+  network: ws
+  ws-path: /96c585de
 - name: 🇺🇸美国27 | ⬇️ 1.4MB/s
   type: vmess
   server: time.is
@@ -8021,7 +8065,6 @@ proxies:
   cipher: auto
   tls: true
   skip-cert-verify: true
-  sni: ''
   network: ws
   ws-path: /path/1685877796747
 - name: 🇺🇸US-199.188.110.115-13288
@@ -8033,7 +8076,6 @@ proxies:
   cipher: auto
   tls: true
   skip-cert-verify: true
-  sni: ''
   network: ws
   ws-path: /path/1685180220853
 - name: 🇺🇸 美国CloudFlare公司CDN节点 4
@@ -9159,7 +9201,6 @@ proxies:
   cipher: auto
   tls: true
   skip-cert-verify: true
-  sni: ''
   network: ws
   ws-path: /connect/de/?ed=1024/?JOKERRVPN
 - name: '@Anty_Vpn سرورای بیشتر'
@@ -20864,7 +20905,6 @@ proxies:
   cipher: auto
   tls: true
   skip-cert-verify: true
-  sni: ''
   network: tcp
 - name: '@s0013_official'
   type: vless
@@ -20881,7 +20921,6 @@ proxies:
   cipher: auto
   tls: true
   skip-cert-verify: true
-  sni: ''
   network: tcp
 - name: '@s0013_official'
   type: vless
@@ -21123,7 +21162,6 @@ proxies:
   cipher: auto
   tls: true
   skip-cert-verify: true
-  sni: ''
   network: ws
   ws-path: /azumase.ren
 - name: https://t.me/ipV2rayNG
@@ -26125,7 +26163,6 @@ proxies:
   cipher: auto
   tls: true
   skip-cert-verify: true
-  sni: ''
   network: ws
   ws-path: /vmess/
 - name: IRAN 210 (@Outline_Vpn) free ss://Y2hhY2hhMjAtaWV0Zi1wb2x5MTMwNTo2OU1VaWk3VkR3TXFoN0h6@admin.c4.webramz.co:443#IRAN
@@ -35769,6 +35806,7 @@ proxies:
   cipher: auto
   tls: true
   skip-cert-verify: true
+  sni: uyhgiuyfewdrgf-to12345.xiaohhh.xyz
   network: ws
   ws-path: /66
   ws-headers:

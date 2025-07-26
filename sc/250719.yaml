@@ -4910,7 +4910,6 @@ proxies:
   cipher: auto
   tls: true
   skip-cert-verify: true
-  sni: ''
   network: ws
   ws-path: /path/1685180220853
 - name: 🇺🇸 美国CloudFlare公司CDN节点 4
@@ -4936,7 +4935,6 @@ proxies:
   cipher: auto
   tls: true
   skip-cert-verify: true
-  sni: ''
   network: ws
   ws-path: /path/1685877796747
 - name: 🇮🇷IR(AzadNet.t.me)_005 vless://29f8ad12-ea84-431b-bf32-9d3fb5cf2aa2@w1.sylar8.eu.org:443?path=/?ed=2048&security=tls&encryption=none&type=ws&sni=w1.sylar8.eu.org#🇺🇸US(AzadNet.t.me)_275
@@ -7284,7 +7282,6 @@ proxies:
   cipher: auto
   tls: true
   skip-cert-verify: true
-  sni: ''
   network: ws
   ws-path: /mail/
 - name: '@ConfigforVPN'
@@ -7450,7 +7447,7 @@ proxies:
   port: 27685
   uuid: 8a312707-4d4c-41c2-8d9d-f03860f7ba44
   network: tcp
-- name: ''
+- name: vmess-configfree_1:443
   type: vmess
   server: configfree_1
   port: 443
@@ -7460,7 +7457,6 @@ proxies:
   cipher: auto
   tls: true
   skip-cert-verify: true
-  sni: ''
   network: tcp
 - name: '@configMs ss://Y2hhY2hhMjAtaWV0Zi1wb2x5MTMwNTpXc3R1U25sdTRpZUE5TTBM@admin.c2.webramz.co:443?type=tcp#@configMs
     ss://Y2hhY2hhMjAtaWV0Zi1wb2x5MTMwNTptcHMzRndtRGpMcldhT1Zn@series-a2.varzesh360.co:443?type=tcp#@configMs
@@ -7822,7 +7818,7 @@ proxies:
   port: 20622
   uuid: a4293f10-4574-482d-9298-e175a3c4dcb2
   network: tcp
-- name: ''
+- name: vmess-custom_14:443
   type: vmess
   server: custom_14
   port: 443
@@ -7831,7 +7827,6 @@ proxies:
   cipher: auto
   tls: true
   skip-cert-verify: true
-  sni: ''
   network: tcp
 - name: https://t.me/custom_14.-چنل ماhttps://t.me/custom_14
   type: vless
@@ -9713,7 +9708,7 @@ proxies:
   alterId: 0
   cipher: auto
   network: tcp
-- name: ''
+- name: vmess-filtershekan_channel:443
   type: vmess
   server: filtershekan_channel
   port: 443
@@ -9722,7 +9717,6 @@ proxies:
   cipher: auto
   tls: true
   skip-cert-verify: true
-  sni: ''
   network: tcp
 - name: 'Channel: @VPNLime'
   type: vless
@@ -9999,7 +9993,7 @@ proxies:
   sni: ConfigForV2rayng.Snapp.monster
   network: grpc
   grpc-service-name: '@VPNCUSTOMIZE'
-- name: ''
+- name: vmess-garnet_free:443
   type: vmess
   server: garnet_free
   port: 443
@@ -10009,7 +10003,6 @@ proxies:
   cipher: auto
   tls: true
   skip-cert-verify: true
-  sni: ''
   network: tcp
 - name: '@Garnet_Free فیلتر نبودن کانفیگ ها قبل از ارسال در چنل توسط ربات بررسی می
     شود. ایرانسل: ❓ همراه اول: ❓ رایتل: ❓ مخابرات: ❓ 💎 @Garnet_Free'
@@ -10881,7 +10874,6 @@ proxies:
   cipher: auto
   tls: true
   skip-cert-verify: true
-  sni: ''
   network: tcp
 - name: '@s0013'
   type: vless
@@ -11068,7 +11060,6 @@ proxies:
   cipher: auto
   tls: true
   skip-cert-verify: true
-  sni: ''
   network: ws
   ws-path: /azumase.ren
 - name: https://t.me/ipV2rayNG
@@ -11330,7 +11321,7 @@ proxies:
   uuid: 5c929ec5-5b1e-447a-950c-354c5d1ba1de
   network: ws
   ws-path: '/ '
-- name: ''
+- name: vmess-king_v2raay:443
   type: vmess
   server: king_v2raay
   port: 443
@@ -11340,7 +11331,6 @@ proxies:
   cipher: auto
   tls: true
   skip-cert-verify: true
-  sni: ''
   network: tcp
 - name: King_v2raay ایرانسل متصل ✅ سرور اختصاصی آیفون 🔥 لوکیشن 🇩🇪 آلمان 👑 @king_v2raay
   type: trojan
@@ -12848,7 +12838,7 @@ proxies:
   uuid: 394b8d98-1b04-460d-b163-cd965e25ca51
   network: grpc
   grpc-service-name: '@SobyV2ray'
-- name: ''
+- name: vmess-proxygodratmand:443
   type: vmess
   server: proxygodratmand
   port: 443
@@ -12858,7 +12848,6 @@ proxies:
   cipher: auto
   tls: true
   skip-cert-verify: true
-  sni: ''
   network: tcp
 - name: PRX11-REALITY-TCP-055ifzr8
   type: vless
@@ -14302,7 +14291,7 @@ proxies:
   ws-path: /0f102dbe-1eff-48a1-d2fb-584b25880c3b
   ws-headers:
     Host: 0-1panel0-1.net-work-plus.ir
-- name: ''
+- name: vmess-mememega:443
   type: vmess
   server: mememega
   port: 443
@@ -14312,7 +14301,6 @@ proxies:
   cipher: auto
   tls: true
   skip-cert-verify: true
-  sni: ''
   network: tcp
 - name: v2ray_one1
   type: vless
@@ -29006,7 +28994,6 @@ proxies:
   cipher: auto
   tls: true
   skip-cert-verify: true
-  sni: ''
   network: ws
   ws-path: /linkvws
 - name: 🏁RELAY-172.67.131.27-0171
@@ -29082,7 +29069,6 @@ proxies:
   cipher: auto
   tls: true
   skip-cert-verify: true
-  sni: ''
   network: ws
   ws-path: /dongtaiwang.com
 - name: 🇨🇦CA-23.162.200.227-6825
@@ -29094,7 +29080,6 @@ proxies:
   cipher: auto
   tls: true
   skip-cert-verify: true
-  sni: ''
   network: ws
   ws-path: /linkvws
 - name: 🏁RELAY-172.64.141.75-3933
@@ -29358,7 +29343,6 @@ proxies:
   cipher: auto
   tls: true
   skip-cert-verify: true
-  sni: ''
   network: grpc
   grpc-service-name: vmess-grpc
 - name: 🇯🇵1 |  1.8MB/s|54%|Youtube|Ope...
@@ -30512,7 +30496,6 @@ proxies:
   cipher: auto
   tls: true
   skip-cert-verify: true
-  sni: ''
   network: ws
   ws-path: /path/102206282005
 - name: Telegram:@config_proxy 🔥
@@ -30840,7 +30823,6 @@ proxies:
   cipher: auto
   tls: true
   skip-cert-verify: true
-  sni: ''
   network: ws
   ws-path: /register
 - name: 🇭🇰香港3 | ⬇️ 3.1MB/s
@@ -31036,7 +31018,6 @@ proxies:
   cipher: auto
   tls: true
   skip-cert-verify: true
-  sni: ''
   network: ws
   ws-path: /96c585de
 - name: 🇺🇸美国20 | ⬇️ 1.8MB/s
@@ -31048,7 +31029,6 @@ proxies:
   cipher: auto
   tls: true
   skip-cert-verify: true
-  sni: ''
   network: ws
   ws-path: /
 - name: 🇺🇸美国21 | ⬇️ 2.2MB/s
@@ -31060,7 +31040,6 @@ proxies:
   cipher: auto
   tls: true
   skip-cert-verify: true
-  sni: ''
   network: ws
   ws-path: /f40a8d65
 - name: 🇺🇸美国23 | ⬇️ 1.4MB/s
@@ -31217,7 +31196,6 @@ proxies:
   cipher: auto
   tls: true
   skip-cert-verify: true
-  sni: ''
   network: tcp
 - name: 🇸🇬[openproxylist.com] vmess-CA
   type: vmess
@@ -31414,7 +31392,6 @@ proxies:
   cipher: auto
   tls: true
   skip-cert-verify: true
-  sni: ''
   network: ws
   ws-path: /path/170733132233
 - name: Telegram:@config_proxy 🔥
@@ -31585,7 +31562,6 @@ proxies:
   cipher: auto
   tls: true
   skip-cert-verify: true
-  sni: ''
   network: grpc
   grpc-service-name: ''
 - name: Telegram:@config_proxy 🔥
@@ -31834,7 +31810,7 @@ proxies:
   alterId: 0
   cipher: auto
   network: tcp
-- name: ''
+- name: vmess-81.12.33.193:6005
   type: vmess
   server: 81.12.33.193
   port: 6005
@@ -32326,7 +32302,6 @@ proxies:
   cipher: auto
   tls: true
   skip-cert-verify: true
-  sni: ''
   network: ws
   ws-path: /path/170733132233
 - name: fk🇭🇰 香港高级-3 x3
@@ -32368,7 +32343,6 @@ proxies:
   cipher: auto
   tls: true
   skip-cert-verify: true
-  sni: ''
   network: ws
   ws-path: /path/170733132233
 - name: 香港🇭🇰
@@ -32380,7 +32354,6 @@ proxies:
   cipher: auto
   tls: true
   skip-cert-verify: true
-  sni: ''
   network: ws
   ws-path: /path/170733132233
 - name: '@Silver_v2ray-@UCIRANIR'
@@ -32501,7 +32474,6 @@ proxies:
   cipher: auto
   tls: true
   skip-cert-verify: true
-  sni: ''
   network: http
 - name: '@V2rayNG3'
   type: vmess
@@ -33140,7 +33112,6 @@ proxies:
   cipher: auto
   tls: true
   skip-cert-verify: true
-  sni: ''
   network: ws
   ws-path: /connect/de/?ed=1024/?JOKERRVPN
 - name: hamrahi-@teslaateam
@@ -33212,7 +33183,6 @@ proxies:
   cipher: auto
   tls: true
   skip-cert-verify: true
-  sni: ''
   network: ws
   ws-path: /39364132
 - name: '@V2rayNG3'
@@ -33640,7 +33610,6 @@ proxies:
   cipher: auto
   tls: true
   skip-cert-verify: true
-  sni: ''
   network: ws
   ws-path: /vmess/
 - name: آلمان 🇩🇪 @V2xay

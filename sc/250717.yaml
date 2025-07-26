@@ -991,7 +991,6 @@ proxies:
   cipher: auto
   tls: true
   skip-cert-verify: true
-  sni: ''
   network: ws
   ws-path: linkvws
 - name: 🏁RELAY-104.21.7.162-0128
@@ -1210,7 +1209,6 @@ proxies:
   cipher: auto
   tls: true
   skip-cert-verify: true
-  sni: ''
   network: ws
   ws-path: /zBLPou
 - name: 🇨🇳+CN+中国+34
@@ -1584,7 +1582,6 @@ proxies:
   cipher: auto
   tls: true
   skip-cert-verify: true
-  sni: ''
   network: ws
   ws-path: /ea4909ef-7ca6-4b46-bf2e-6c07896ef338-vm
 - name: 🇸🇬+SG+新加坡+51

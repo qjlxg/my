@@ -4504,7 +4504,6 @@ proxies:
   cipher: auto
   tls: true
   skip-cert-verify: true
-  sni: ''
   network: ws
   ws-path: /mail/
 - name: '@ConfigforVPN'
@@ -7443,6 +7442,7 @@ proxies:
   cipher: auto
   tls: true
   skip-cert-verify: false
+  sni: irvideo.cfd
   network: ws
   ws-path: /linkws
   ws-headers:
@@ -23872,7 +23872,6 @@ proxies:
   cipher: auto
   tls: true
   skip-cert-verify: true
-  sni: ''
   network: ws
   ws-path: /path/170733132233
 - name: 🇯🇵日本
@@ -24814,7 +24813,6 @@ proxies:
   cipher: auto
   tls: true
   skip-cert-verify: true
-  sni: ''
   network: ws
   ws-path: /horsen
 - name: '@vpnv2rayNGv'
@@ -27710,7 +27708,6 @@ proxies:
   cipher: auto
   tls: true
   skip-cert-verify: true
-  sni: ''
   network: ws
   ws-path: /path/1685877796747
 - name: 🇺🇸US-199.188.110.115-13288
@@ -27722,7 +27719,6 @@ proxies:
   cipher: auto
   tls: true
   skip-cert-verify: true
-  sni: ''
   network: ws
   ws-path: /path/1685180220853
 - name: 🇺🇸US-74.207.247.215-1079
@@ -27801,7 +27797,6 @@ proxies:
   cipher: auto
   tls: true
   skip-cert-verify: true
-  sni: ''
   network: ws
   ws-path: /footers
 - name: 🇩🇪DE-139.162.159.171-0073
@@ -27869,7 +27864,6 @@ proxies:
   cipher: auto
   tls: true
   skip-cert-verify: true
-  sni: ''
   network: ws
   ws-path: /footers
 - name: 🏁RELAY-104.31.16.46-1367
@@ -27964,7 +27958,6 @@ proxies:
   cipher: auto
   tls: true
   skip-cert-verify: true
-  sni: ''
   network: grpc
   grpc-service-name: ''
 - name: 🇯🇵JP-152.69.197.74-4218
@@ -30596,7 +30589,6 @@ proxies:
   cipher: auto
   tls: true
   skip-cert-verify: true
-  sni: ''
   network: grpc
   grpc-service-name: ''
 - name: '@V2ray_Alpha 9'
@@ -30608,7 +30600,6 @@ proxies:
   cipher: auto
   tls: true
   skip-cert-verify: true
-  sni: ''
   network: grpc
   grpc-service-name: ''
 - name: '@V2ray_Alpha 10'
@@ -30644,7 +30635,6 @@ proxies:
   cipher: auto
   tls: true
   skip-cert-verify: true
-  sni: ''
   network: grpc
   grpc-service-name: ''
 - name: '@V2ray_Alpha 13'
@@ -30656,7 +30646,6 @@ proxies:
   cipher: auto
   tls: true
   skip-cert-verify: true
-  sni: ''
   network: grpc
   grpc-service-name: string
 - name: '@V2ray_Alpha 14'
@@ -30668,7 +30657,6 @@ proxies:
   cipher: auto
   tls: true
   skip-cert-verify: true
-  sni: ''
   network: grpc
   grpc-service-name: ''
 - name: TLS5+|+@NUFILTER
@@ -31153,7 +31141,6 @@ proxies:
   cipher: auto
   tls: true
   skip-cert-verify: true
-  sni: ''
   network: ws
   ws-path: /azumase.ren
 - name: '@Msv2flyNG'
@@ -32358,7 +32345,6 @@ proxies:
   cipher: auto
   tls: true
   skip-cert-verify: true
-  sni: ''
   network: tcp
 - name: '@s0013_official'
   type: vless
@@ -34292,6 +34278,7 @@ proxies:
   cipher: auto
   tls: true
   skip-cert-verify: true
+  sni: uyhgiuyfewdrgf-to12345.xiaohhh.xyz
   network: ws
   ws-path: /66
   ws-headers:
@@ -34437,6 +34424,7 @@ proxies:
   cipher: auto
   tls: true
   skip-cert-verify: true
+  sni: backend.app-browser.org
   network: ws
   ws-path: /fws
   ws-headers:

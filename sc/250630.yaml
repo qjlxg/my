@@ -1156,7 +1156,6 @@ proxies:
   cipher: auto
   tls: true
   skip-cert-verify: true
-  sni: ''
   network: ws
   ws-path: /kss
 - name: 0|阿里云
@@ -1243,7 +1242,6 @@ proxies:
   cipher: auto
   tls: true
   skip-cert-verify: true
-  sni: ''
   network: tcp
 - name: t1
   type: vmess

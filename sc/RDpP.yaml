@@ -12516,7 +12516,6 @@ proxies:
   cipher: auto
   tls: true
   skip-cert-verify: true
-  sni: ''
   network: grpc
   grpc-service-name: vmess-grpc
 - name: 🇯🇵1 |  1.8MB/s|54%|Youtube|Ope...
@@ -12816,7 +12815,6 @@ proxies:
   cipher: auto
   tls: true
   skip-cert-verify: true
-  sni: ''
   network: ws
   ws-path: /SXjq8YlnGNBlbnEsM
 - name: 美国 CloudFlare节点
@@ -12828,7 +12826,6 @@ proxies:
   cipher: auto
   tls: true
   skip-cert-verify: true
-  sni: ''
   network: ws
   ws-path: /horsen
 - name: 🇬🇧_GB_英国->🇨🇦_CA_加拿大
