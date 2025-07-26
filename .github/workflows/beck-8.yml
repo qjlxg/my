@@ -15,6 +15,7 @@ jobs:
 
       # --- 使用 Docker 镜像运行 subs-check ---
       - name: 使用 subs-check 处理多个订阅并保存
+        shell: bash
         run: |
           # 定义第一个订阅链接 (Clash Meta 格式)
           SUBSCRIPTION_URL_META="https://raw.githubusercontent.com/qjlxg/ss/refs/heads/master/list.meta.yml"
