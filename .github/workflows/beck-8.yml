@@ -3,69 +3,55 @@ name: 订阅检查与节点更新
 
 # 触发工作流的事件
 on:
-  workflow_dispatch: # 允许手动从 GitHub Actions 页面触发此工作流
+  workflow_dispatch:
   schedule:
-    - cron: '0 */6 * * *' # 每 6 小时运行一次 (例如，每天的 0点、6点、12点、18点)
+    - cron: '0 */6 * * *'
 
 jobs:
   update-clash-config:
-    runs-on: ubuntu-latest # 在最新的 Ubuntu 环境上运行，提供必要的 Docker 支持
+    runs-on: ubuntu-latest
 
     steps:
-      - name: 检出仓库 # 第一步：将你的 GitHub 仓库代码克隆到 Actions 运行环境中
-        uses: actions/checkout@v4 # 使用 actions/checkout@v4 动作来完成此操作
+      - name: 检出仓库
+        uses: actions/checkout@v4
 
-      # --- 缓存 Docker 镜像层 ---
       - name: 缓存 Docker 镜像层
-        uses: actions/cache@v4 # 使用 actions/cache 动作进行缓存
+        uses: actions/cache@v4
         with:
-          path: /var/lib/docker # Docker 镜像层通常存储在这个路径
-          key: ${{ runner.os }}-docker-${{ hashFiles('**/Dockerfile') }}-${{ hashFiles('.github/workflows/*.yml') }} # 缓存键，当 Dockerfile 或工作流文件更改时失效
+          path: /var/lib/docker
+          key: ${{ runner.os }}-docker-${{ hashFiles('**/Dockerfile') }}-${{ hashFiles('.github/workflows/*.yml') }}
           restore-keys: |
-            ${{ runner.os }}-docker- # 恢复键，用于部分匹配缓存
+            ${{ runner.os }}-docker-
 
-      # --- 使用 Docker 镜像运行 beck-8/subs-check ---
-      # 这个核心步骤将复杂的 Docker 命令写入一个临时脚本，然后执行它。
-      # 这样可以最大程度地避免 YAML 解析和 Shell 语法问题。
       - name: 使用 subs-check 处理多个订阅并保存
-        shell: bash # 强制使用 Bash shell 来执行此步骤的脚本
+        shell: bash
         run: |
-          # 定义你的第一个订阅链接 (Clash Meta 格式)
           SUBSCRIPTION_URL_META="https://raw.githubusercontent.com/qjlxg/ss/refs/heads/master/list.meta.yml"
-          # 定义你的第二个订阅链接 (SS 明文或 Base64 编码，subs-check 会自动识别和解析)
           SUBSCRIPTION_URL_SS_TXT="https://raw.githubusercontent.com/qjlxg/aggregator/refs/heads/main/ss.txt"
-          
-          # 定义输出文件存放的目录和最终的文件名
           OUTPUT_DIR="sc"
           OUTPUT_FILENAME="beck-8.yaml"
           OUTPUT_PATH="${OUTPUT_DIR}/${OUTPUT_FILENAME}"
 
           echo "创建输出目录 ${OUTPUT_DIR}..."
-          mkdir -p "$OUTPUT_DIR" # 如果 'sc/' 目录不存在，则创建它
+          mkdir -p "$OUTPUT_DIR"
 
           echo "使用 subs-check 处理订阅并测速、排序..."
           
-          # **核心改动**：将 docker run 命令写入一个临时脚本文件 (run_subs_check.sh)
-          # **关键修正**：现在尝试 '/usr/local/bin/subs-check' 作为可执行文件路径。
           cat <<EOF > run_subs_check.sh
           #!/bin/bash
-          docker run --rm -v "${{ github.workspace }}:/app/output" "ghcr.io/beck-8/subs-check:latest" sh -c "/usr/local/bin/subs-check check -t 30000 -c 50 -o \"/app/output/${OUTPUT_PATH}\" -proxy-api-url \"$SUBSCRIPTION_URL_META,$SUBSCRIPTION_URL_SS_TXT\" -download-url \"https://speed.cloudflare.com/__down?bytes=10485760\" -upload-url \"https://speed.cloudflare.com/__up\" -stream-test \"youtube,netflix\" -rename \"{{.Emoji}}{{.Country}} | {{.Speed | printf \\"%.2f\\"}}MB/s | {{.Remark}}\" -filter \"speed > 0.1\" -sort \"speed:desc\""
+          docker run --rm -v "${{ github.workspace }}:/app/output" "ghcr.io/beck-8/subs-check:latest" /app/subs-check check -t 30000 -c 50 -o "/app/output/${OUTPUT_PATH}" -proxy-api-url "$SUBSCRIPTION_URL_META,$SUBSCRIPTION_URL_SS_TXT" -download-url "https://speed.cloudflare.com/__down?bytes=10485760" -upload-url "https://speed.cloudflare.com/__up" -stream-test "youtube,netflix" -rename "{{.Emoji}}{{.Country}} | {{.Speed | printf \\"%.2f\\"}}MB/s | {{.Remark}}" -filter "speed > 0.1" -sort "speed:desc"
           EOF
 
-          # 赋予临时脚本执行权限
           chmod +x run_subs_check.sh
-          # 执行临时脚本
           ./run_subs_check.sh
 
-          # 检查文件是否成功生成，如果文件不存在，则工作流失败
           if [ ! -f "$OUTPUT_PATH" ]; then
             echo "错误: subs-check 未能生成文件 ${OUTPUT_PATH}。"
             exit 1
           fi
           echo "Clash 配置已通过 subs-check 生成并保存到 ${OUTPUT_PATH}。"
 
-      # --- 解决非快进问题：在提交前拉取远程最新代码 ---
-      - name: 拉取远程最新代码 (解决非快进问题)
+      - name: 拉取远程最新代码
         if: success()
         run: |
           echo "尝试拉取远程 main 分支的最新更改..."
@@ -78,13 +64,12 @@ jobs:
           fi
           echo "远程代码拉取并rebase成功。"
 
-      # --- 提交并推送更新后的配置文件 ---
       - name: 提交并推送更新后的配置文件
         if: success()
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "更新 Clash 配置：从多订阅源获取节点并保存到 sc/beck-8.yaml"
-          file_pattern: "${OUTPUT_PATH}" 
+          file_pattern: "${OUTPUT_PATH}"
           branch: main
           commit_user_name: github-actions[bot]
           commit_user_email: 41898282+github-actions[bot]@users.noreply.github.com
