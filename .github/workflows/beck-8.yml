@@ -5,11 +5,11 @@ on:
     branches:
       - main
   schedule:
-    - cron: '0 0 * * *'  # 每天 UTC 00:00 运行
-  workflow_dispatch:  # 允许手动触发
+    - cron: '0 0 * * *' # 每天 UTC 00:00 运行
+  workflow_dispatch: # 允许手动触发
 
 permissions:
-  contents: write  # 授予写权限
+  contents: write # 授予写权限
 
 jobs:
   test-node-speed:
@@ -24,26 +24,53 @@ jobs:
       - name: Set up Docker
         uses: docker/setup-buildx-action@v3
 
-      - name: Run proxypool with progress logging
+      - name: Create config directory
+        run: mkdir -p config
+
+      - name: Create config.yaml
+        run: |
+          cat << EOF > config/config.yaml
+          sources:
+            - name: custom_nodes_from_url
+              type: url
+              url: https://raw.githubusercontent.com/qjlxg/ss/refs/heads/master/list.meta.yml
+          check:
+            interval: 3600
+            timeout: 20
+            concurrency: 2
+            speedtest:
+              enabled: true
+              url: https://speed.cloudflare.com/__down?bytes=5000000
+              timeout: 15
+              connections: 5
+          output:
+            path: /output/NodeDownloadSpeedTest.yaml
+            format: yaml
+          EOF
+
+      - name: Run Proxy-Go for speed test
         run: |
           mkdir -p sc
-          rm -f sc/* || true  # 清理旧文件
-          docker run -d --name proxypool \
-            -v $(pwd)/config:/config \
+          rm -f sc/* || true # 清理旧文件
+          # 运行 Proxy-Go 容器，挂载配置和输出目录
+          # Proxy-Go 的默认命令可能直接启动，或者需要指定 'run'
+          # 这里假设它默认读取 /etc/proxy-go/config.yaml 或者通过 -c 参数指定
+          # 我们会把它放在 /config/config.yaml，并挂载到 /etc/proxy-go/config.yaml
+          docker run --rm --name proxy-go-tester \
+            -v $(pwd)/config/config.yaml:/etc/proxy-go/config.yaml:ro \
             -v $(pwd)/sc:/output \
-            asdlokj1qpi23/proxypool \
-            -c /config/config.yaml
-          # 实时输出日志，模拟进度条
-          docker logs -f proxypool &
-          # 等待容器完成
-          until [ "$(docker inspect -f '{{.State.Status}}' proxypool)" != "running" ]; do
-            echo "Testing in progress... $(date)"
-            sleep 10
-          done
-          EXIT_CODE=$(docker inspect -f '{{.State.ExitCode}}' proxypool)
-          echo "Container exited with code: $EXIT_CODE"
-          docker stop proxypool || true
-          docker rm proxypool || true
+            wangzhe0622/proxy-go:latest # 使用 Proxy-Go 的官方 Docker 镜像
+
+          # 注意：Proxy-Go 默认不是一个长时间运行的服务，它通常会执行完测试就退出。
+          # 因此，不需要之前的 `docker logs -f` 和 `until` 循环来等待。
+          # 容器退出码会指示成功或失败。
+          EXIT_CODE=$(docker inspect -f '{{.State.ExitCode}}' proxy-go-tester)
+          echo "Proxy-Go container exited with code: $EXIT_CODE"
+          if [ "$EXIT_CODE" -ne 0 ]; then
+            echo "Proxy-Go exited with an error. Checking logs..."
+            docker logs proxy-go-tester
+            exit 1
+          fi
 
       - name: Check output file
         run: |
