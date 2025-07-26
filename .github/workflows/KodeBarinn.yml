@@ -69,7 +69,7 @@ jobs:
         id: cache-mihomo # 为此缓存步骤设置 ID
         uses: actions/cache@v4 # 使用 actions/cache
         with:
-          path: /usr/local/bin/mihomo # 缓存 Mihomo 核心二进制文件的路径
+          path: /usr/local/bin/mihomo # Mihomo 核心二进制文件的路径
           # 缓存键，基于操作系统和上一步获取的 Mihomo 版本号
           key: ${{ runner.os }}-mihomo-${{ steps.download_mihomo_version.outputs.version }} 
           restore-keys: |
@@ -78,7 +78,7 @@ jobs:
       - name: ⬇️ 下载 Mihomo 核心二进制文件
         run: |
           # 检查缓存是否命中。如果命中，表示 Mihomo 核心已恢复，跳过下载
-          if [[ "${{ steps.cache-mihomo.outputs.cache-hit }}" == "true" ]]; then
+          if [ "${{ steps.cache-mihomo.outputs.cache-hit }}" = "true" ]; then
             echo "Mihomo 核心已从缓存中恢复，跳过下载。"
             # 确保恢复的二进制文件有执行权限
             if [ -f "/usr/local/bin/mihomo" ]; then
@@ -86,8 +86,6 @@ jobs:
               echo "已确保 /usr/local/bin/mihomo 具有执行权限。"
             else
               echo "错误：缓存命中但 Mihomo 核心文件缺失，请检查缓存路径或手动清理缓存。"
-              # 尽管缓存通常很可靠，但以防万一，可以加入错误处理或强制下载逻辑
-              # 目前按预期行为处理：缓存命中则文件已在位
             fi
             exit 0 # 缓存命中，成功退出此步骤
           fi
