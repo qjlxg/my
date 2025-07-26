@@ -1,5 +1,5 @@
 # 工作流名称
-name: 订阅检查与节点更新 (Subconverter - frainmax Binary - Debugged Download)
+name: 订阅检查与节点更新 (Subconverter - Vercel 二进制直连)
 
 # 触发工作流的事件
 on:
@@ -15,64 +15,63 @@ jobs:
       - name: 检出仓库 # 第一步：将你的 GitHub 仓库代码克隆到 Actions 运行环境中
         uses: actions/checkout@v4 # 使用 actions/checkout@v4 动作来完成此操作
 
-      - name: 下载并解压 subconverter 二进制文件
+      - name: 下载 subconverter 二进制文件
         run: |
-          # 安装 unzip 和 wget 工具
-          sudo apt-get update && sudo apt-get install -y unzip wget
-          
-          # **重要更新**: 使用 frainmax/subconverter 最新 release 的下载链接 (Linux AMD64)
-          # 注意：请定期检查 https://github.com/frainmax/subconverter/releases 获取最新版本和正确的下载链接
-          # 目前是 v0.8.1，下载的是 subconverter-linux64.zip
-          SUB_CONVERTER_URL="https://github.com/frainmax/subconverter/releases/download/v0.8.1/subconverter-linux64.zip"
-          DOWNLOAD_FILENAME="subconverter-linux64.zip" # 明确下载文件名
+          # **重要更新**: 使用 subconverter-vercel 的直接二进制下载链接
+          # 这个链接通常指向一个单一的、已经编译好的 Linux AMD64 可执行文件
+          # 请定期检查 https://github.com/subconverter-vercel/subconverter/releases 获取最新版本和正确的下载链接
+          # 目前我找到的最稳定的直接二进制链接是这样，它是一个独立的exe文件
+          SUB_CONVERTER_URL="https://github.com/subconverter-vercel/subconverter/releases/download/v0.8.1/subconverter-linux-amd64"
+          DOWNLOAD_FILENAME="subconverter" # 直接命名为 subconverter，因为这是一个单一文件
 
-          echo "下载 frainmax/subconverter 二进制文件..."
-          # 尝试使用 wget 代替 curl，有时 wget 在处理重定向和下载时更稳定
-          # -O: 指定输出文件名
-          # --header="User-Agent: Mozilla/5.0": 模拟浏览器 User-Agent，有时可以解决下载问题
-          wget -q -O "${DOWNLOAD_FILENAME}" "${SUB_CONVERTER_URL}" --header="User-Agent: Mozilla/5.0" || \
-          curl -L -o "${DOWNLOAD_FILENAME}" "${SUB_CONVERTER_URL}" # 如果 wget 失败，回退到 curl
+          echo "尝试下载 subconverter 二进制文件 (${SUB_CONVERTER_URL})..."
+          # 使用 wget 尝试下载，增加超时和重试，并模拟 User-Agent
+          # 这是下载单一文件的最直接方式
+          wget -q -O "${DOWNLOAD_FILENAME}" "${SUB_CONVERTER_URL}" \
+            --timeout=60 --tries=5 --header="User-Agent: Mozilla/5.0" || \
+          curl -L -o "${DOWNLOAD_FILENAME}" "${SUB_CONVERTER_URL}" --retry 5 --retry-delay 5 # 如果 wget 失败，回退到 curl
           
           echo "检查下载文件信息..."
           ls -l "${DOWNLOAD_FILENAME}" # 列出文件详细信息
-          file "${DOWNLOAD_FILENAME}" # 检查文件类型
+          file "${DOWNLOAD_FILENAME}" # 检查文件类型 (应该显示 ELF 64-bit LSB executable)
 
-          echo "解压 subconverter..."
-          unzip "${DOWNLOAD_FILENAME}"
-          
-          # 检查解压后是否有一个名为 'subconverter' 的可执行文件或文件夹
-          if [ -f "subconverter" ]; then
-            chmod +x subconverter
-            EXEC_PATH="./subconverter"
-          elif [ -f "subconverter-linux64/subconverter" ]; then # 检查是否解压到了一个名为 subconverter-linux64 的子目录
-            chmod +x subconverter-linux64/subconverter
-            EXEC_PATH="./subconverter-linux64/subconverter"
-          elif [ -f "subconverter-linux64/subconverter-linux64" ]; then # 某些包可能内部文件名带操作系统信息
-            chmod +x subconverter-linux64/subconverter-linux64
-            EXEC_PATH="./subconverter-linux64/subconverter-linux64"
-          else
-            echo "错误: 未能找到 subconverter 可执行文件。请检查解压内容。"
-            ls -F # 列出当前目录内容以帮助调试
-            exit 1
+          # 检查下载是否成功（文件大小是否合理，不为0或9字节）
+          DOWNLOADED_SIZE=$(stat -c%s "${DOWNLOAD_FILENAME}")
+          echo "下载文件大小: ${DOWNLOADED_SIZE} 字节"
+          # 假设二进制文件至少 5MB，如果小于此值，可能是下载失败
+          if [ "${DOWNLOADED_SIZE}" -lt 5000000 ]; then 
+              echo "错误: 下载的文件过小或不完整。预期文件大小应大于5MB。请检查下载链接或网络问题。"
+              if [ "${DOWNLOADED_SIZE}" -lt 1000 ]; then # 如果文件非常小，打印其内容以帮助调试
+                  echo "文件内容（前500字节）:"
+                  head -c 500 "${DOWNLOAD_FILENAME}"
+              fi
+              exit 1
           fi
+
+          # 确保下载的二进制文件可执行
+          chmod +x "${DOWNLOAD_FILENAME}"
+          EXEC_PATH="./${DOWNLOAD_FILENAME}"
 
           echo "subconverter 已准备就绪，执行路径: ${EXEC_PATH}"
           echo "SUB_CONVERTER_EXEC_PATH=${EXEC_PATH}" >> "$GITHUB_ENV"
 
 
       - name: 使用 subconverter 处理订阅并生成 Clash 配置
-        shell: bash
+        shell: bash # 强制使用 Bash shell 来执行此步骤的脚本
         run: |
+          # 从环境变量获取 subconverter 的执行路径
           if [ -z "${SUB_CONVERTER_EXEC_PATH}" ]; then
             echo "错误: SUB_CONVERTER_EXEC_PATH 环境变量未设置。"
             exit 1
           fi
 
+          # 定义你的订阅链接。subconverter 可以同时处理多个，用 | 分隔
           SUBSCRIPTION_URL_META="https://raw.githubusercontent.com/qjlxg/ss/refs/heads/master/list.meta.yml"
           SUBSCRIPTION_URL_SS_TXT="https://raw.githubusercontent.com/qjlxg/aggregator/refs/heads/main/ss.txt"
           
+          # 定义输出文件存放的目录和最终的文件名
           OUTPUT_DIR="sc"
-          OUTPUT_FILENAME="clash_config.yaml"
+          OUTPUT_FILENAME="clash_config.yaml" # 输出文件名
           OUTPUT_PATH="${OUTPUT_DIR}/${OUTPUT_FILENAME}"
 
           echo "创建输出目录 ${OUTPUT_DIR}..."
@@ -80,50 +79,60 @@ jobs:
 
           echo "使用 subconverter 处理订阅并生成 Clash 配置..."
           
-          "${SUB_CONVERTER_EXEC_PATH}" &
-          SUB_CONVERTER_PID=$!
+          # 启动 subconverter 作为后台服务
+          # 将标准错误重定向到 /dev/null，避免其内部日志污染 Actions 日志
+          "${SUB_CONVERTER_EXEC_PATH}" 2> /dev/null &
+          SUB_CONVERTER_PID=$! # 获取后台进程的 PID
 
+          # 等待 subconverter 服务启动完成
           echo "等待 subconverter 服务启动..."
-          sleep 20 
+          sleep 20 # 给予足够时间启动
 
+          # URL 编码订阅链接
           ENCODED_META_URL=$(echo "$SUBSCRIPTION_URL_META" | sed 's/\//%2F/g; s/:/%3A/g; s/?/%3F/g; s/&/%26/g; s/=/%3D/g')
           ENCODED_SS_TXT_URL=$(echo "$SUBSCRIPTION_URL_SS_TXT" | sed 's/\//%2F/g; s/:/%3A/g; s/?/%3F/g; s/&/%26/g; s/=/%3D/g')
 
+          # 组合 API URL 参数
           CONVERSION_API_ENDPOINT="http://localhost:25500/sub?url=${ENCODED_META_URL}|${ENCODED_SS_TXT_URL}&target=clashr&sc=true&fast_url=http%3A%2F%2Fspeed.cloudflare.com%2F__down%3Fbytes%3D10485760&tfo=true&udp=true&rename=true&filter=speed%3E0.1"
           
           echo "从 subconverter API 获取配置: ${CONVERSION_API_ENDPOINT}"
 
+          # 使用 curl 获取配置并保存
           curl -sSLf --retry 5 --retry-delay 5 -o "${OUTPUT_PATH}" "${CONVERSION_API_ENDPOINT}"
           
+          # 停止 subconverter 进程
           echo "停止 subconverter 服务..."
-          kill $SUB_CONVERTER_PID || true
+          kill $SUB_CONVERTER_PID || true # 使用 || true 确保即使进程已经停止，脚本也不会因kill失败而中断
 
+          # 检查文件是否成功生成，如果文件不存在，则工作流失败
           if [ ! -f "$OUTPUT_PATH" ]; then
             echo "错误: subconverter 未能生成文件 ${OUTPUT_PATH}。"
             exit 1
           fi
           echo "Clash 配置已通过 subconverter 生成并保存到 ${OUTPUT_PATH}。"
 
+      # --- 解决非快进问题：在提交前拉取远程最新代码 ---
       - name: 拉取远程最新代码 (解决非快进问题)
-        if: success()
+        if: success() # 仅当所有前面的步骤都成功时才执行此步骤
         run: |
           echo "尝试拉取远程 main 分支的最新更改..."
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git pull --rebase origin main
-          if [ $? -ne 0 ]; then
+          if [ $? -ne 0 ]; then # 检查上一个 Git 命令的退出状态码，如果非零则表示失败
             echo "错误: git pull --rebase 失败。可能存在无法自动解决的冲突，请检查仓库历史。"
-            exit 1
+            exit 1 # 终止工作流并标记为失败
           fi
           echo "远程代码拉取并rebase成功。"
 
+      # --- 提交并推送更新后的配置文件 ---
       - name: 提交并推送更新后的配置文件
-        if: success()
+        if: success() # 仅当所有前面的步骤都成功时才执行此步骤
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "更新 Clash 配置：从多订阅源获取节点并保存到 sc/clash_config.yaml"
           file_pattern: "${OUTPUT_PATH}" 
-          branch: main
+          branch: main # 指定目标分支
           commit_user_name: github-actions[bot]
           commit_user_email: 41898282+github-actions[bot]@users.noreply.github.com
           commit_author: qjlxg <12179157+qjlxg@users.noreply.github.com>
