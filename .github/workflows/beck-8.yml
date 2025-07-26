@@ -1,63 +1,37 @@
-# 工作流名称
-name: Node Parser Workflow
+name: Process Proxy Links
 
-# 触发条件
 on:
-  push:
-    branches:
-      - main  # 当推送代码到 main 分支时触发
-  pull_request:
-    branches:
-      - main  # 当提交 PR 到 main 分支时触发
+  workflow_dispatch: # 允许手动触发
+  schedule:
+    - cron: '0 */6 * * *' # 每6小时运行一次，可以根据需要调整
 
-# 工作流任务
 jobs:
-  parse-nodes:
-    # 指定运行环境
+  build:
     runs-on: ubuntu-latest
 
-    # 任务步骤
     steps:
-      # 检出代码
-      - name: 检出代码
-        uses: actions/checkout@v4
+    - name: Checkout repository
+      uses: actions/checkout@v4
 
-      # 设置 Python 环境
-      - name: 设置 Python 环境
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'  # 使用 Python 3.10
-          cache: 'pip'  # 缓存 pip 依赖以加速构建
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.9' # 推荐使用Python 3.9或更高版本
 
-      # 安装依赖
-      - name: 安装 Python 依赖
-        run: |
-          python -m pip install --upgrade pip
-          pip install requests PyYAML pysocks
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install httpx pyyaml
 
-      # 运行 node_parser.py 脚本
-      - name: 运行节点解析脚本
-        run: |
-          python node_parser.py
-        env:
-          PYTHONUNBUFFERED: 1  # 确保实时输出日志
-        continue-on-error: true  # 如果脚本运行失败，继续执行后续步骤
+    - name: Run script to process links
+      run: python process_links.py
 
-      # 上传解析结果作为工件
-      - name: 上传解析结果
-        uses: actions/upload-artifact@v4
-        with:
-          name: node-parser-results
-          path: node_parser_output.txt
-          retention-days: 7  # 保留 7 天
-
-      # 检查解析结果
-      - name: 检查解析结果
-        run: |
-          if [ -f node_parser_output.txt ] && [ -s node_parser_output.txt ]; then
-            echo "节点解析成功，输出文件不为空"
-            cat node_parser_output.txt
-          else
-            echo "节点解析失败或输出文件为空"
-            exit 1
-          fi
+    - name: Commit and push changes
+      run: |
+        git config user.name "GitHub Actions"
+        git config user.email "actions@github.com"
+        git add sc/ # 添加sc目录下的所有文件
+        git commit -m "Update proxy nodes" || echo "No changes to commit"
+        git push
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
