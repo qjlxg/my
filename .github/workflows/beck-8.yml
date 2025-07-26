@@ -1,94 +1,62 @@
-name: Node Parser and Data Export
 
+# 工作流名称
+name: Node Parser Workflow
+
+# 触发条件
 on:
   push:
     branches:
-      - main # 推送到 main 分支时触发
-  schedule:
-    - cron: '0 0 * * *' # 每天 UTC 00:00 运行
-  workflow_dispatch: # 允许手动触发
+      - main  # 当推送代码到 main 分支时触发
+  pull_request:
+    branches:
+      - main  # 当提交 PR 到 main 分支时触发
 
-permissions:
-  contents: read # 读取代码权限
-  actions: write # 用于上传 Artifacts，需要此权限
-
+# 工作流任务
 jobs:
   parse-nodes:
+    # 指定运行环境
     runs-on: ubuntu-latest
 
+    # 任务步骤
     steps:
-      - name: Checkout repository
+      # 检出代码
+      - name: 检出代码
         uses: actions/checkout@v4
 
-      - name: Set up Python
+      # 设置 Python 环境
+      - name: 设置 Python 环境
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: '3.10'  # 使用 Python 3.10
+          cache: 'pip'  # 缓存 pip 依赖以加速构建
 
-      - name: Install Python dependencies
+      # 安装依赖
+      - name: 安装依赖
         run: |
           python -m pip install --upgrade pip
-          pip install requests pyyaml # 仅安装 node_parser 需要的依赖
+          pip install requests PyYAML pysocks
 
-      - name: Run Node Parser Script and Save Results
+      # 运行 node_parser.py 脚本
+      - name: 运行节点解析脚本
         run: |
-          # 确保输出目录存在
-          mkdir -p node_data
-          # 运行 node_parser.py，将解析后的有效节点保存到 JSON 文件
-          # 注意：node_parser.py 需要修改以输出到文件，并且不依赖 speed_tester 的常量。
-          # 为简化演示，这里假设 node_parser.py 可以接受参数或有默认行为来输出。
-          # 实际项目中，您可能需要为 node_parser.py 添加一个 main 函数来执行此操作。
-          # 例如： python -c "from node_parser import fetch_node_list, decode_node; import json; nodes_raw = fetch_node_list(); parsed_nodes = []; for n in nodes_raw: cfg, err = decode_node(n); if cfg: parsed_nodes.append(cfg); print(f'Parsed {len(parsed_nodes)} nodes'); with open('node_data/parsed_nodes.json', 'w', encoding='utf-8') as f: json.dump(parsed_nodes, f, ensure_ascii=False, indent=2)"
-          # 为了能让 node_parser.py 独立运行并输出数据，我们对其进行一些修改：
-          
-          # 临时创建一个简化的运行文件，实际您应该直接修改 node_parser.py
-          cat << EOF > run_parser.py
-import requests
-import json
-import os
-import logging
-from node_parser import decode_node # 确保 node_parser.py 和 run_parser.py 在同一目录
+          python node_parser.py > node_parser_output.txt
+        continue-on-error: true  # 如果脚本运行失败，继续执行后续步骤
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
-
-NODE_LIST_URL = "https://raw.githubusercontent.com/qjlxg/aggregator/refs/heads/main/ss.txt"
-OUTPUT_FILE = "node_data/parsed_nodes.json"
-
-def fetch_node_list():
-    try:
-        response = requests.get(NODE_LIST_URL, timeout=10)
-        response.raise_for_status()
-        nodes = [line.strip() for line in response.text.splitlines() if line.strip()]
-        logger.info(f"成功从 {NODE_LIST_URL} 获取到 {len(nodes)} 个原始节点。")
-        return nodes
-    except requests.exceptions.RequestException as e:
-        logger.error(f"获取节点列表失败: {str(e)}")
-        return []
-
-if __name__ == "__main__":
-    os.makedirs(os.path.dirname(OUTPUT_FILE), exist_ok=True)
-    nodes_raw = fetch_node_list()
-    parsed_nodes = []
-    logger.info(f"开始解析 {len(nodes_raw)} 个原始节点...")
-    for node_str in nodes_raw:
-        config, error = decode_node(node_str)
-        if error:
-            display_node_str = node_str if len(node_str) < 70 else node_str[:67] + "..."
-            logger.warning(f"节点 '{display_node_str}' 解析失败: {error}")
-            continue
-        if config:
-            parsed_nodes.append(config)
-
-    with open(OUTPUT_FILE, 'w', encoding='utf-8') as f:
-        json.dump(parsed_nodes, f, ensure_ascii=False, indent=2)
-    logger.info(f"已解析 {len(parsed_nodes)} 个有效节点，并保存到 {OUTPUT_FILE}")
-EOF
-          python run_parser.py
-
-      - name: Upload Parsed Nodes as Artifact
+      # 上传解析结果作为工件
+      - name: 上传解析结果
         uses: actions/upload-artifact@v4
         with:
-          name: parsed-nodes-data # Artifact 的名称
-          path: node_data/parsed_nodes.json # 上传的文件路径
-          retention-days: 1 # 保留一天，根据需要调整
+          name: node-parser-results
+          path: node_parser_output.txt
+          retention-days: 7  # 保留 7 天
+
+      # 检查解析结果（可选）
+      - name: 检查解析结果
+        run: |
+          if [ -s node_parser_output.txt ]; then
+            echo "节点解析成功，输出文件不为空"
+            cat node_parser_output.txt
+          else
+            echo "节点解析失败或输出为空"
+            exit 1
+          fi
