@@ -25,6 +25,8 @@ jobs:
             ${{ runner.os }}-docker- # 恢复键，用于部分匹配缓存
 
       # --- 使用 Docker 镜像运行 beck-8/subs-check ---
+      # 这个核心步骤将复杂的 Docker 命令写入一个临时脚本，然后执行它。
+      # 这样可以最大程度地避免 YAML 解析和 Shell 语法问题。
       - name: 使用 subs-check 处理多个订阅并保存
         shell: bash # 强制使用 Bash shell 来执行此步骤的脚本
         run: |
@@ -44,9 +46,11 @@ jobs:
           echo "使用 subs-check 处理订阅并测速、排序..."
           
           # **核心改动**：将 docker run 命令写入一个临时脚本文件 (run_subs_check.sh)
+          # **关键修正**：移除了 '/app/subs-check'。现在只传递 'check' 和它的参数。
+          # Docker 镜像的 ENTRYPOINT/CMD 会自动调用正确的程序。
           cat <<EOF > run_subs_check.sh
           #!/bin/bash
-          docker run --rm -v "${{ github.workspace }}:/app/output" "ghcr.io/beck-8/subs-check:latest" /app/subs-check check -t 30000 -c 50 -o "/app/output/${OUTPUT_PATH}" -proxy-api-url "$SUBSCRIPTION_URL_META,$SUBSCRIPTION_URL_SS_TXT" -download-url "https://speed.cloudflare.com/__down?bytes=10485760" -upload-url "https://speed.cloudflare.com/__up" -stream-test "youtube,netflix" -rename "{{.Emoji}}{{.Country}} | {{.Speed | printf \\"%.2f\\"}}MB/s | {{.Remark}}" -filter "speed > 0.1" -sort "speed:desc"
+          docker run --rm -v "${{ github.workspace }}:/app/output" "ghcr.io/beck-8/subs-check:latest" check -t 30000 -c 50 -o "/app/output/${OUTPUT_PATH}" -proxy-api-url "$SUBSCRIPTION_URL_META,$SUBSCRIPTION_URL_SS_TXT" -download-url "https://speed.cloudflare.com/__down?bytes=10485760" -upload-url "https://speed.cloudflare.com/__up" -stream-test "youtube,netflix" -rename "{{.Emoji}}{{.Country}} | {{.Speed | printf \\"%.2f\\"}}MB/s | {{.Remark}}" -filter "speed > 0.1" -sort "speed:desc"
           EOF
 
           # 赋予临时脚本执行权限
