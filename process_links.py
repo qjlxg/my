@@ -8,6 +8,7 @@ import re
 import platform
 from urllib.parse import urlparse, unquote, parse_qs
 from typing import List, Dict, Any, Optional
+from collections import defaultdict # 导入 defaultdict 用于计数
 
 # 定义支持的协议
 SUPPORTED_PROTOCOLS = {'hysteria2', 'vmess', 'trojan', 'ss', 'ssr', 'vless'}
@@ -253,7 +254,7 @@ def parse_ssr(data: str) -> Optional[Dict[str, Any]]:
 
         server = parts[0]
         port = int(parts[1])
-        protocol = parts[2]
+        protocol_type = parts[2] # Renamed from 'protocol' to avoid confusion with node['protocol']
         method = parts[3]
         obfs = parts[4]
         
@@ -282,7 +283,7 @@ def parse_ssr(data: str) -> Optional[Dict[str, Any]]:
             'port': port,
             'cipher': method,
             'password': password,
-            'protocol': protocol,
+            'protocol': protocol_type, # Use protocol_type
             'protocol-param': protocol_param,
             'obfs': obfs,
             'obfs-param': obfs_param
@@ -357,13 +358,13 @@ def parse_content(content: str) -> List[Dict[str, Any]]:
                     else:
                         print(f"Warning: Non-dict or missing type item found in YAML proxies: {str(proxy)[:100]}")
             else: 
-                # 如果整个 YAML 是一个 Clash node 的字典，直接加入
-                if all(k in data for k in ['name', 'type', 'server', 'port']): # 简单判断一些关键键是否存在
+                # 如果整个 YAML 是一个 Clash node 的字典，简单判断一些关键键是否存在
+                if all(k in data for k in ['type', 'server', 'port']): # name可能被generate_node_name生成
                      nodes.append(ensure_node_name(data, data.get('type', 'unknown')))
                 
         elif isinstance(data, list): # 可能是直接的节点列表
             for item in data:
-                if isinstance(item, dict) and 'type' in item: # 确保是字典且有type
+                if isinstance(item, dict) and 'type' in item:
                     nodes.append(ensure_node_name(item, item.get('type', 'unknown')))
                 elif isinstance(item, str): # 列表中可能是字符串形式的节点链接
                     parsed_from_line = parse_line_as_node(item)
@@ -388,7 +389,7 @@ def parse_content(content: str) -> List[Dict[str, Any]]:
                     else:
                         print(f"Warning: Non-dict or missing type item found in JSON proxies: {str(proxy)[:100]}")
             else:
-                if all(k in data for k in ['name', 'type', 'server', 'port']):
+                if all(k in data for k in ['type', 'server', 'port']):
                      nodes.append(ensure_node_name(data, data.get('type', 'unknown')))
         elif isinstance(data, list): # 可能是直接的节点列表
             for item in data:
@@ -460,19 +461,35 @@ def get_output_filename(url: str) -> str:
     return "default_nodes.yaml"
 
 def save_to_yaml(nodes: List[Dict[str, Any]], output_filepath: str):
-    """保存节点到 YAML 文件"""
+    """保存节点到 YAML 文件，处理重复名称"""
     if not nodes:
         print(f"No valid nodes extracted for {output_filepath}. Skipping file creation.")
         return
+    
+    unique_nodes: List[Dict[str, Any]] = []
+    seen_names = defaultdict(int) # 使用 defaultdict 记录名称出现的次数
+
+    for node in nodes:
+        original_name = node.get('name', 'unknown_node') # 获取原始名称
+        current_name = original_name
         
+        # 如果名称已经存在，则添加递增的后缀
+        while seen_names[current_name] > 0:
+            seen_names[original_name] += 1 # 记录原始名称的重复次数
+            current_name = f"{original_name} #{seen_names[original_name]}"
+        
+        node['name'] = current_name
+        seen_names[current_name] += 1 # 标记当前唯一名称已使用
+        unique_nodes.append(node)
+
     os.makedirs(os.path.dirname(output_filepath), exist_ok=True) # Ensure directory exists
     
-    yaml_data = {'proxies': nodes}
+    yaml_data = {'proxies': unique_nodes} # 使用去重后的节点列表
     
     try:
         with open(output_filepath, 'w', encoding='utf-8') as f:
             yaml.dump(yaml_data, f, allow_unicode=True, indent=2, sort_keys=False)
-        print(f"Successfully saved {len(nodes)} nodes to {output_filepath}")
+        print(f"Successfully saved {len(unique_nodes)} unique nodes to {output_filepath}")
     except Exception as e:
         print(f"Error saving nodes to {output_filepath}: {e}")
 
@@ -483,7 +500,7 @@ async def process_url(session: aiohttp.ClientSession, url: str):
         print(f"No content fetched from {url}, skipping parsing.")
         return
 
-    nodes = parse_content(content) # content是url获取到的内容
+    nodes = parse_content(content)
     
     output_filename = get_output_filename(url)
     output_filepath = os.path.join('sc', output_filename)
@@ -516,8 +533,6 @@ async def main():
 
 if __name__ == "__main__":
     if platform.system() == "Emscripten":
-        # This part is typically for Pyodide/WebAssembly environments
-        # On GitHub Actions, asyncio.run() is sufficient.
         asyncio.ensure_future(main())
     else:
         asyncio.run(main())
