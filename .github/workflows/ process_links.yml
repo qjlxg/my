@@ -2,6 +2,14 @@ name: Process Proxy Links
 
 on:
   workflow_dispatch: # 允许手动触发
+  push:
+    branches:
+      - main # 或者你的默认分支名称，例如 master
+    paths:
+      - 'process_links.py' # 当 process_links.py 变化时触发
+      - '.github/workflows/process_nodes.yml' # 当工作流文件自身变化时触发
+      - 'sc/**' # 可选：当 sc 目录下的文件变化时触发 (如果你希望在生成文件后，再次有文件变化也触发)
+      - 'urls.txt' # 如果你把URL列表放在单独的文件中，也将其包含进来
   schedule:
     - cron: '0 */6 * * *' # 每6小时运行一次，可以根据需要调整
 
@@ -21,7 +29,7 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install httpx pyyaml
+        pip install aiohttp pyyaml # 确保安装了 aiohttp 和 pyyaml
 
     - name: Run script to process links
       run: python process_links.py
