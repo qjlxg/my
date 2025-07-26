@@ -5,58 +5,15 @@ mode: rule
 log-level: info
 external-controller: 127.0.0.1:9090
 proxies:
-- name: '@Teymourlang'
+- name: vless-sudo.mnb-27675
   type: vless
-  server: www.speedtest.net
-  port: 2096
-  uuid: c819261a-ad50-4ded-b164-1eafed9885c2
-  tls: true
-  skip-cert-verify: false
-  network: ws
-  udp: true
-  ws-path: /mmdhmrws
-  ws-headers:
-    Host: 638868951946670036.amsterdam-prx-dnraaal.info
-- name: '@Teymourlang'
-  type: vless
-  server: 172.66.47.15
-  port: 443
-  uuid: 9368b093-d790-4096-9d8a-1265e82f9e2f
-  tls: true
-  skip-cert-verify: false
-  network: ws
-  udp: true
-  ws-path: /telegram@v2ray_alpha/?ed=2560
-  ws-headers:
-    Host: ggggr.pages.dev
-  flow: randomized
-  alpn:
-  - h2
-  - http/1.1
-- name: '@Teymourlang'
-  type: vless
-  server: 104.21.112.1
-  port: 80
-  uuid: 2036e2c3-18a5-4eed-9db4-f91a7f02c7d5
+  server: sudo.mnbtm.ir
+  port: 27675
+  uuid: 857b15ce-06bb-497e-940a-f5ceb9b5abb8
   tls: false
   skip-cert-verify: false
-  network: ws
+  network: tcp
   udp: true
-  ws-path: /193.123.81.105=443
-  ws-headers:
-    Host: zoomgov.vipren.biz.id
-- name: '@Teymourlang'
-  type: vless
-  server: www.speedtest.net
-  port: 443
-  uuid: 38046915-6d82-4d86-8510-b5bcc569d0ea
-  tls: true
-  skip-cert-verify: false
-  network: ws
-  udp: true
-  ws-path: /@Prime_Verse?ed=2560
-  ws-headers:
-    Host: MydigiKala.pAges.dEv
 - name: '@ConnectBemon | قطع شدی بیا بردار'
   type: vless
   server: 209.38.189.100
@@ -71,64 +28,49 @@ proxies:
   flow: chrome
 - name: '@ConnectBemon | قطع شدی بیا بردار'
   type: vless
-  server: power.teampluss.ir
-  port: 80
-  uuid: 3bebc077-0d92-4832-9ae4-c0820a673b9e
+  server: 95.179.162.59
+  port: 8443
+  uuid: c5e011a7-6de9-4eec-96bc-e38d424785ba
   tls: false
   skip-cert-verify: false
-  network: ws
+  network: tcp
   udp: true
-  ws-path: /Pak91jqn-Mehskl.ir.shop.com?ed=2048
-  ws-headers:
-    Host: Zilor.ir
+  flow: firefox
 - name: '@ConnectBemon | قطع شدی بیا بردار'
   type: vless
-  server: 172.67.153.156
-  port: 8443
-  uuid: 57ba2ab1-a283-42eb-82ee-dc3561a805b8
-  tls: true
+  server: 141.101.121.108
+  port: 8080
+  uuid: d342d11e-d424-4583-b36e-524ab1f0afa4
+  tls: false
   skip-cert-verify: false
   network: ws
   udp: true
-  ws-path: /57ba2ab1
+  ws-path: '/telegram: @Eternal_Connect - telegram: @Eternal_Connect - telegram: @Eternal_Connect
+    - telegram: @Eternal_Connect /?ed=2048'
   ws-headers:
-    Host: ovhwuxian.pai50288.uk
+    Host: 1750293123492.china.baidu.bilibili.china.aeko.cn
+  flow: randomized
+- name: '@ConnectBemon | قطع شدی بیا بردار'
+  type: vless
+  server: mtn.ivy-net.ir
+  port: 8080
+  uuid: aca3817c-0608-4305-8c28-d172c3ff8fca
+  tls: false
+  skip-cert-verify: false
+  network: httpupgrade
+  udp: true
 - name: '@bimnetvpn'
   type: vless
-  server: 172.67.11.138
+  server: 151.101.64.155
   port: 80
-  uuid: b55ec078-3b17-4ed1-a697-71f464cdcaaa
+  uuid: 4690de53-98ac-451c-836e-398645ea5615
   tls: false
   skip-cert-verify: false
   network: ws
   udp: true
-  ws-path: /?ed=2560
+  ws-path: /-LiV2ry@LIGHTNING6-TEL--@LIGHTNING6-TEL--@LIGHTNING6-TEL--@LIGHTNING6-JOIN-@LIGHTNING6-TEL--@LIGHTNING6-JOIN-@LIGHTNING6-TEL-@LIGHTNING6-TEL--@LIGHTNING6-JOIN-@LIGHTNING6-TEL--@LIGHTNING6?ed=2048
   ws-headers:
-    Host: kssepa.sabzipolobamahi.dpdns.org
-- name: Channel:@BeFreeWithUs
-  type: vless
-  server: 151.101.3.8
-  port: 80
-  uuid: 616c06f7-7730-4001-8878-a7a2fc8d7faf
-  tls: false
-  skip-cert-verify: false
-  network: ws
-  udp: true
-  ws-path: /
-  ws-headers:
-    Host: befreewithus.net
-- name: Channel:@BeFreeWithUs
-  type: vless
-  server: speedtest.net
-  port: 80
-  uuid: 7f9f019f-0471-4f8f-bffb-13bb7dfce2c3
-  tls: false
-  skip-cert-verify: false
-  network: ws
-  udp: true
-  ws-path: /
-  ws-headers:
-    Host: befreewithus.net
+    Host: Lightning6.ir
 - name: Free By Tharuwa
   type: vless
   server: free.tharuwa.cfd
@@ -156,45 +98,137 @@ proxies:
   alpn:
   - http/1.1
   - h2
-- name: '🇷🇺 RYNO 🌐RU1 👤 : ✅ karingvpn'
-  type: trojan
-  server: cdn-edge-ru-russia-probe01.cdn-status.info
-  port: 443
-  password: 807248b3ad214e8ce1ace68cb2080851
-  tls: true
-  skip-cert-verify: false
-  udp: true
-  alpn:
-  - http/1.1
-  sni: cdn-edge-ru-russia-probe01.cdn-status.info
-- name: '@V2ray_Alpha+2'
+- name: Free By Tharuwa
   type: vless
-  server: 104.31.16.65
-  port: 443
-  uuid: 5d8569a9-a8cb-4c5e-9ea9-cc40de873a35
+  server: free.tharuwa.cfd
+  port: 80
+  uuid: 86dcd7df-13fd-46c5-9629-e8c9b805ff12
+  tls: false
+  skip-cert-verify: false
+  network: ws
+  udp: true
+  ws-path: /FREE By Tharuwa (0767597317)
+  ws-headers:
+    Host: m.zoom.us
+- name: Channel:@BeFreeWithUs
+  type: vless
+  server: speedtest.net
+  port: 80
+  uuid: 7f9f019f-0471-4f8f-bffb-13bb7dfce2c3
+  tls: false
+  skip-cert-verify: false
+  network: ws
+  udp: true
+  ws-path: /
+  ws-headers:
+    Host: befreewithus.net
+- name: Free By Tharuwa
+  type: vless
+  server: free.tharuwa.cfd
+  port: 80
+  uuid: 9b1e5c7f-1696-4aaf-91af-2c5638691762
+  tls: false
+  skip-cert-verify: false
+  network: ws
+  udp: true
+  ws-path: /Free By Tharuwa (0767597317)
+  ws-headers:
+    Host: zoom.us
+- name: '@Teymourlang'
+  type: vless
+  server: 104.16.104.151
+  port: 80
+  uuid: 1f431db3-1918-4e7b-a855-c93485e11694
+  tls: false
+  skip-cert-verify: false
+  network: ws
+  udp: true
+  ws-path: /?ed=2560
+  ws-headers:
+    Host: pari.parinazz.dpdns.org
+- name: Ws - @OhVpn-pfsg8b8e
+  type: vless
+  server: hajlab.ucdavis.edu
+  port: 80
+  uuid: 70faade8-9362-4c7d-bf45-36d83d6fea6e
+  tls: false
+  skip-cert-verify: false
+  network: ws
+  udp: true
+  ws-path: /@XvProxy----@XvProxy----@XvProxy----@XvProxy----@XvProxy----@XvProxy----@XvProxy----@XvProxy----@XvProxy----@XvProxy----@XvProxy----@XvProxy?ed=2048
+  ws-headers:
+    Host: joinxvproxybedeeeeee.ir
+- name: ☀️ Free Avurudu Server By Tharuwa ☀
+  type: vless
+  server: 178.128.105.58
+  port: 48927
+  uuid: dcc417aa-52c0-4745-9720-2a75fcc0438f
+  tls: false
+  skip-cert-verify: false
+  network: ws
+  udp: true
+  ws-path: /Free By Tharuwa (0767597317)
+  ws-headers:
+    Host: zoom.us
+- name: Ws - @SavageV2ray-kpqq8w97
+  type: vless
+  server: hajlab.ucdavis.edu
+  port: 80
+  uuid: 1fe30846-29da-473d-9959-17e02447638a
+  tls: false
+  skip-cert-verify: false
+  network: ws
+  udp: true
+  ws-path: /@XvProxy----@XvProxy----@XvProxy----@XvProxy----@XvProxy----@XvProxy----@XvProxy----@XvProxy----@XvProxy----@XvProxy----@XvProxy----@XvProxy?ed=2048
+  ws-headers:
+    Host: joinxvproxybedeeeeee.ir
+- name: '@Teymourlang'
+  type: vless
+  server: www.speedtest.net
+  port: 2096
+  uuid: c819261a-ad50-4ded-b164-1eafed9885c2
   tls: true
   skip-cert-verify: false
   network: ws
   udp: true
-  ws-path: Path/Telegram@V2ray_alpha/?ed=2048
+  ws-path: /mmdhmrws
   ws-headers:
-    Host: FIltEr-1tg.pagEs.DeV
-- name: '@V2ray_Alpha+3'
+    Host: 638868951946670036.amsterdam-prx-dnraaal.info
+- name: Free By Tharuwa
   type: vless
-  server: zula.ir
+  server: 152.42.238.214
+  port: 80
+  uuid: dc23d6df-4a97-4da7-81a1-f67a4bedc6d8
+  tls: false
+  skip-cert-verify: false
+  network: ws
+  udp: true
+  ws-path: /FREE By Tharuwa (0767597317)
+  ws-headers:
+    Host: zoom.us
+- name: '@Filter_breaker_uhgk.vip-morteza.xyz'
+  type: vless
+  server: uhgk.vip-morteza.xyz
+  port: 433
+  uuid: a5f75cdd-d1dd-4767-99c4-ffebbe0d613e
+  tls: false
+  skip-cert-verify: false
+  network: tcp
+  udp: true
+  flow: safari
+- name: '@thefreedomvpn جوین شو🤍'
+  type: vless
+  server: privasi.turah.my.id
   port: 443
-  uuid: b9ad895b-12ac-40fc-a5ac-a5b2a1285001
+  uuid: 0fbf4f81-2598-4b6a-a623-0ead4cb9efa8
   tls: true
   skip-cert-verify: false
   network: ws
   udp: true
-  ws-path: Path/Telegram@V2ray_alpha/?ed=2048
+  ws-path: /Free-CF-Proxy-AD192.3.113.4-19318
   ws-headers:
-    Host: 3k.pureboy.eu.org
+    Host: privasi.turah.my.id
   flow: chrome
-  alpn:
-  - h2
-  - http/1.1
 - name: '@V2ray_Alpha+4'
   type: vless
   server: www.speedtest.net
@@ -221,22 +255,57 @@ proxies:
   udp: true
   grpc-service-name: ''
   grpc-multi-mode: true
-- name: '@V2ray_Alpha+6'
+- name: '@V2ray_Alpha+7'
   type: vless
-  server: 172.67.163.103
+  server: visa.com
   port: 443
-  uuid: d342d11e-d424-4583-b36e-524ab1f0afa4
+  uuid: d3a12e79-ef42-4268-b367-42eeb3494e60
   tls: true
   skip-cert-verify: false
   network: ws
   udp: true
   ws-path: Path/Telegram@V2ray_alpha/?ed=2048
   ws-headers:
-    Host: zsf-5fa.pages.dev
+    Host: Hagh.PaGes.DEv
   flow: chrome
   alpn:
   - h2
   - http/1.1
+- name: 🇩🇪 《@V2RayTheKyo》 وصل شدی عضو شو
+  type: vless
+  server: 45.80.111.29
+  port: 8880
+  uuid: fab7bf9c-ddb9-4563-8a04-fb01ce6c0fbf
+  tls: false
+  skip-cert-verify: false
+  network: ws
+  udp: true
+  ws-path: /TelegramU0001F1E8U0001F1F3
+  ws-headers:
+    Host: hk.laoyoutiao.link
+- name: '@V2Graphy_10'
+  type: vless
+  server: turkey.jewelll.ir
+  port: 3311
+  uuid: ccd5d8c4-634c-46bc-8f7a-5be3b8649858
+  tls: false
+  skip-cert-verify: false
+  network: grpc
+  udp: true
+  grpc-service-name: ''
+  grpc-multi-mode: true
+- name: 🇩🇪 《@V2RayTheKyo》 وصل شدی عضو شو
+  type: vless
+  server: 5.175.141.63
+  port: 8880
+  uuid: fab7bf9c-ddb9-4563-8a04-fb01ce6c0fbf
+  tls: false
+  skip-cert-verify: false
+  network: ws
+  udp: true
+  ws-path: /Telegram🇨🇳
+  ws-headers:
+    Host: sg.laoyoutiao.link
 - name: '@V2ray_Alpha 8'
   type: vmess
   server: www.speedtest.net
@@ -250,20 +319,30 @@ proxies:
   udp: true
   grpc-service-name: ''
   grpc-multi-mode: false
-- name: '@V2ray_Alpha 10'
-  type: vmess
-  server: zula.ir
-  port: 2096
-  uuid: 98b879fc-ed38-4537-f02f-e88e4892d48c
-  alterId: 0
-  cipher: auto
-  tls: true
+- name: Ws - @SavageV2ray-tw9mc0hs
+  type: vless
+  server: hajlab.ucdavis.edu
+  port: 80
+  uuid: 0f236af9-6605-4c0b-a106-4bef448af6e2
+  tls: false
   skip-cert-verify: false
   network: ws
   udp: true
-  ws-path: /liu
+  ws-path: /@XvProxy----@XvProxy----@XvProxy----@XvProxy----@XvProxy----@XvProxy----@XvProxy----@XvProxy----@XvProxy----@XvProxy----@XvProxy----@XvProxy?ed=2048
   ws-headers:
-    Host: eu4.nlist.eu.org
+    Host: joinxvproxybedeeeeee.ir
+- name: Free By Tharuwa (@z_z_z_zz_z)
+  type: vless
+  server: 143.198.206.10
+  port: 22099
+  uuid: 1ebc6b56-5f5b-41bb-aecd-67ea5e9ad3d0
+  tls: false
+  skip-cert-verify: false
+  network: ws
+  udp: true
+  ws-path: /FREE By Tharuwa (0767597317)
+  ws-headers:
+    Host: m.zoom.us
 - name: '@V2ray_Alpha+11'
   type: vless
   server: www.speedtest.net
@@ -301,87 +380,242 @@ proxies:
   udp: true
   grpc-service-name: string
   grpc-multi-mode: false
-- name: Free By Tharuwa
+- name: '@WebShecan-26Mordad-Night'
   type: vless
-  server: free.tharuwa.cfd
-  port: 80
-  uuid: 86dcd7df-13fd-46c5-9629-e8c9b805ff12
-  tls: false
-  skip-cert-verify: false
-  network: ws
-  udp: true
-  ws-path: /FREE By Tharuwa (0767597317)
-  ws-headers:
-    Host: m.zoom.us
-- name: Ws - @OhVpn-pfsg8b8e
-  type: vless
-  server: hajlab.ucdavis.edu
-  port: 80
-  uuid: 70faade8-9362-4c7d-bf45-36d83d6fea6e
-  tls: false
-  skip-cert-verify: false
-  network: ws
-  udp: true
-  ws-path: /@XvProxy----@XvProxy----@XvProxy----@XvProxy----@XvProxy----@XvProxy----@XvProxy----@XvProxy----@XvProxy----@XvProxy----@XvProxy----@XvProxy?ed=2048
-  ws-headers:
-    Host: joinxvproxybedeeeeee.ir
-- name: Ws - @SavageV2ray-kpqq8w97
-  type: vless
-  server: hajlab.ucdavis.edu
-  port: 80
-  uuid: 1fe30846-29da-473d-9959-17e02447638a
-  tls: false
-  skip-cert-verify: false
-  network: ws
-  udp: true
-  ws-path: /@XvProxy----@XvProxy----@XvProxy----@XvProxy----@XvProxy----@XvProxy----@XvProxy----@XvProxy----@XvProxy----@XvProxy----@XvProxy----@XvProxy?ed=2048
-  ws-headers:
-    Host: joinxvproxybedeeeeee.ir
-- name: Free By Tharuwa
-  type: vless
-  server: free.tharuwa.cfd
-  port: 80
-  uuid: 9b1e5c7f-1696-4aaf-91af-2c5638691762
-  tls: false
-  skip-cert-verify: false
-  network: ws
-  udp: true
-  ws-path: /Free By Tharuwa (0767597317)
-  ws-headers:
-    Host: zoom.us
-- name: '@Filter_breaker_uhgk.vip-morteza.xyz'
-  type: vless
-  server: uhgk.vip-morteza.xyz
-  port: 433
-  uuid: a5f75cdd-d1dd-4767-99c4-ffebbe0d613e
+  server: webshecan.webredirect.org
+  port: 2087
+  uuid: b7f8a470-e576-48ed-a5d5-d56d9605d307
   tls: false
   skip-cert-verify: false
   network: tcp
   udp: true
-  flow: safari
-- name: '@V2Graphy_9'
+  flow: chrome
+- name: 🇩🇪 《@V2RayTheKyo》 وصل شدی عضو شو
+  type: hysteria2
+  server: '@JavidnamanIran-Javid-SHAH-KingRezaPahlavi@77.90.52.69'
+  port: 35000
+  password: ''
+  obfs: salamander
+  obfs-password: ''
+  tls: true
+  skip-cert-verify: false
+  udp: true
+  fast-open: false
+  sni: pichondan.com
+- name: '@ZEDMODEON 🇨🇿 70'
   type: vless
-  server: ir4.golden-dragon66.pw
-  port: 9211
-  uuid: e8dc92da-89f4-4b1e-b1ba-3911c1ac8362
+  server: 151.101.67.8
+  port: 80
+  uuid: 2a4e29dc-db1e-4b02-a60d-18a1bddb37a0
   tls: false
   skip-cert-verify: false
-  network: grpc
+  network: xhttp
   udp: true
-  grpc-service-name: ''
-  grpc-multi-mode: true
-- name: 🇺🇸《@V2RayTheKyo》 وصل شدی عضو شو
+- name: '@V2Graphy ⚡'
   type: vless
-  server: 141.193.213.10
+  server: speedtest.net
   port: 80
-  uuid: fab7bf9c-ddb9-4563-8a04-fb01ce6c0fbf
+  uuid: 9a02e5ad-f667-4a6f-a0d4-8b8abaab05e2
   tls: false
   skip-cert-verify: false
   network: ws
   udp: true
-  ws-path: /Telegram@V2ray_Alpha
+  ws-path: /
   ws-headers:
-    Host: us.laoyoutiao.link
+    Host: befreewithus.net
+- name: '@WebShecan-27Mordad-1'
+  type: vless
+  server: webshecan.webredirect.org
+  port: 2087
+  uuid: 144bc4ad-3b59-4b9f-b8f6-00a810a4046a
+  tls: false
+  skip-cert-verify: false
+  network: tcp
+  udp: true
+  flow: chrome
+- name: 🇳🇱 《@V2RayTheKyo》 وصل شدی عضو شو
+  type: hysteria2
+  server: '@JavidnamanIran-Javid-SHAH-KingRezaPahlavi@206.71.158.40'
+  port: 35000
+  password: ''
+  obfs: salamander
+  obfs-password: ''
+  tls: true
+  skip-cert-verify: false
+  udp: true
+  fast-open: false
+  sni: pichondan.com
+- name: '@ZEDMODEON 🇨🇿 70'
+  type: vless
+  server: 151.101.67.8
+  port: 80
+  uuid: 206e18f2-8c66-4fbc-91b4-1ef184d6f3e0
+  tls: false
+  skip-cert-verify: false
+  network: xhttp
+  udp: true
+- name: '@V2Graphy ⚡'
+  type: vless
+  server: all2.golnar-clod.ir
+  port: 8880
+  uuid: 862873ea-4ea7-4207-b8d3-8f3c440f0afc
+  tls: false
+  skip-cert-verify: false
+  network: httpupgrade
+  udp: true
+- name: 🇩🇪 《@V2RayTheKyo》 وصل شدی عضو شو
+  type: hysteria2
+  server: user15.SEFRlolpip192761@shade.zone1.center
+  port: 443
+  password: ''
+  obfs: salamander
+  obfs-password: ''
+  tls: true
+  skip-cert-verify: false
+  udp: true
+  fast-open: false
+- name: ?ed=2560&security=none&encryption=none&host=vngsupply.ip-ddns.com&type=ws#♾️𝗝𝗼𝗶𝗻➠@V2Ray_hiddify10♾️       🆓️139<---
+  type: vless
+  server: 45.85.119.151
+  port: 8880
+  uuid: e9979910-79d1-4621-a93c-b2a579c44ba7
+  tls: false
+  skip-cert-verify: false
+  network: tcp
+  udp: true
+- name: 🇹🇼 TW 台湾 4
+  type: vmess
+  server: 7cc02ab9-3478-1733-ea94-2b45d8e115a0.bugtik.ltd
+  port: 80
+  uuid: 46cfcfe1-e450-459d-a3ab-9406011ab3eb
+  alterId: 0
+  cipher: auto
+  tls: false
+  skip-cert-verify: false
+  network: ws
+  udp: true
+  ws-path: /
+  ws-headers:
+    Host: tms.dingtalk.com
+- name: 🇳🇱 《@V2RayTheKyo》 وصل شدی عضو شو
+  type: hysteria2
+  server: Yet-Another-Public-Config-1@yapc-1.adamhayward.co.uk
+  port: 35000
+  password: ''
+  obfs: salamander
+  obfs-password: ''
+  tls: true
+  skip-cert-verify: false
+  udp: true
+  fast-open: false
+  sni: YAPC-1.afshin.ir
+- name: '@WebShecan-27Mordad-Night'
+  type: vless
+  server: webshecan.webredirect.org
+  port: 2087
+  uuid: 915773aa-b54f-43b7-8206-456bb4dff914
+  tls: false
+  skip-cert-verify: false
+  network: tcp
+  udp: true
+  flow: chrome
+- name: 🇹🇼 TW 台湾 5
+  type: vmess
+  server: 207c13fb-83b6-2021-766b-6c95e56a4a33.bugtik.ltd
+  port: 80
+  uuid: 46cfcfe1-e450-459d-a3ab-9406011ab3eb
+  alterId: 0
+  cipher: auto
+  tls: false
+  skip-cert-verify: false
+  network: ws
+  udp: true
+  ws-path: /
+  ws-headers:
+    Host: tms.dingtalk.com
+- name: '@V2ray_Alpha+2'
+  type: vless
+  server: 172.66.47.201
+  port: 443
+  uuid: 989c4f14-a0fb-4375-ba5d-082fb7167b70
+  tls: true
+  skip-cert-verify: false
+  network: ws
+  udp: true
+  ws-path: Path/Telegram@V2ray_alpha/?ed=2048
+  ws-headers:
+    Host: azaDNeTbYfT65433GhGfR5677JGfR557774THyyt8766wWqW346678uUjj.PAges.dEv
+  flow: randomized
+  alpn:
+  - h2
+  - http/1.1
+- name: '@V2Graphy 🇪🇪'
+  type: vless
+  server: 188.114.96.3
+  port: 443
+  uuid: e2d6455c-9846-4502-8394-16b8c1c07b68
+  tls: true
+  skip-cert-verify: false
+  network: ws
+  udp: true
+  ws-path: /orib1trrdqo8xqma?ed=2560fp=chrome
+  ws-headers:
+    Host: GrOUPyoUnEs.PAGEs.DEv
+- name: '@WebShecan-28Mordad-1'
+  type: vless
+  server: webshecan.webredirect.org
+  port: 2087
+  uuid: 62889ef3-ff14-4931-b612-726ba602796c
+  tls: false
+  skip-cert-verify: false
+  network: tcp
+  udp: true
+  flow: chrome
+- name: 🇷🇺 《@V2RayTheKyo》 وصل شدی عضو شو
+  type: hysteria2
+  server: dongtaiwang.com@46.17.41.5
+  port: 12904
+  password: ''
+  obfs: none
+  obfs-password: ''
+  tls: true
+  skip-cert-verify: true
+  udp: true
+  fast-open: false
+  sni: apple.com
+- name: '@V2Graphy 🇿🇦'
+  type: vless
+  server: cdnjs.com
+  port: 443
+  uuid: db400287-fb42-441d-8a76-5624a8a96f49
+  tls: true
+  skip-cert-verify: false
+  network: ws
+  udp: true
+  ws-path: /?ed=2560
+  ws-headers:
+    Host: rayan-roof.atena.dpdns.org
+  flow: chrome
+- name: 🇳🇱 《@V2RayTheKyo》 وصل شدی عضو شو
+  type: hysteria2
+  server: 4VDmo53kWX@185.219.81.33
+  port: 18865
+  password: ''
+  obfs: salamander
+  obfs-password: ''
+  tls: true
+  skip-cert-verify: true
+  udp: true
+  fast-open: false
+- name: vless-kryos.cl-50552
+  type: vless
+  server: kryos.cloudupdate.ir
+  port: 50552
+  uuid: 0698f2cb-bb1d-4a8d-959b-73628363b73b
+  tls: false
+  skip-cert-verify: false
+  network: tcp
+  udp: true
 - name: '@V2ray_Alpha+5'
   type: vless
   server: monardas.aurorainiceland.com
@@ -412,51 +646,16 @@ proxies:
   ws-path: /ivideos.sbs/linkws
   ws-headers:
     Host: mikasa.yaemiko.cloudns.org
-- name: ⚡@V2Graphy_12
+- name: '@WebShecan-28Mordad-Night'
   type: vless
-  server: 151.101.3.8
-  port: 80
-  uuid: 263535f3-e631-442f-b25f-1f3f1db2b8e7
+  server: webshecan.webredirect.org
+  port: 2087
+  uuid: f6b91664-0903-4063-8e15-dba1bc9ee9a2
   tls: false
   skip-cert-verify: false
-  network: xhttp
+  network: tcp
   udp: true
-- name: 🇩🇪 《@V2RayTheKyo》 وصل شدی عضو شو
-  type: hysteria2
-  server: '@JavidnamanIran-Javid-SHAH-KingRezaPahlavi@77.90.52.69'
-  port: 35000
-  password: ''
-  obfs: salamander
-  obfs-password: ''
-  tls: true
-  skip-cert-verify: false
-  udp: true
-  fast-open: false
-  sni: pichondan.com
-- name: Free By Tharuwa
-  type: vless
-  server: 152.42.238.214
-  port: 80
-  uuid: dc23d6df-4a97-4da7-81a1-f67a4bedc6d8
-  tls: false
-  skip-cert-verify: false
-  network: ws
-  udp: true
-  ws-path: /FREE By Tharuwa (0767597317)
-  ws-headers:
-    Host: zoom.us
-- name: 🇳🇱 《@V2RayTheKyo》 وصل شدی عضو شو
-  type: hysteria2
-  server: '@JavidnamanIran-Javid-SHAH-KingRezaPahlavi@206.71.158.40'
-  port: 35000
-  password: ''
-  obfs: salamander
-  obfs-password: ''
-  tls: true
-  skip-cert-verify: false
-  udp: true
-  fast-open: false
-  sni: pichondan.com
+  flow: chrome
 - name: '@V2ray_Alpha+9'
   type: vless
   server: 104.18.202.232
@@ -468,185 +667,42 @@ proxies:
   udp: true
   grpc-service-name: ''
   grpc-multi-mode: true
-- name: '@V2Graphy ⚡'
+- name: '@WebShecan-29Mordad-1'
   type: vless
-  server: speedtest.net
-  port: 80
-  uuid: 9a02e5ad-f667-4a6f-a0d4-8b8abaab05e2
+  server: webshecan.webredirect.org
+  port: 2087
+  uuid: 8f646a01-2cc1-4270-ad43-f87e157e4d44
   tls: false
   skip-cert-verify: false
-  network: ws
+  network: tcp
   udp: true
-  ws-path: /
-  ws-headers:
-    Host: befreewithus.net
-- name: 🇩🇪 《@V2RayTheKyo》 وصل شدی عضو شو
-  type: hysteria2
-  server: user15.SEFRlolpip192761@shade.zone1.center
-  port: 443
-  password: ''
-  obfs: salamander
-  obfs-password: ''
-  tls: true
-  skip-cert-verify: false
-  udp: true
-  fast-open: false
-- name: 🇳🇱 《@V2RayTheKyo》 وصل شدی عضو شو
-  type: hysteria2
-  server: Yet-Another-Public-Config-1@yapc-1.adamhayward.co.uk
-  port: 35000
-  password: ''
-  obfs: salamander
-  obfs-password: ''
-  tls: true
-  skip-cert-verify: false
-  udp: true
-  fast-open: false
-  sni: YAPC-1.afshin.ir
-- name: Ws - @SavageV2ray-tw9mc0hs
+  flow: chrome
+- name: '@WebShecan-With❤️'
   type: vless
-  server: hajlab.ucdavis.edu
-  port: 80
-  uuid: 0f236af9-6605-4c0b-a106-4bef448af6e2
-  tls: false
+  server: frad.webshecan.cloud
+  port: 2083
+  uuid: a83b52bd-8a99-4df5-a4c9-c82c043c1f8d
+  tls: true
   skip-cert-verify: false
-  network: ws
+  network: grpc
   udp: true
-  ws-path: /@XvProxy----@XvProxy----@XvProxy----@XvProxy----@XvProxy----@XvProxy----@XvProxy----@XvProxy----@XvProxy----@XvProxy----@XvProxy----@XvProxy?ed=2048
-  ws-headers:
-    Host: joinxvproxybedeeeeee.ir
-- name: 🇳🇱 《@V2RayTheKyo》 وصل شدی عضو شو
+  grpc-service-name: ''
+  grpc-multi-mode: true
+  alpn:
+  - h2
+  - http/1.1
+- name: 🇷🇺 《@V2RayTheKyo》 وصل شدی عضو شو
   type: hysteria2
-  server: 4VDmo53kWX@185.219.81.33
-  port: 18865
+  server: dongtaiwang.com@45.129.2.108
+  port: 50850
   password: ''
-  obfs: salamander
+  obfs: none
   obfs-password: ''
   tls: true
   skip-cert-verify: true
   udp: true
   fast-open: false
-- name: Free Paid Server By Tharuwa
-  type: vless
-  server: 139.59.96.179
-  port: 19544
-  uuid: 4c550907-93b2-4dd1-81d6-6826bb0d3735
-  tls: false
-  skip-cert-verify: false
-  network: ws
-  udp: true
-  ws-path: /FREE By Tharuwa (0767597317)
-  ws-headers:
-    Host: zoom.us
-- name: Free By Tharuwa (@z_z_z_zz_z)
-  type: vless
-  server: 152.42.247.57
-  port: 49749
-  uuid: 7fec368a-d4d0-42b4-844b-05c3b6fa0883
-  tls: false
-  skip-cert-verify: false
-  network: ws
-  udp: true
-  ws-path: /FREE By Tharuwa (0767597317)
-  ws-headers:
-    Host: m.zoom.us
-- name: '@V2Graphy 🇪🇪'
-  type: vless
-  server: 188.114.96.3
-  port: 443
-  uuid: e2d6455c-9846-4502-8394-16b8c1c07b68
-  tls: true
-  skip-cert-verify: false
-  network: ws
-  udp: true
-  ws-path: /orib1trrdqo8xqma?ed=2560fp=chrome
-  ws-headers:
-    Host: GrOUPyoUnEs.PAGEs.DEv
-- name: 🇯🇵@Mahdi2000_m vless-JP
-  type: vless
-  server: 45.12.134.217
-  port: 80
-  uuid: ed242313-b502-4a4a-97f4-336da621a837
-  tls: false
-  skip-cert-verify: false
-  network: ws
-  udp: true
-  ws-path: /vless/
-  ws-headers:
-    Host: 45.12.134.217
-- name: '@V2Graphy 🇿🇦'
-  type: vless
-  server: cdnjs.com
-  port: 443
-  uuid: db400287-fb42-441d-8a76-5624a8a96f49
-  tls: true
-  skip-cert-verify: false
-  network: ws
-  udp: true
-  ws-path: /?ed=2560
-  ws-headers:
-    Host: rayan-roof.atena.dpdns.org
-  flow: chrome
-- name: '@WebShecan-26Mordad-Night'
-  type: vless
-  server: webshecan.webredirect.org
-  port: 2087
-  uuid: b7f8a470-e576-48ed-a5d5-d56d9605d307
-  tls: false
-  skip-cert-verify: false
-  network: tcp
-  udp: true
-  flow: chrome
-- name: '@WebShecan-27Mordad-1'
-  type: vless
-  server: webshecan.webredirect.org
-  port: 2087
-  uuid: 144bc4ad-3b59-4b9f-b8f6-00a810a4046a
-  tls: false
-  skip-cert-verify: false
-  network: tcp
-  udp: true
-  flow: chrome
-- name: 🇹🇼 TW 台湾 4
-  type: vmess
-  server: 7cc02ab9-3478-1733-ea94-2b45d8e115a0.bugtik.ltd
-  port: 80
-  uuid: 46cfcfe1-e450-459d-a3ab-9406011ab3eb
-  alterId: 0
-  cipher: auto
-  tls: false
-  skip-cert-verify: false
-  network: ws
-  udp: true
-  ws-path: /
-  ws-headers:
-    Host: tms.dingtalk.com
-- name: 🇹🇼 TW 台湾 5
-  type: vmess
-  server: 207c13fb-83b6-2021-766b-6c95e56a4a33.bugtik.ltd
-  port: 80
-  uuid: 46cfcfe1-e450-459d-a3ab-9406011ab3eb
-  alterId: 0
-  cipher: auto
-  tls: false
-  skip-cert-verify: false
-  network: ws
-  udp: true
-  ws-path: /
-  ws-headers:
-    Host: tms.dingtalk.com
-- name: Free By Tharuwa (@z_z_z_zz_z)
-  type: vless
-  server: 143.198.206.10
-  port: 22099
-  uuid: 1ebc6b56-5f5b-41bb-aecd-67ea5e9ad3d0
-  tls: false
-  skip-cert-verify: false
-  network: ws
-  udp: true
-  ws-path: /FREE By Tharuwa (0767597317)
-  ws-headers:
-    Host: m.zoom.us
+  sni: www.bing.com
 - name: 🇺🇲+@V2ray_Alpha+2
   type: vless
   server: upload.ir
@@ -662,16 +718,20 @@ proxies:
   alpn:
   - h2
   - http/1.1
-- name: '@WebShecan-27Mordad-Night'
-  type: vless
-  server: webshecan.webredirect.org
-  port: 2087
-  uuid: 915773aa-b54f-43b7-8206-456bb4dff914
+- name: 🇸🇬SG-128.199.168.151-5271
+  type: vmess
+  server: 128.199.168.151
+  port: 80
+  uuid: a7ee85f4-2528-412e-994f-ce65f54754e4
+  alterId: 0
+  cipher: auto
   tls: false
   skip-cert-verify: false
-  network: tcp
+  network: ws
   udp: true
-  flow: chrome
+  ws-path: a7ee85f4
+  ws-headers:
+    Host: dd2.1808.cf
 - name: 🇺🇲+@V2ray_Alpha+4
   type: vless
   server: 104.18.202.232
@@ -687,16 +747,6 @@ proxies:
   alpn:
   - h2
   - http/1.1
-- name: '@WebShecan-28Mordad-1'
-  type: vless
-  server: webshecan.webredirect.org
-  port: 2087
-  uuid: 62889ef3-ff14-4931-b612-726ba602796c
-  tls: false
-  skip-cert-verify: false
-  network: tcp
-  udp: true
-  flow: chrome
 - name: 🇺🇲+@V2ray_Alpha+5
   type: vless
   server: caretaker.com
@@ -711,65 +761,9 @@ proxies:
   flow: chrome
   alpn:
   - h2
-- name: '@ShadowProxy66 | RELAY🚩 | rockp.blanku.me:443 | 189.29ms | 0️⃣1️⃣'
-  type: vmess
-  server: 104.24.145.43
-  port: 443
-  uuid: 824c58b1-65ba-4680-a609-663a000dbb92
-  alterId: 0
-  cipher: auto
-  tls: true
-  skip-cert-verify: false
-  network: ws
-  udp: true
-  ws-path: /wss13889
-  ws-headers:
-    Host: rock.blanku.me
-- name: '@WebShecan-28Mordad-Night'
+- name: 🇺🇲+@V2ray_Alpha+7
   type: vless
-  server: webshecan.webredirect.org
-  port: 2087
-  uuid: f6b91664-0903-4063-8e15-dba1bc9ee9a2
-  tls: false
-  skip-cert-verify: false
-  network: tcp
-  udp: true
-  flow: chrome
-- name: vless-kryos.cl-50552
-  type: vless
-  server: kryos.cloudupdate.ir
-  port: 50552
-  uuid: 0698f2cb-bb1d-4a8d-959b-73628363b73b
-  tls: false
-  skip-cert-verify: false
-  network: tcp
-  udp: true
-- name: 🇭🇰HK-8.210.128.146-0163
-  type: vmess
-  server: 8.210.128.146
-  port: 36788
-  uuid: 34ae890c-eada-4160-f7ba-a2d9fba215af
-  alterId: 0
-  cipher: auto
-  tls: false
-  skip-cert-verify: false
-  network: ws
-  udp: true
-  ws-path: /
-  ws-headers: {}
-- name: '@WebShecan-29Mordad-1'
-  type: vless
-  server: webshecan.webredirect.org
-  port: 2087
-  uuid: 8f646a01-2cc1-4270-ad43-f87e157e4d44
-  tls: false
-  skip-cert-verify: false
-  network: tcp
-  udp: true
-  flow: chrome
-- name: 🇺🇲+@V2ray_Alpha+10
-  type: vless
-  server: www.you.com
+  server: 162.159.135.79
   port: 2087
   uuid: 2ca42987-551b-4494-a854-da2d9178f4cd
   tls: true
@@ -778,13 +772,13 @@ proxies:
   udp: true
   grpc-service-name: ''
   grpc-multi-mode: true
-  flow: safari
+  flow: chrome
   alpn:
   - h2
   - http/1.1
-- name: 🇺🇲+@V2ray_Alpha+11
+- name: 🇺🇲+@V2ray_Alpha+8
   type: vless
-  server: trump.com
+  server: www.visa.com
   port: 2087
   uuid: 2ca42987-551b-4494-a854-da2d9178f4cd
   tls: true
@@ -796,9 +790,9 @@ proxies:
   flow: chrome
   alpn:
   - h2
-- name: 🇺🇲+@V2ray_Alpha+12
+- name: 🇺🇲+@V2ray_Alpha+9
   type: vless
-  server: ipt.ai-app-list.buzz
+  server: lol.ps
   port: 2087
   uuid: 2ca42987-551b-4494-a854-da2d9178f4cd
   tls: true
@@ -808,40 +802,9 @@ proxies:
   grpc-service-name: ''
   grpc-multi-mode: true
   flow: chrome
-  alpn:
-  - h2
-- name: '@WebShecan-With❤️'
-  type: vless
-  server: frad.webshecan.cloud
-  port: 2083
-  uuid: a83b52bd-8a99-4df5-a4c9-c82c043c1f8d
-  tls: true
-  skip-cert-verify: false
-  network: grpc
-  udp: true
-  grpc-service-name: ''
-  grpc-multi-mode: true
   alpn:
   - h2
   - http/1.1
-- name: Telegram@V2ray_Alpha&security=tls&alpn=http/1.1&encryption=none&host=magdl.ir&fp=chrome&type=ws&sni=anchor.fm#@V2rayNG3
-  type: vless
-  server: 151.101.66.133
-  port: 443
-  uuid: 25b8f4b0-4f7d-400f-bc4a-f10e5b8796a2
-  tls: false
-  skip-cert-verify: false
-  network: tcp
-  udp: true
-- name: Telegram@V2ray_Alpha&security=tls&encryption=none&host=GxVpOnLl13.pRiMeXaD.OrG&fp=chrome&type=ws&sni=GxVpOnLl13.pRiMeXaD.OrG#Mtn-@V2ray_Raha-13
-  type: vless
-  server: 104.17.148.22
-  port: 8443
-  uuid: 96a1b724-68d2-4f4d-ab25-38ecd83577bc
-  tls: false
-  skip-cert-verify: false
-  network: tcp
-  udp: true
 - name: 🇨🇳_CN_中国_13
   type: vmess
   server: tencent.damaoooo.com
@@ -853,22 +816,6 @@ proxies:
   skip-cert-verify: false
   network: tcp
   udp: true
-- name: '@V2ray_Alpha+8'
-  type: vless
-  server: zula.ir
-  port: 443
-  uuid: d672ec4f-afba-4f61-af09-eec872f97e99
-  tls: true
-  skip-cert-verify: false
-  network: ws
-  udp: true
-  ws-path: Path/Telegram@V2ray_Alpha/?ed=2048
-  ws-headers:
-    Host: test39.pages.dev
-  flow: chrome
-  alpn:
-  - h2
-  - http/1.1
 - name: 🇨🇳_CN_中国_14
   type: vmess
   server: data-hk-v1.usabooks.com.cn
@@ -883,6 +830,47 @@ proxies:
   ws-path: /debian
   ws-headers:
     Host: data-hk-v1.usabooks.com.cn
+- name: Telegram@V2ray_Alpha&security=tls&encryption=none&host=QtRkJtLt27.pRiMeXaD.OrG&fp=chrome&type=ws&sni=QtRkJtLt27.pRiMeXaD.OrG#Mtn-@V2ray_Raha-12
+  type: vless
+  server: 45.131.5.252
+  port: 8443
+  uuid: 96a1b724-68d2-4f4d-ab25-38ecd83577bc
+  tls: false
+  skip-cert-verify: false
+  network: tcp
+  udp: true
+- name: 🇺🇲+@V2ray_Alpha+12
+  type: vless
+  server: ipt.ai-app-list.buzz
+  port: 2087
+  uuid: 2ca42987-551b-4494-a854-da2d9178f4cd
+  tls: true
+  skip-cert-verify: false
+  network: grpc
+  udp: true
+  grpc-service-name: ''
+  grpc-multi-mode: true
+  flow: chrome
+  alpn:
+  - h2
+- name: Telegram@V2ray_Alpha&security=tls&encryption=none&host=GxVpOnLl13.pRiMeXaD.OrG&fp=chrome&type=ws&sni=GxVpOnLl13.pRiMeXaD.OrG#Mtn-@V2ray_Raha-13
+  type: vless
+  server: 104.17.148.22
+  port: 8443
+  uuid: 96a1b724-68d2-4f4d-ab25-38ecd83577bc
+  tls: false
+  skip-cert-verify: false
+  network: tcp
+  udp: true
+- name: 🇸🇬_SG_新加坡_5
+  type: trojan
+  server: sg01.freeflyingcloud.xyz
+  port: 35702
+  password: 63db084a-e2ce-46db-9dd6-d4ed2c3d2663
+  tls: true
+  skip-cert-verify: false
+  udp: true
+  sni: sg01.freeflyingcloud.xyz
 - name: '@v2ray_alpha&security=tls&alpn=h2,http/1.1&host=301.pooriam.ir&fp=randomized&type=ws&sni=301.pOORiAm.ir#@V2rayNG3'
   type: trojan
   server: 104.17.148.22
@@ -907,111 +895,86 @@ proxies:
   skip-cert-verify: false
   network: tcp
   udp: true
-- name: vless-moody-lo-80
-  type: vless
-  server: moody-lock.seotoolsforyou.co.uk
-  port: 80
-  uuid: 82cdcdf0-e772-4d9a-b0a2-d6b605572ac1
-  tls: false
-  skip-cert-verify: false
-  network: ws
-  udp: true
-  ws-path: /?Join---TELEGRAM---MTMVPN---Join---MARAMBASHI---Join---TELEGRAM---MTMVPN---Join---TELEGRAM---MTMVPN?ed=2560
-  ws-headers:
-    Host: moody-lock.seotoolsforyou.co.uk
-- name: vless-mn.co-8080
-  type: vless
-  server: mn.co
-  port: 8080
-  uuid: 5fd07734-1d8b-4779-a15a-4104b2fd05d5
-  tls: false
-  skip-cert-verify: false
-  network: ws
-  udp: true
-  ws-path: /melo
-  ws-headers:
-    Host: shad.ir.bot.digicyber.click
 proxy-groups:
 - name: Proxy
   type: select
   proxies:
   - DIRECT
-  - '@Teymourlang'
-  - '@Teymourlang'
-  - '@Teymourlang'
-  - '@Teymourlang'
+  - vless-sudo.mnb-27675
+  - '@ConnectBemon | قطع شدی بیا بردار'
   - '@ConnectBemon | قطع شدی بیا بردار'
   - '@ConnectBemon | قطع شدی بیا بردار'
   - '@ConnectBemon | قطع شدی بیا بردار'
   - '@bimnetvpn'
-  - Channel:@BeFreeWithUs
-  - Channel:@BeFreeWithUs
   - Free By Tharuwa
   - '@XsV2ray-1qrusdxk'
-  - '🇷🇺 RYNO 🌐RU1 👤 : ✅ karingvpn'
-  - '@V2ray_Alpha+2'
-  - '@V2ray_Alpha+3'
+  - Free By Tharuwa
+  - Channel:@BeFreeWithUs
+  - Free By Tharuwa
+  - '@Teymourlang'
+  - Ws - @OhVpn-pfsg8b8e
+  - ☀️ Free Avurudu Server By Tharuwa ☀
+  - Ws - @SavageV2ray-kpqq8w97
+  - '@Teymourlang'
+  - Free By Tharuwa
+  - '@Filter_breaker_uhgk.vip-morteza.xyz'
+  - '@thefreedomvpn جوین شو🤍'
   - '@V2ray_Alpha+4'
   - '@V2ray_Alpha+5'
-  - '@V2ray_Alpha+6'
+  - '@V2ray_Alpha+7'
+  - 🇩🇪 《@V2RayTheKyo》 وصل شدی عضو شو
+  - '@V2Graphy_10'
+  - 🇩🇪 《@V2RayTheKyo》 وصل شدی عضو شو
   - '@V2ray_Alpha 8'
-  - '@V2ray_Alpha 10'
+  - Ws - @SavageV2ray-tw9mc0hs
+  - Free By Tharuwa (@z_z_z_zz_z)
   - '@V2ray_Alpha+11'
   - '@V2ray_Alpha 12'
   - '@V2ray_Alpha 13'
-  - Free By Tharuwa
-  - Ws - @OhVpn-pfsg8b8e
-  - Ws - @SavageV2ray-kpqq8w97
-  - Free By Tharuwa
-  - '@Filter_breaker_uhgk.vip-morteza.xyz'
-  - '@V2Graphy_9'
-  - 🇺🇸《@V2RayTheKyo》 وصل شدی عضو شو
-  - '@V2ray_Alpha+5'
-  - '@V2ray_Alpha 6'
-  - ⚡@V2Graphy_12
+  - '@WebShecan-26Mordad-Night'
   - 🇩🇪 《@V2RayTheKyo》 وصل شدی عضو شو
-  - Free By Tharuwa
+  - '@ZEDMODEON 🇨🇿 70'
+  - '@V2Graphy ⚡'
+  - '@WebShecan-27Mordad-1'
   - 🇳🇱 《@V2RayTheKyo》 وصل شدی عضو شو
-  - '@V2ray_Alpha+9'
+  - '@ZEDMODEON 🇨🇿 70'
   - '@V2Graphy ⚡'
   - 🇩🇪 《@V2RayTheKyo》 وصل شدی عضو شو
-  - 🇳🇱 《@V2RayTheKyo》 وصل شدی عضو شو
-  - Ws - @SavageV2ray-tw9mc0hs
-  - 🇳🇱 《@V2RayTheKyo》 وصل شدی عضو شو
-  - Free Paid Server By Tharuwa
-  - Free By Tharuwa (@z_z_z_zz_z)
-  - '@V2Graphy 🇪🇪'
-  - 🇯🇵@Mahdi2000_m vless-JP
-  - '@V2Graphy 🇿🇦'
-  - '@WebShecan-26Mordad-Night'
-  - '@WebShecan-27Mordad-1'
+  - ?ed=2560&security=none&encryption=none&host=vngsupply.ip-ddns.com&type=ws#♾️𝗝𝗼𝗶𝗻➠@V2Ray_hiddify10♾️       🆓️139<---
   - 🇹🇼 TW 台湾 4
-  - 🇹🇼 TW 台湾 5
-  - Free By Tharuwa (@z_z_z_zz_z)
-  - 🇺🇲+@V2ray_Alpha+2
+  - 🇳🇱 《@V2RayTheKyo》 وصل شدی عضو شو
   - '@WebShecan-27Mordad-Night'
-  - 🇺🇲+@V2ray_Alpha+4
+  - 🇹🇼 TW 台湾 5
+  - '@V2ray_Alpha+2'
+  - '@V2Graphy 🇪🇪'
   - '@WebShecan-28Mordad-1'
-  - 🇺🇲+@V2ray_Alpha+5
-  - '@ShadowProxy66 | RELAY🚩 | rockp.blanku.me:443 | 189.29ms | 0️⃣1️⃣'
-  - '@WebShecan-28Mordad-Night'
+  - 🇷🇺 《@V2RayTheKyo》 وصل شدی عضو شو
+  - '@V2Graphy 🇿🇦'
+  - 🇳🇱 《@V2RayTheKyo》 وصل شدی عضو شو
   - vless-kryos.cl-50552
-  - 🇭🇰HK-8.210.128.146-0163
+  - '@V2ray_Alpha+5'
+  - '@V2ray_Alpha 6'
+  - '@WebShecan-28Mordad-Night'
+  - '@V2ray_Alpha+9'
   - '@WebShecan-29Mordad-1'
-  - 🇺🇲+@V2ray_Alpha+10
-  - 🇺🇲+@V2ray_Alpha+11
-  - 🇺🇲+@V2ray_Alpha+12
   - '@WebShecan-With❤️'
-  - Telegram@V2ray_Alpha&security=tls&alpn=http/1.1&encryption=none&host=magdl.ir&fp=chrome&type=ws&sni=anchor.fm#@V2rayNG3
-  - Telegram@V2ray_Alpha&security=tls&encryption=none&host=GxVpOnLl13.pRiMeXaD.OrG&fp=chrome&type=ws&sni=GxVpOnLl13.pRiMeXaD.OrG#Mtn-@V2ray_Raha-13
+  - 🇷🇺 《@V2RayTheKyo》 وصل شدی عضو شو
+  - 🇺🇲+@V2ray_Alpha+2
+  - 🇸🇬SG-128.199.168.151-5271
+  - 🇺🇲+@V2ray_Alpha+4
+  - 🇺🇲+@V2ray_Alpha+5
+  - 🇺🇲+@V2ray_Alpha+7
+  - 🇺🇲+@V2ray_Alpha+8
+  - 🇺🇲+@V2ray_Alpha+9
   - 🇨🇳_CN_中国_13
-  - '@V2ray_Alpha+8'
   - 🇨🇳_CN_中国_14
+  - Telegram@V2ray_Alpha&security=tls&encryption=none&host=QtRkJtLt27.pRiMeXaD.OrG&fp=chrome&type=ws&sni=QtRkJtLt27.pRiMeXaD.OrG#Mtn-@V2ray_Raha-12
+  - 🇺🇲+@V2ray_Alpha+12
+  - Telegram@V2ray_Alpha&security=tls&encryption=none&host=GxVpOnLl13.pRiMeXaD.OrG&fp=chrome&type=ws&sni=GxVpOnLl13.pRiMeXaD.OrG#Mtn-@V2ray_Raha-13
+  - 🇸🇬_SG_新加坡_5
   - '@v2ray_alpha&security=tls&alpn=h2,http/1.1&host=301.pooriam.ir&fp=randomized&type=ws&sni=301.pOORiAm.ir#@V2rayNG3'
   - ss-host.pho-49072
   - telegram@V2ray_Alpha&security=tls&alpn=h3,h2,http/1.1&encryption=none&host=de.gt-ov.com&fp=chrome&type=ws&sni=de.gt-ov.com#@V2rayNG3
-  - vless-moody-lo-80
-  - vless-mn.co-8080
 - name: Direct
   type: select
   proxies:
