@@ -5,98 +5,100 @@ name: 订阅检查与节点更新
 on:
   workflow_dispatch: # 允许手动从 GitHub Actions 页面触发此工作流
   schedule:
-    - cron: '0 */6 * * *' # 每 6 小时运行一次 (例如，0点、6点、12点、18点)
+    - cron: '0 */6 * * *' # 每 6 小时运行一次 (例如，每天的 0点、6点、12点、18点)
 
 jobs:
   update-clash-config:
-    runs-on: ubuntu-latest # 在最新的 Ubuntu 环境上运行
+    runs-on: ubuntu-latest # 在最新的 Ubuntu 环境上运行，提供必要的 Docker 支持
 
     steps:
-      - name: 检出仓库 # 拉取你的 GitHub 仓库代码到运行环境中
-        uses: actions/checkout@v4
+      - name: 检出仓库 # 第一步：将你的 GitHub 仓库代码克隆到 Actions 运行环境中
+        uses: actions/checkout@v4 # 使用 actions/checkout@v4 动作来完成此操作
 
       # --- 使用 Docker 镜像运行 beck-8/subs-check ---
-      # 这个步骤会直接拉取并运行 subs-check 的 Docker 镜像
-      # 这样就无需手动下载、解压 subs-check 的二进制文件，也更稳定
+      # 这是核心步骤，它会利用 Docker 来运行 subs-check 工具，以确保环境一致性和稳定性。
+      # 这样就无需手动下载、解压 subs-check 的二进制文件，也避免了权限问题。
       - name: 使用 subs-check 处理多个订阅并保存
-        shell: bash # 强制使用 Bash 来执行此步骤的脚本，避免语法错误
+        shell: bash # **关键修正**：强制使用 Bash shell 来执行此步骤的脚本，避免 'syntax error'
         run: |
-          # 定义第一个订阅链接 (Clash Meta 格式)
+          # 定义你的第一个订阅链接 (Clash Meta 格式)
           SUBSCRIPTION_URL_META="https://raw.githubusercontent.com/qjlxg/ss/refs/heads/master/list.meta.yml"
-          # 定义第二个订阅链接 (SS 明文或 Base64 格式，subs-check 会自动解析)
+          # 定义你的第二个订阅链接 (SS 明文或 Base64 编码，subs-check 会自动识别和解析)
           SUBSCRIPTION_URL_SS_TXT="https://raw.githubusercontent.com/qjlxg/aggregator/refs/heads/main/ss.txt"
           
-          # 定义输出目录和最终文件名
+          # 定义输出文件存放的目录和最终的文件名
           OUTPUT_DIR="sc"
           OUTPUT_FILENAME="beck-8.yaml"
           OUTPUT_PATH="${OUTPUT_DIR}/${OUTPUT_FILENAME}"
 
           echo "创建输出目录 ${OUTPUT_DIR}..."
-          mkdir -p "$OUTPUT_DIR" # 如果目录不存在，则创建它
+          mkdir -p "$OUTPUT_DIR" # 如果 'sc/' 目录不存在，则创建它
 
           echo "使用 subs-check 处理订阅并测速、排序..."
           
-          # 使用 docker run 命令执行 subs-check 的 'check' 功能
-          # --rm：容器运行结束后自动删除
-          # -v "${{ github.workspace }}:/app/output"：将 GitHub Actions 的工作目录 (你的仓库根目录)
-          #     挂载到 Docker 容器内的 /app/output 目录，这样 subs-check 就可以把文件输出到你的仓库里
-          # "ghcr.io/beck-8/subs-check:latest"：指定要使用的 subs-check Docker 镜像
-          # 后面的 'check' 和其他参数都是传递给容器内 subs-check 命令的
-          docker run --rm \
-            -v "${{ github.workspace }}:/app/output" \
-            "ghcr.io/beck-8/subs-check:latest" check \
-            -t 30000 \ # 设置超时时间为 30 秒 (30000 毫秒)，可以根据节点质量调整
-            -c 50 \ # 设置并发测试的节点数量为 50
-            -o "/app/output/${OUTPUT_PATH}" \ # 指定输出文件路径，必须是容器内挂载的路径
-            -proxy-api-url "$SUBSCRIPTION_URL_META,$SUBSCRIPTION_URL_SS_TXT" \ # 传入多个订阅链接，用逗号分隔
-            -download-url "https://speed.cloudflare.com/__down?bytes=10485760" \ # 设置测试下载文件大小为 10MB (10 * 1024 * 1024 字节)
+          # **关键修正**：将所有 Docker run 命令的参数放在一行，并确保镜像名称加了双引号。
+          # 这样可以最大限度地避免 Shell 解析错误和 Docker 格式引用问题。
+          # --rm：容器运行结束后自动删除，保持环境整洁。
+          # -v "${{ github.workspace }}:/app/output"：这是 Docker 卷挂载，
+          #     将 GitHub Actions 的工作目录 (你的仓库根目录) 挂载到 Docker 容器内的 /app/output 目录。
+          #     这样 subs-check 在容器内生成的 clash.yaml 就会实际输出到你仓库的指定路径。
+          # "ghcr.io/beck-8/subs-check:latest"：指定要使用的 subs-check Docker 镜像。
+          # 后面的 'check' 和其他参数都是传递给容器内 subs-check 命令的实际参数。
+          docker run --rm -v "${{ github.workspace }}:/app/output" "ghcr.io/beck-8/subs-check:latest" check \
+            -t 30000 \ # 设置每个节点的测试超时时间为 30 秒 (30000 毫秒)。如果节点响应慢，可以适当增加。
+            -c 50 \ # 设置并发测试的节点数量为 50，提高测试效率。
+            -o "/app/output/${OUTPUT_PATH}" \ # **输出文件路径**：指定 subs-check 将结果保存到容器内挂载的路径，即 'sc/beck-8.yaml'
+            -proxy-api-url "$SUBSCRIPTION_URL_META,$SUBSCRIPTION_URL_SS_TXT" \ # **多个订阅源**：传入两个订阅链接，用逗号分隔，subs-check 会自动合并处理
+            -download-url "https://speed.cloudflare.com/__down?bytes=10485760" \ # 设置测试下载文件的大小为 10MB (10 * 1024 * 1024 字节)。之前 70MB 可能太大导致超时，10MB 相对稳定。
             -upload-url "https://speed.cloudflare.com/__up" \ # 上传测试的 URL
-            -stream-test "youtube,netflix" \ # 可选：测试 YouTube 和 Netflix 等流媒体解锁情况
-            -rename "{{.Emoji}}{{.Country}} | {{.Speed | printf \"%.2f\"}}MB/s | {{.Remark}}" \ # 自定义节点命名格式，包含国旗、国家、速度和原始备注
-            -filter "speed > 0.1" \ # 过滤掉下载速度低于 0.1 MB/s 的节点
-            -sort "speed:desc" # 按照下载速度降序排列节点 (最快的排在前面)
-          
-          # 检查文件是否成功生成，如果文件不存在，则视为失败
+            -stream-test "youtube,netflix" \ # 可选：测试节点是否能解锁 YouTube 和 Netflix 等流媒体服务
+            -rename "{{.Emoji}}{{.Country}} | {{.Speed | printf \"%.2f\"}}MB/s | {{.Remark}}" \ # 自定义节点命名格式，包含国旗、国家、速度（保留两位小数，单位MB/s）和原始备注
+            -filter "speed > 0.1" \ # 过滤条件：只保留下载速度大于 0.1 MB/s 的节点，剔除慢速或无效节点
+            -sort "speed:desc" # **关键功能**：按照下载速度降序排列节点，最快的排在前面
+
+          # 检查文件是否成功生成，如果文件不存在，则工作流失败
           if [ ! -f "$OUTPUT_PATH" ]; then
             echo "错误: subs-check 未能生成文件 ${OUTPUT_PATH}。"
-            exit 1
+            exit 1 # 终止工作流并标记为失败
           fi
           echo "Clash 配置已通过 subs-check 生成并保存到 ${OUTPUT_PATH}。"
 
       # --- 解决非快进问题：在提交前拉取远程最新代码 ---
-      # 这一步非常重要，它确保你在提交之前，本地仓库的代码是最新的，
-      # 避免与远程仓库发生冲突，特别是当有其他提交发生时
+      # 这一步非常重要，它确保在提交新的更改之前，你的本地仓库 (在 Actions 运行环境中)
+      # 是基于远程仓库的最新状态。这可以避免因远程有新提交而导致的“非快进” (non-fast-forward) 错误。
       - name: 拉取远程最新代码 (解决非快进问题)
-        if: success() # 仅当前面的步骤成功时执行
+        if: success() # 仅当所有前面的步骤都成功时才执行此步骤
         run: |
           echo "尝试拉取远程 main 分支的最新更改..."
-          # 配置 Git 用户名和邮箱，以便进行提交
+          # 配置 Git 用户名和邮箱，以便后续的提交操作能正确归属
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          # 使用 --rebase 方式拉取，将本地更改放到最新远程提交的上面，避免额外的合并提交
+          # 使用 git pull --rebase 命令将远程的最新更改合并到本地，
+          # 这样你的本地更改会“重新应用”在最新的远程提交之上，避免产生额外的合并提交。
           git pull --rebase origin main
-          if [ $? -ne 0 ]; then # 检查上一个命令的退出状态码，非0表示失败
+          if [ $? -ne 0 ]; then # 检查上一个 Git 命令的退出状态码，如果非零则表示失败
             echo "错误: git pull --rebase 失败。可能存在无法自动解决的冲突，请检查仓库历史。"
-            exit 1 # 终止工作流
+            exit 1 # 终止工作流并标记为失败
           fi
           echo "远程代码拉取并rebase成功。"
 
       # --- 提交并推送更新后的配置文件 ---
-      # 使用 git-auto-commit-action 自动提交并推送更改
+      # 使用 stefanzweifel/git-auto-commit-action 动作来自动完成 Git 提交和推送操作。
+      # 这是 GitHub Actions 中自动提交更改的推荐方式。
       - name: 提交并推送更新后的配置文件
-        if: success() # 仅当前面的步骤都成功时执行
+        if: success() # 仅当所有前面的步骤都成功时才执行此步骤
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          # 提交信息，明确更新了哪些文件
+          # 提交信息，清晰地说明本次提交的目的和内容
           commit_message: "更新 Clash 配置：从多订阅源获取节点并保存到 sc/beck-8.yaml"
-          # 指定要提交的文件模式，这里只提交新生成的 beck-8.yaml 文件
-          # 如果你的仓库还有其他需要提交的文件，可以调整此模式，例如 "sc/" 提交 sc 目录下所有文件
+          # 指定要提交的文件模式。这里只提交新生成的 'sc/beck-8.yaml' 文件。
+          # 如果你以后有其他文件需要自动提交，可以在这里添加，例如 "clash.yaml sc/"
           file_pattern: "${OUTPUT_PATH}" 
-          branch: main # 目标分支
-          # 提交用户的名称和邮箱
+          branch: main # 指定目标分支，工作流会将更改推送到这个分支
+          # 提交用户的名称和邮箱，这些信息会显示在 Git 提交记录中
           commit_user_name: github-actions[bot]
           commit_user_email: 41898282+github-actions[bot]@users.noreply.github.com
-          # 提交作者信息，可以设置为你的 GitHub 用户名
+          # 提交作者信息，你可以设置为你自己的 GitHub 用户名和邮箱
           commit_author: qjlxg <12179157+qjlxg@users.noreply.github.com>
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # 这是一个 GitHub 自动提供的令牌，用于认证操作
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # 这是一个 GitHub 自动提供的令牌，用于认证 Git 操作。确保你的仓库设置中“Workflow permissions”为“Read and write”。
