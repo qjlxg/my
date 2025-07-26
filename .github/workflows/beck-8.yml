@@ -1,132 +1,94 @@
-name: Test Node Download Speed # 工作流名称
+name: Node Parser and Data Export
 
 on:
   push:
     branches:
-      - main # 当有新的提交推送到 main 分支时触发
+      - main # 推送到 main 分支时触发
   schedule:
     - cron: '0 0 * * *' # 每天 UTC 00:00 运行
   workflow_dispatch: # 允许手动触发
 
 permissions:
-  contents: write # 授予写入权限，用于推送结果文件
+  contents: read # 读取代码权限
+  actions: write # 用于上传 Artifacts，需要此权限
 
 jobs:
-  test-node-speed:
-    runs-on: ubuntu-latest # 使用最新的 Ubuntu runner，默认是 x86_64 (AMD64) 架构
+  parse-nodes:
+    runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository # 检出你的代码，包括 node_parser.py 和 speed_tester.py
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Python # 设置 Python 环境
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10' # 推荐使用 3.10 或更高版本
+          python-version: '3.10'
 
-      - name: Install Python dependencies # 安装 Python 依赖
+      - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install requests pysocks pyyaml
+          pip install requests pyyaml # 仅安装 node_parser 需要的依赖
 
-      # --- 下载并安装 Xray ---
-      # 这个步骤会根据运行环境的架构自动选择下载正确的 Xray-core 文件
-      - name: Download and Install Xray
-        id: download_xray # 添加 ID 以便后续判断是否成功
+      - name: Run Node Parser Script and Save Results
         run: |
-          XRAY_VERSION="25.7.25" # **已更新为 Xray-core v25.7.25**
-          ARCH=$(uname -m)
-          XRAY_FILE="" # 初始化文件名变量
-
-          # 根据不同的架构选择对应的 Xray 文件名
-          if [ "$ARCH" = "x86_64" ]; then
-            # 对于 x86_64 (AMD64) 架构，这是 ubuntu-latest 默认使用的
-            XRAY_FILE="Xray-linux-64.zip" # **已修正为 v25.7.25 实际的文件名**
-          elif [ "$ARCH" = "aarch64" ]; then
-            # 对于 ARM64 架构 (例如自托管的 ARM 机器)
-            XRAY_FILE="Xray-linux-arm64-v8a.zip"
-          else
-            echo "Unsupported architecture: $ARCH"
-            exit 1
-          fi
+          # 确保输出目录存在
+          mkdir -p node_data
+          # 运行 node_parser.py，将解析后的有效节点保存到 JSON 文件
+          # 注意：node_parser.py 需要修改以输出到文件，并且不依赖 speed_tester 的常量。
+          # 为简化演示，这里假设 node_parser.py 可以接受参数或有默认行为来输出。
+          # 实际项目中，您可能需要为 node_parser.py 添加一个 main 函数来执行此操作。
+          # 例如： python -c "from node_parser import fetch_node_list, decode_node; import json; nodes_raw = fetch_node_list(); parsed_nodes = []; for n in nodes_raw: cfg, err = decode_node(n); if cfg: parsed_nodes.append(cfg); print(f'Parsed {len(parsed_nodes)} nodes'); with open('node_data/parsed_nodes.json', 'w', encoding='utf-8') as f: json.dump(parsed_nodes, f, ensure_ascii=False, indent=2)"
+          # 为了能让 node_parser.py 独立运行并输出数据，我们对其进行一些修改：
           
-          XRAY_URL="https://github.com/XTLS/Xray-core/releases/download/v${XRAY_VERSION}/${XRAY_FILE}"
-          echo "Downloading Xray from: ${XRAY_URL}"
-          
-          # 使用 curl 下载并检查状态，增加重试机制和错误报告
-          curl -fSsL --retry 5 --retry-delay 10 -o xray.zip "${XRAY_URL}"
-          
-          # 检查下载是否成功（文件是否存在且非空）
-          if [ ! -s xray.zip ]; then
-            echo "Xray download failed: xray.zip is empty or non-existent."
-            exit 1
-          fi
-          
-          # 解压 Xray 可执行文件到当前目录，并覆盖同名文件
-          # 确保解压出来的可执行文件名为 'xray'
-          if ! unzip -o xray.zip "xray" -d .; then
-            echo "Failed to unzip xray.zip. It might be corrupted or not a valid zip file."
-            exit 1
-          fi
-          
-          chmod +x ./xray # 添加执行权限
-          echo "Xray installed successfully."
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # 使用 GitHub Token 提高下载稳定性
+          # 临时创建一个简化的运行文件，实际您应该直接修改 node_parser.py
+          cat << EOF > run_parser.py
+import requests
+import json
+import os
+import logging
+from node_parser import decode_node # 确保 node_parser.py 和 run_parser.py 在同一目录
 
-      # --- 下载并安装 Hysteria2 ---
-      # **这里是主要修改的地方：更新 HY2_VERSION 和 URL 路径**
-      - name: Download and Install Hysteria2
-        id: download_hysteria2
-        run: |
-          HY2_VERSION="2.6.2" # **已更新为 Hysteria2 最新版本 app/v2.6.2**
-          MACHINE_ARCH=$(uname -m)
-          if [ "$MACHINE_ARCH" = "x86_64" ]; then
-            HY2_FILE="hysteria-linux-amd64"
-          elif [ "$MACHINE_ARCH" = "aarch64" ]; then
-            HY2_FILE="hysteria-linux-arm64"
-          else
-            echo "Unsupported architecture: $MACHINE_ARCH"
-            exit 1
-          fi
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
-          # **注意这里的 URL 路径变化，版本号前增加了 'app/'**
-          HY2_URL="https://github.com/apernet/hysteria/releases/download/app/v${HY2_VERSION}/${HY2_FILE}"
-          echo "Downloading Hysteria2 from: ${HY2_URL}"
-          
-          curl -fSsL --retry 5 --retry-delay 10 -o hysteria2 "${HY2_URL}"
-          
-          if [ ! -s hysteria2 ]; then
-            echo "Hysteria2 download failed: hysteria2 is empty or non-existent."
-            exit 1
-          fi
+NODE_LIST_URL = "https://raw.githubusercontent.com/qjlxg/aggregator/refs/heads/main/ss.txt"
+OUTPUT_FILE = "node_data/parsed_nodes.json"
 
-          chmod +x ./hysteria2 # 添加执行权限
-          echo "Hysteria2 installed successfully."
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+def fetch_node_list():
+    try:
+        response = requests.get(NODE_LIST_URL, timeout=10)
+        response.raise_for_status()
+        nodes = [line.strip() for line in response.text.splitlines() if line.strip()]
+        logger.info(f"成功从 {NODE_LIST_URL} 获取到 {len(nodes)} 个原始节点。")
+        return nodes
+    except requests.exceptions.RequestException as e:
+        logger.error(f"获取节点列表失败: {str(e)}")
+        return []
 
-      - name: Run Node Speed Test Script # 运行你的 Python 脚本
-        # **这里修改为运行 speed_tester.py**
-        run: python speed_tester.py
+if __name__ == "__main__":
+    os.makedirs(os.path.dirname(OUTPUT_FILE), exist_ok=True)
+    nodes_raw = fetch_node_list()
+    parsed_nodes = []
+    logger.info(f"开始解析 {len(nodes_raw)} 个原始节点...")
+    for node_str in nodes_raw:
+        config, error = decode_node(node_str)
+        if error:
+            display_node_str = node_str if len(node_str) < 70 else node_str[:67] + "..."
+            logger.warning(f"节点 '{display_node_str}' 解析失败: {error}")
+            continue
+        if config:
+            parsed_nodes.append(config)
 
-      - name: Check output files # 检查生成的文件，以便调试
-        run: |
-          echo "Listing files in sc/ directory:"
-          ls -l sc/ || echo "No files in sc directory"
-          echo "--- Content of output TXT file ---"
-          cat sc/${{ env.PROJECT_NAME }}_results.txt || echo "Output TXT file not found" # **文件名已更新**
-          echo "--- Content of output YAML file ---"
-          cat sc/${{ env.PROJECT_NAME }}_results.yaml || echo "Output YAML file not found" # **文件名已更新**
-        env:
-          PROJECT_NAME: NodeDownloadSpeedTest # 和 Python 脚本中的 PROJECT_NAME 保持一致
+    with open(OUTPUT_FILE, 'w', encoding='utf-8') as f:
+        json.dump(parsed_nodes, f, ensure_ascii=False, indent=2)
+    logger.info(f"已解析 {len(parsed_nodes)} 个有效节点，并保存到 {OUTPUT_FILE}")
+EOF
+          python run_parser.py
 
-      - name: Commit and push results # 提交并推送结果文件到仓库
-        run: |
-          git config --global user.name 'GitHub Action'
-          git config --global user.email 'action@github.com'
-          git add sc/* # 添加 sc 目录下的所有文件
-          git commit -m "Update node speed test results" || echo "No changes to commit" # 如果没有文件更改，则不执行 commit
-          git push origin main # 推送到 main 分支
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload Parsed Nodes as Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: parsed-nodes-data # Artifact 的名称
+          path: node_data/parsed_nodes.json # 上传的文件路径
+          retention-days: 1 # 保留一天，根据需要调整
