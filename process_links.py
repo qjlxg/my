@@ -51,15 +51,22 @@ def parse_vmess(data: str) -> Optional[Dict[str, Any]]:
         
         server = config.get('add')
         port = int(config.get('port', 0))
-        
+
+        # 确保 uuid 字段即使缺失也能赋值为空字符串
+        uuid = config.get('id', "")
+        # 确保 alterId 字段即使缺失也能赋值为 0
+        alter_id = int(config.get('aid', 0))
+        # 确保 cipher 字段即使缺失也能赋值为 'auto'
+        cipher = config.get('type', 'auto') # vmess type is usually cipher, if not found, default to auto
+
         node = {
             'name': config.get('ps', generate_node_name('vmess', server, port)),
             'type': 'vmess',
             'server': server,
             'port': port,
-            'uuid': config.get('id'),
-            'alterId': int(config.get('aid', 0)),
-            'cipher': 'auto'
+            'uuid': uuid, # 现在保证是一个字符串
+            'alterId': alter_id, # 现在保证是一个整数
+            'cipher': cipher # 现在保证是一个字符串
         }
 
         if config.get('tls') == 'tls':
@@ -160,7 +167,8 @@ def parse_vless(data: str) -> Optional[Dict[str, Any]]:
     try:
         parsed_url = urlparse("vless://" + data)
         
-        uuid = parsed_url.username
+        # 确保 uuid 字段即使缺失也能赋值为空字符串
+        uuid = parsed_url.username if parsed_url.username else ""
         server = parsed_url.hostname
         port = parsed_url.port if parsed_url.port else 443
         name = unquote(parsed_url.fragment) if parsed_url.fragment else generate_node_name('vless', server, port)
@@ -172,7 +180,7 @@ def parse_vless(data: str) -> Optional[Dict[str, Any]]:
             'type': 'vless',
             'server': server,
             'port': port,
-            'uuid': uuid
+            'uuid': uuid # 现在保证是一个字符串
         }
 
         if params.get('security', [''])[0] == 'tls':
