@@ -4,6 +4,8 @@ import re
 import logging
 from urllib.parse import urlparse, parse_qs, unquote
 
+# 配置日志
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 def safe_b64decode(s):
@@ -73,8 +75,8 @@ def decode_node(node_str):
                     method, password = decoded_user_info.split(":", 1)
                 else:
                     password = decoded_user_info
-                    method = query_params.get("method", ["aes-256-gcm"])[0] # 默认方法
-            except Exception: # Fallback for non-base64 encoded user info
+                    method = query_params.get("method", ["aes-256-gcm"])[0]
+            except Exception:
                 if ':' in user_info_raw:
                     method, password = user_info_raw.split(":", 1)
                 else:
@@ -150,7 +152,7 @@ def decode_node(node_str):
                 "id": config["id"],
                 "aid": int(config.get("aid", 0)),
                 "net": config.get("net", "tcp"),
-                "type": config.get("type", ""), # This 'type' key seems redundant, consider renaming or removing if not used for protocol type itself
+                "type": config.get("type", ""),
                 "host": config.get("host", ""),
                 "path": config.get("path", ""),
                 "tls": config.get("tls", ""),
@@ -234,7 +236,7 @@ def generate_xray_config(node_config, proxy_port):
         }]
     elif node_config["type"] == "ssr":
         logger.warning("SSR 协议暂不支持直接生成 Xray 配置。")
-        return None  # 暂不支持直接 Xray 配置
+        return None
     elif node_config["type"] == "vmess":
         users = [{"id": node_config["id"], "alterId": node_config.get("aid", 0)}]
         outbound["settings"]["vnext"] = [{
@@ -283,8 +285,6 @@ def generate_xray_config(node_config, proxy_port):
 
 def generate_hysteria_config(node_config, proxy_port):
     """根据节点配置生成 Hysteria 客户端配置文件内容 (Hysteria V1)"""
-    # 注意：原始代码中的 Hysteria V1 配置可能不完全符合最新 Hysteria 版本要求
-    # 此处仅做迁移，实际使用时请参考 Hysteria 官方文档
     hysteria_config = {
         "listen": f"socks5://0.0.0.0:{proxy_port}",
         "server": f"{node_config['server']}:{node_config['port']}",
@@ -297,8 +297,8 @@ def generate_hysteria_config(node_config, proxy_port):
             "down": f"{node_config.get('down_mbps', 100)}Mbps"
         },
         "tls": {
-            "disable_sni": True, # 这是原始代码中的默认值，实际可能需要根据节点配置
-            "insecure": True     # 这是原始代码中的默认值，实际可能需要根据节点配置
+            "disable_sni": True,
+            "insecure": True
         }
     }
     return json.dumps(hysteria_config, indent=2)
@@ -319,3 +319,45 @@ def generate_hysteria2_config(node_config, proxy_port):
         "obfs_password": node_config.get("obfs_password", "")
     }
     return json.dumps(hysteria2_config, indent=2)
+
+if __name__ == "__main__":
+    # 测试用例
+    test_nodes = [
+        "ss://aes-256-gcm:password@192.168.1.1:8388#name",
+        "ssr://192.168.1.1:8388:origin:aes-256-ctr:plain:password64/?obfsparam=obfs64&remarks=name64",
+        "vmess://eyJhZGQiOiIxOTIuMTY4LjEuMSIsInBvcnQiOiI4Mzg4IiwiaWQiOiIxMjM0NTY3OC1hYmNkLWVhZmctMTIzNC01Njc4OTBhYmNkZWYiLCJhaWQiOjAsIm5ldCI6InRjcCIsInR5cGUiOiJub25lIiwiaG9zdCI6IiIsInBhdGgiOiIiLCJ0bHMiOiIifQ==",
+        "trojan://password@192.168.1.1:443#name",
+        "vless://12345678-abcd-eafg-1234-567890abcdef@192.168.1.1:443?name",
+        "hysteria2://password@192.168.1.1:8443#name"
+    ]
+    
+    output_file = "node_parser_output.txt"
+    with open(output_file, "w", encoding="utf-8") as f:
+        f.write("节点解析结果\n")
+        f.write(f"测试时间: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())}\n")
+        f.write("-" * 50 + "\n")
+        for node_str in test_nodes:
+            config, error = decode_node(node_str)
+            display_node_str = node_str if len(node_str) < 70 else node_str[:67] + "..."
+            if error:
+                logger.warning(f"节点 '{display_node_str}' 解析失败: {error}")
+                f.write(f"节点: {display_node_str}\n状态: 失败\n错误: {error}\n")
+            else:
+                logger.info(f"节点 '{display_node_str}' 解析成功: {config['name']} ({config['type']})")
+                f.write(f"节点: {display_node_str}\n状态: 成功\n配置:\n{json.dumps(config, indent=2, ensure_ascii=False)}\n")
+                # 测试生成配置文件
+                if config["type"] in ["ss", "vmess", "vless", "trojan"]:
+                    xray_config = generate_xray_config(config, 1080)
+                    if xray_config:
+                        f.write(f"Xray 配置:\n{xray_config}\n")
+                    else:
+                        f.write("Xray 配置: 生成失败\n")
+                elif config["type"] == "hysteria2":
+                    h2_config = generate_hysteria2_config(config, 1082)
+                    if h2_config:
+                        f.write(f"Hysteria2 配置:\n{h2_config}\n")
+                    else:
+                        f.write("Hysteria2 配置: 生成失败\n")
+            f.write("-" * 50 + "\n")
+    
+    logger.info(f"解析结果已保存至 {output_file}")
