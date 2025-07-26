@@ -54,9 +54,14 @@ def parse_vmess(data: str) -> Optional[Dict[str, Any]]:
 
         uuid = config.get('id', "")
         alter_id = int(config.get('aid', 0))
-        # 确保 cipher 字段即使缺失也能赋值为 'auto'
-        # Clash 中 vmess 的 type 字段通常用于指示加密方式，如果订阅中没有明确给出，则默认为 'auto'
-        cipher = config.get('type', 'auto') 
+        
+        # --- 修复点：确保 vmess 的 cipher 字段始终被设置，即使原始数据中没有或为无效值 ---
+        # Clash 中 vmess 的 cipher 字段是必需的，如果订阅中没有明确给出，则默认为 'auto'。
+        # 即使原始 JSON 没有 'type' 字段，或者 'type' 字段不是一个有效的加密方法，
+        # 我们也强制设置一个默认值。
+        cipher = config.get('type') # 尝试从原始 type 字段获取
+        if not cipher or not isinstance(cipher, str) or cipher.strip() == '':
+            cipher = 'auto' # 如果获取不到，或者不是字符串，或者为空字符串，则强制设置为 'auto'
 
         node = {
             'name': config.get('ps', generate_node_name('vmess', server, port)),
@@ -65,7 +70,7 @@ def parse_vmess(data: str) -> Optional[Dict[str, Any]]:
             'port': port,
             'uuid': uuid,
             'alterId': alter_id,
-            'cipher': cipher
+            'cipher': cipher # 确保这里始终有一个有效的字符串
         }
 
         # 修复：处理 vmess 的 security 字段为空或不支持的情况
@@ -150,12 +155,16 @@ def parse_ss(data: str) -> Optional[Dict[str, Any]]:
             port = int(port_str)
             node_name_from_fragment = unquote(parts[1]) if len(parts) > 1 else None
             
+            # --- 修复点：确保 ss 的 cipher 字段始终被设置 ---
+            # 有些 SS 订阅可能没有明确的 method，这里给一个默认值
+            method = method if method else 'auto' # 或者更具体的，比如 'aes-256-cfb'
+
             node = {
                 'name': node_name_from_fragment if node_name_from_fragment else generate_node_name('ss', server, port),
                 'type': 'ss',
                 'server': server,
                 'port': port,
-                'cipher': method,
+                'cipher': method, # 确保这里始终有一个有效的字符串
                 'password': password if password else "", # 确保 password 字段即使缺失或为空，也能赋一个空字符串
             }
             return ensure_node_name(node, 'ss')
@@ -201,7 +210,8 @@ def parse_vless(data: str) -> Optional[Dict[str, Any]]:
                 node['client-fingerprint'] = params['fp'][0]
             elif 'fingerprint' in params:
                 node['client-fingerprint'] = params['fingerprint'][0]
-        elif security_param and security_param != 'none': # 如果 security 不是 tls 也不是 none，打印警告但不阻碍
+        # 如果 security 不是 tls 也不是 none，打印警告但不阻碍。这里保持原有逻辑。
+        elif security_param and security_param != 'none':
             print(f"Warning: Vless node '{name}' has unknown security type: '{security_param}'", file=sys.stderr)
 
 
@@ -280,11 +290,10 @@ def parse_ssr(data: str) -> Optional[Dict[str, Any]]:
         password_encoded_and_params = parts[5]
         password_base64_part = password_encoded_and_params.split('/?')[0]
         
-        # 确保 password 字段即使 base64 解码失败或为空，也能赋一个空字符串
         try:
             password = base64.b64decode(password_base64_part.replace('-', '+').replace('_', '/') + '==').decode('utf-8')
         except Exception:
-            password = "" # 如果解码失败或部分为空，默认设为空字符串
+            password = ""
 
         params = {}
         if '/?' in password_encoded_and_params:
@@ -300,13 +309,16 @@ def parse_ssr(data: str) -> Optional[Dict[str, Any]]:
         protocol_param_encoded = params.get('protoparam', [''])[0]
         protocol_param = unquote(base64.b64decode(protocol_param_encoded.replace('-', '+').replace('_', '/') + '==').decode('utf-8')) if protocol_param_encoded else ''
 
+        # --- 修复点：确保 ssr 的 cipher 字段始终被设置 ---
+        method = method if method else 'auto' # 为 SSR 的 method 字段也设置默认值
+
         node = {
             'name': node_name,
             'type': 'ssr',
             'server': server,
             'port': port,
-            'cipher': method,
-            'password': password, # 现在保证是一个字符串
+            'cipher': method, # 确保这里始终有一个有效的字符串
+            'password': password,
             'protocol': protocol_type,
             'protocol-param': protocol_param,
             'obfs': obfs,
@@ -368,6 +380,7 @@ def parse_content(content: str) -> List[Dict[str, Any]]:
             if 'proxies' in data and isinstance(data['proxies'], list):
                 for proxy in data['proxies']:
                     if isinstance(proxy, dict) and 'type' in proxy:
+                        # 确保从 YAML 或 JSON 加载的节点也有默认名称
                         nodes.append(ensure_node_name(proxy, proxy.get('type', 'unknown')))
                     else:
                         print(f"Warning: Non-dict or missing type item found in YAML proxies: {str(proxy)[:100]}")
@@ -477,15 +490,13 @@ def save_nodes_to_yaml(nodes: List[Dict[str, Any]], output_filepath: str):
         original_name = node.get('name', 'unknown_node')
         current_name = original_name
         
-        # 如果名称已经存在，则添加递增的后缀
-        # 这样可以避免 "name #1 #2" 这种层叠的命名
         suffix_counter = 0
         while True:
             test_name = original_name
             if suffix_counter > 0:
                 test_name = f"{original_name} #{suffix_counter}"
             
-            if seen_names[test_name] == 0: # 如果这个带后缀的名称还没用过
+            if seen_names[test_name] == 0:
                 current_name = test_name
                 break
             suffix_counter += 1
@@ -525,25 +536,21 @@ async def main():
         "https://raw.githubusercontent.com/qjlxg/vt/refs/heads/main/data/nodes.txt"
     ]
 
-    all_fetched_nodes: List[Dict[str, Any]] = [] # 用于收集所有URL的节点
+    all_fetched_nodes: List[Dict[str, Any]] = []
 
     async with aiohttp.ClientSession() as session:
         tasks = []
         for url in urls:
-            # 修改 process_url 仅返回节点列表，不再单独保存文件
-            # 这样可以在 main 函数中统一处理保存逻辑
             tasks.append(fetch_and_parse_nodes(session, url))
         
         results = await asyncio.gather(*tasks)
         for nodes_from_url in results:
             all_fetched_nodes.extend(nodes_from_url)
     
-    # 将所有收集到的节点保存到 all.yaml
     all_output_filepath = os.path.join('sc', 'all.yaml')
     save_nodes_to_yaml(all_fetched_nodes, all_output_filepath)
 
 
-# 将原来的 process_url 拆分为两个函数：一个用于获取和解析，一个用于保存
 async def fetch_and_parse_nodes(session: aiohttp.ClientSession, url: str) -> List[Dict[str, Any]]:
     """获取URL内容并解析为节点列表"""
     content = await fetch_url(session, url)
@@ -552,14 +559,6 @@ async def fetch_and_parse_nodes(session: aiohttp.ClientSession, url: str) -> Lis
         return []
 
     nodes = parse_content(content)
-    
-    # 额外：如果你仍然希望每个URL生成一个单独的yaml文件，可以在这里调用 save_nodes_to_yaml
-    # 单独的 save_nodes_to_yaml 会进行各自的名称去重
-    # output_filename = get_output_filename(url)
-    # output_filepath = os.path.join('sc', output_filename)
-    # save_nodes_to_yaml(nodes, output_filepath) # 注意：这里会再次对每个文件的节点进行名称去重
-                                                # 如果你只需要一个 all.yaml，可以注释掉这部分
-
     return nodes
 
 
