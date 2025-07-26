@@ -1,0 +1,168 @@
+# 新的工作流名称，用于 OP404OP/clash-speedtest
+name: OP404OP Clash 速度测试 (独立)
+
+# 触发工作流的事件
+on:
+  # 允许手动触发工作流
+  workflow_dispatch:
+  # 定时触发工作流 (例如：每天的 0点、12点运行，可以根据需要调整)
+  schedule:
+    - cron: '0 0,12 * * *'
+
+# 定义一个名为 "op404op-speed-test" 的作业
+jobs:
+  op404op-speed-test:
+    # 指定作业运行的操作系统环境
+    runs-on: ubuntu-latest
+
+    # 定义作业中要执行的步骤
+    steps:
+      # 步骤 1: 检出仓库代码
+      - name: 检出仓库
+        uses: actions/checkout@v4
+
+      # 步骤 2: 设置 Python 环境 (如果你的 filter_clash_nodes.py 仍然需要)
+      - name: 设置 Python 环境
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      # 步骤 3: 安装 Python 依赖 (如果你的 filter_clash_nodes.py 仍然需要)
+      - name: 安装 Python 依赖
+        run: |
+          pip install PyYAML
+
+      # 步骤 4: 下载完整的 Clash 配置
+      - name: 下载完整的 Clash 配置
+        id: download_config
+        run: |
+          CONFIG_URL="https://raw.githubusercontent.com/qjlxg/vt/refs/heads/main/clash_config.yaml"
+          OUTPUT_FILE="clash_config.yaml"
+
+          echo "尝试从 $CONFIG_URL 下载完整的 Clash 配置文件..."
+          curl -S -L -v --retry 5 --retry-delay 5 --connect-timeout 10 --max-time 60 --output "$OUTPUT_FILE" "$CONFIG_URL"
+
+          if [ $? -ne 0 ]; then
+            echo "错误: curl 命令执行失败，无法下载文件。"
+            exit 1
+          fi
+          if [ ! -f "$OUTPUT_FILE" ]; then
+            echo "错误: $OUTPUT_FILE 文件不存在。"
+            exit 1
+          fi
+          if [ ! -s "$OUTPUT_FILE" ]; then
+            echo "错误: $OUTPUT_FILE 文件为空。"
+            head -n 20 "$OUTPUT_FILE" || true
+            exit 1
+          fi
+          echo "$OUTPUT_FILE 文件下载成功，大小: $(du -h "$OUTPUT_FILE" | awk '{print $1}')"
+
+      # 步骤 5: 过滤节点 (使用 Python 脚本)
+      - name: 过滤节点 (使用 Python 脚本)
+        run: python filter_clash_nodes.py
+
+      # 步骤 6: 验证过滤后的文件
+      - name: 验证过滤后的文件
+        id: check_filtered_file
+        run: |
+          if [ ! -s "filtered_nodes.yaml" ]; then
+            echo "警告: 'filtered_nodes.yaml' 文件为空或无有效内容。可能没有节点符合过滤条件。"
+            echo "FILTERED_NODES_EMPTY=true" >> $GITHUB_OUTPUT
+            head -n 20 filtered_nodes.yaml || true
+            exit 0 # 如果文件为空，不中断工作流，但设置警告
+          fi
+          echo "filtered_nodes.yaml 文件大小: $(du -h filtered_nodes.yaml | awk '{print $1}')"
+          echo "FILTERED_NODES_EMPTY=false" >> $GITHUB_OUTPUT
+
+      # 步骤 7: 下载 OP404OP/clash-speedtest 二进制文件
+      - name: 下载 OP404OP/clash-speedtest 工具
+        id: download_op404op_tool # 给这个步骤一个ID，以便后续引用其结果
+        run: |
+          # 检查并下载最新版本的 OP404OP/clash-speedtest。
+          # 访问 https://github.com/OP404OP/clash-speedtest/releases 获取最新版本链接
+          TOOL_VERSION="v1.6.3" # 当前最新版本，请根据实际情况更新
+          TOOL_URL="https://github.com/OP404OP/clash-speedtest/releases/download/${TOOL_VERSION}/clash-speedtest-linux-amd64"
+          OUTPUT_PATH="./clash-speedtest-op404op"
+
+          echo "尝试从 $TOOL_URL 下载 OP404OP/clash-speedtest 工具..."
+          curl -S -L -v --retry 5 --retry-delay 5 --connect-timeout 10 --max-time 60 --output "$OUTPUT_PATH" "$TOOL_URL"
+
+          if [ $? -ne 0 ]; then
+            echo "错误: curl 命令执行失败，无法下载 OP404OP/clash-speedtest 工具。"
+            exit 1
+          fi
+          if [ ! -f "$OUTPUT_PATH" ]; then
+            echo "错误: $OUTPUT_PATH 文件不存在。"
+            exit 1
+          fi
+          if [ ! -s "$OUTPUT_PATH" ]; then
+            echo "错误: $OUTPUT_PATH 文件为空。"
+            exit 1
+          fi
+          echo "OP404OP/clash-speedtest 工具下载成功，大小: $(du -h "$OUTPUT_PATH" | awk '{print $1}')"
+          chmod +x "$OUTPUT_PATH"
+          echo "赋予 OP404OP/clash-speedtest 执行权限完成。"
+          # 设置一个输出变量，表示工具是否成功下载
+          echo "OP_TOOL_DOWNLOADED=true" >> $GITHUB_OUTPUT
+
+      # 步骤 8: 运行 OP404OP/clash-speedtest 进行高级测试
+      - name: 运行 OP404OP/clash-speedtest 进行高级测试
+        # 仅当 filtered_nodes.yaml 不为空且 OP404OP 工具下载成功时才执行
+        if: success() && steps.check_filtered_file.outputs.FILTERED_NODES_EMPTY == 'false' && steps.download_op404op_tool.outputs.OP_TOOL_DOWNLOADED == 'true'
+        run: |
+          mkdir -p sc # 确保 sc 目录存在
+          echo "开始使用 OP404OP/clash-speedtest 运行高级速度和解锁测试..."
+          ./clash-speedtest-op404op \
+            -c ./filtered_nodes.yaml \
+            -output sc/OP404OP.yaml \
+            -download-size 5 \
+            -upload-size 1 \
+            -timeout 38s \
+            -concurrent 50 \
+            -max-latency 5000ms \
+            -min-download-speed 1 \
+            -min-upload-speed 0 \
+            -unlock \
+            -risk \
+            -rename
+          echo "OP404OP/clash-speedtest 测试完成，结果保存到 sc/OP404OP.yaml"
+
+      # 步骤 9: 验证 OP404OP/clash-speedtest 生成的文件
+      - name: 验证 OP404OP/clash-speedtest 生成的文件
+        # 仅当 OP404OP 测试步骤成功时才检查
+        if: success() && steps.download_op404op_tool.outputs.OP_TOOL_DOWNLOADED == 'true'
+        run: |
+          if [ -f "sc/OP404OP.yaml" ]; then
+            echo "'sc/OP404OP.yaml' 文件已生成，大小: $(du -h sc/OP404OP.yaml | awk '{print $1}')"
+            echo "--- sc/OP404OP.yaml 文件内容 (前50行) ---"
+            head -n 50 sc/OP404OP.yaml || true
+            echo "----------------------------------------"
+            if [ "$(grep -c 'name:' sc/OP404OP.yaml)" -eq 0 ]; then
+              echo "警告: 'sc/OP404OP.yaml' 文件中没有检测到代理节点。可能所有节点都未通过 OP404OP/clash-speedtest 的过滤。"
+            fi
+          else
+            echo "警告: 未生成 'sc/OP404OP.yaml'。OP404OP/clash-speedtest 可能失败或没有通过过滤的节点。"
+          fi
+
+      # 步骤 10: 提交并推送 OP404OP 配置文件
+      - name: 提交并推送 OP404OP 配置文件
+        # 仅当 OP404OP 测试成功生成文件时才提交
+        if: success() && steps.download_op404op_tool.outputs.OP_TOOL_DOWNLOADED == 'true' && -f 'sc/OP404OP.yaml' && $(grep -c 'name:' sc/OP404OP.yaml) -ne 0
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "更新 OP404OP Clash 配置：节点已按速度排序并包含解锁信息"
+          file_pattern: "sc/OP404OP.yaml" # 只提交这个文件
+          branch: main
+          commit_user_name: github-actions[bot]
+          commit_user_email: 41898282+github-actions[bot]@users.noreply.github.com
+          commit_author: qjlxg <12179157+qjlxg@users.noreply.github.com>
+          repository: .
+          skip_dirty_check: false
+          skip_fetch: false
+          skip_checkout: false
+          disable_globbing: false
+          create_branch: false
+          create_git_tag_only: false
+          internal_git_binary: git
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
