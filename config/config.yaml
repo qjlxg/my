@@ -1,7 +1,7 @@
 source:
   - name: custom_nodes
     type: file
-    url: https://raw.githubusercontent.com/qjlxg/aggregator/refs/heads/main/ss.txt
+    url: https://raw.githubusercontent.com/qjlxg/ss/refs/heads/master/list.meta.yml
 proxy:
   - type: ss
   - type: ssr
