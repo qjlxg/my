@@ -30,61 +30,69 @@ jobs:
           pip install requests pysocks pyyaml
 
       # --- 下载并安装 Xray ---
+      # 注意：这里使用 curl 下载，并增加了 --fail-with-body 和 --retry
+      # 请确保 URL 和文件名与Xray的发布页面完全一致
       - name: Download and Install Xray
         id: download_xray # 添加 ID 以便后续判断是否成功
         run: |
-          XRAY_VERSION="1.8.8" # 你可以指定Xray版本
+          XRAY_VERSION="25.7.25" # 已更新为 Xray-core v25.7.25
           ARCH=$(uname -m)
           if [ "$ARCH" = "x86_64" ]; then
-            ARCH="64"
+            # Xray-core v25.7.25 针对 x86_64 的文件名为 Xray-linux-64v8.zip
+            XRAY_FILE="Xray-linux-64v8.zip"
           elif [ "$ARCH" = "aarch64" ]; then
-            ARCH="arm64"
+            XRAY_FILE="Xray-linux-arm64-v8a.zip"
           else
             echo "Unsupported architecture: $ARCH"
             exit 1
           fi
-          XRAY_FILE="Xray-linux-${ARCH}v8.zip"
           XRAY_URL="https://github.com/XTLS/Xray-core/releases/download/v${XRAY_VERSION}/${XRAY_FILE}"
           echo "Downloading Xray from: ${XRAY_URL}"
           
-          # 使用 curl 下载并检查状态
-          curl -L -o xray.zip "${XRAY_URL}"
+          # 使用 curl 下载，增加 -fSsL (fail, silent, show-error, location) 和 --retry 选项
+          curl -fSsL --retry 5 --retry-delay 10 -o xray.zip "${XRAY_URL}"
           
           # 检查下载是否成功
-          if [ ! -f xray.zip ]; then
-            echo "Xray download failed."
+          if [ ! -s xray.zip ]; then # -s 检查文件是否非空
+            echo "Xray download failed: xray.zip is empty or non-existent."
             exit 1
           fi
           
-          unzip xray.zip xray -d . # 解压Xray可执行文件到当前目录
+          # 尝试解压，如果解压失败则报告错误
+          if ! unzip -o xray.zip "xray" -d .; then # -o 覆盖现有文件
+            echo "Failed to unzip xray.zip. It might be corrupted or not a valid zip file."
+            exit 1
+          fi
+          
           chmod +x ./xray # 添加执行权限
           echo "Xray installed successfully."
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # 用于解决可能的GitHub下载限速问题
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # 使用GITHUB_TOKEN可能有助于提高下载稳定性
 
       # --- 下载并安装 Hysteria2 ---
+      # 同样增加 curl 的重试和文件检查
       - name: Download and Install Hysteria2
         id: download_hysteria2
         run: |
-          HY2_VERSION="2.1.0" # Hysteria2版本
-          ARCH=$(uname -m)
-          if [ "$ARCH" = "x86_64" ]; then
-            ARCH="amd64"
-          elif [ "$ARCH" = "aarch64" ]; then
-            ARCH="arm64"
+          HY2_VERSION="2.1.0" # Hysteria2版本，保持不变
+          # 根据 GitHub Actions 的运行环境架构选择正确的文件名
+          MACHINE_ARCH=$(uname -m)
+          if [ "$MACHINE_ARCH" = "x86_64" ]; then
+            HY2_FILE="hysteria-linux-amd64"
+          elif [ "$MACHINE_ARCH" = "aarch64" ]; then
+            HY2_FILE="hysteria-linux-arm64"
           else
-            echo "Unsupported architecture: $ARCH"
+            echo "Unsupported architecture: $MACHINE_ARCH"
             exit 1
           fi
-          HY2_FILE="hysteria-linux-${ARCH}"
+
           HY2_URL="https://github.com/apernet/hysteria/releases/download/v${HY2_VERSION}/${HY2_FILE}"
           echo "Downloading Hysteria2 from: ${HY2_URL}"
           
-          # 使用 curl 下载并检查状态
-          curl -L -o hysteria2 "${HY2_URL}"
+          curl -fSsL --retry 5 --retry-delay 10 -o hysteria2 "${HY2_URL}"
           
-          if [ ! -f hysteria2 ]; then
-            echo "Hysteria2 download failed."
+          if [ ! -s hysteria2 ]; then
+            echo "Hysteria2 download failed: hysteria2 is empty or non-existent."
             exit 1
           fi
 
@@ -98,8 +106,11 @@ jobs:
 
       - name: Check output files # 检查生成的文件
         run: |
+          echo "Listing files in sc/ directory:"
           ls -l sc/ || echo "No files in sc directory"
+          echo "--- Content of output TXT file ---"
           cat sc/${{ env.PROJECT_NAME }}.txt || echo "Output TXT file not found"
+          echo "--- Content of output YAML file ---"
           cat sc/${{ env.PROJECT_NAME }}.yaml || echo "Output YAML file not found"
         env:
           PROJECT_NAME: NodeDownloadSpeedTest # 和 Python 脚本中的 PROJECT_NAME 保持一致
