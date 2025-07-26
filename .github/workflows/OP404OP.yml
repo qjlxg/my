@@ -5,8 +5,9 @@ name: OP404OP Clash 速度测试 (独立)
 on:
   # 允许手动触发工作流
   workflow_dispatch:
-  # 定时触发工作流 (例如：每天的 0点、12点运行，可以根据需要调整)
+  # 定时触发工作流
   schedule:
+    # cron 表达式，表示每天的 0点和 12点运行 (可以根据你的需求调整)
     - cron: '0 0,12 * * *'
 
 # 定义一个名为 "op404op-speed-test" 的作业
@@ -21,21 +22,25 @@ jobs:
       - name: 检出仓库
         uses: actions/checkout@v4
 
-      # 步骤 2: 设置 Python 环境 (如果你的 filter_clash_nodes.py 仍然需要)
+      # 步骤 2: 设置 Python 环境
+      # 你的 filter_clash_nodes.py 脚本需要 Python 环境
       - name: 设置 Python 环境
         uses: actions/setup-python@v5
         with:
           python-version: '3.x'
 
-      # 步骤 3: 安装 Python 依赖 (如果你的 filter_clash_nodes.py 仍然需要)
+      # 步骤 3: 安装 Python 依赖
+      # PyYAML 库用于处理 YAML 文件
       - name: 安装 Python 依赖
         run: |
           pip install PyYAML
 
       # 步骤 4: 下载完整的 Clash 配置
+      # 这是你的主 Clash 配置文件，包含所有原始节点
       - name: 下载完整的 Clash 配置
-        id: download_config
+        id: download_config # 为此步骤设置ID，以便后续引用其状态
         run: |
+          # 定义 Clash 配置文件的下载 URL。请替换为你的实际地址。
           CONFIG_URL="https://raw.githubusercontent.com/qjlxg/vt/refs/heads/main/clash_config.yaml"
           OUTPUT_FILE="clash_config.yaml"
 
@@ -58,15 +63,18 @@ jobs:
           echo "$OUTPUT_FILE 文件下载成功，大小: $(du -h "$OUTPUT_FILE" | awk '{print $1}')"
 
       # 步骤 5: 过滤节点 (使用 Python 脚本)
+      # 运行你的 filter_clash_nodes.py 脚本，生成 filtered_nodes.yaml
       - name: 过滤节点 (使用 Python 脚本)
         run: python filter_clash_nodes.py
 
       # 步骤 6: 验证过滤后的文件
+      # 检查 filtered_nodes.yaml 是否有效，并设置输出变量以供后续步骤判断
       - name: 验证过滤后的文件
-        id: check_filtered_file
+        id: check_filtered_file # 为此步骤设置ID
         run: |
           if [ ! -s "filtered_nodes.yaml" ]; then
             echo "警告: 'filtered_nodes.yaml' 文件为空或无有效内容。可能没有节点符合过滤条件。"
+            # 使用 `echo "name=value" >> $GITHUB_OUTPUT` 来设置输出变量
             echo "FILTERED_NODES_EMPTY=true" >> $GITHUB_OUTPUT
             head -n 20 filtered_nodes.yaml || true
             exit 0 # 如果文件为空，不中断工作流，但设置警告
@@ -75,14 +83,15 @@ jobs:
           echo "FILTERED_NODES_EMPTY=false" >> $GITHUB_OUTPUT
 
       # 步骤 7: 下载 OP404OP/clash-speedtest 二进制文件
+      # 从 OP404OP 的 GitHub Releases 下载其 speedtest 工具
       - name: 下载 OP404OP/clash-speedtest 工具
         id: download_op404op_tool # 给这个步骤一个ID，以便后续引用其结果
         run: |
-          # 检查并下载最新版本的 OP404OP/clash-speedtest。
           # 访问 https://github.com/OP404OP/clash-speedtest/releases 获取最新版本链接
+          # ！！！请定期检查并更新这里的 TOOL_VERSION 为最新版本！！！
           TOOL_VERSION="v1.6.3" # 当前最新版本，请根据实际情况更新
           TOOL_URL="https://github.com/OP404OP/clash-speedtest/releases/download/${TOOL_VERSION}/clash-speedtest-linux-amd64"
-          OUTPUT_PATH="./clash-speedtest-op404op"
+          OUTPUT_PATH="./clash-speedtest-op404op" # 避免与你的原有工具名称冲突
 
           echo "尝试从 $TOOL_URL 下载 OP404OP/clash-speedtest 工具..."
           curl -S -L -v --retry 5 --retry-delay 5 --connect-timeout 10 --max-time 60 --output "$OUTPUT_PATH" "$TOOL_URL"
@@ -100,21 +109,22 @@ jobs:
             exit 1
           fi
           echo "OP404OP/clash-speedtest 工具下载成功，大小: $(du -h "$OUTPUT_PATH" | awk '{print $1}')"
-          chmod +x "$OUTPUT_PATH"
+          chmod +x "$OUTPUT_PATH" # 赋予执行权限
           echo "赋予 OP404OP/clash-speedtest 执行权限完成。"
           # 设置一个输出变量，表示工具是否成功下载
           echo "OP_TOOL_DOWNLOADED=true" >> $GITHUB_OUTPUT
 
       # 步骤 8: 运行 OP404OP/clash-speedtest 进行高级测试
+      # 对过滤后的节点运行 OP404OP 工具，启用解锁和风险检测
       - name: 运行 OP404OP/clash-speedtest 进行高级测试
         # 仅当 filtered_nodes.yaml 不为空且 OP404OP 工具下载成功时才执行
         if: success() && steps.check_filtered_file.outputs.FILTERED_NODES_EMPTY == 'false' && steps.download_op404op_tool.outputs.OP_TOOL_DOWNLOADED == 'true'
         run: |
-          mkdir -p sc # 确保 sc 目录存在
+          mkdir -p sc # 确保 sc 目录存在，用于存放结果
           echo "开始使用 OP404OP/clash-speedtest 运行高级速度和解锁测试..."
           ./clash-speedtest-op404op \
-            -c ./filtered_nodes.yaml \
-            -output sc/OP404OP.yaml \
+            -c ./filtered_nodes.yaml \ # 使用过滤后的节点作为输入
+            -output sc/OP404OP.yaml \ # 将结果输出到 sc/OP404OP.yaml
             -download-size 5 \
             -upload-size 1 \
             -timeout 38s \
@@ -122,14 +132,15 @@ jobs:
             -max-latency 5000ms \
             -min-download-speed 1 \
             -min-upload-speed 0 \
-            -unlock \
-            -risk \
+            -unlock \ # 启用流媒体解锁检测
+            -risk \ # 启用 IP 风险检测
             -rename
           echo "OP404OP/clash-speedtest 测试完成，结果保存到 sc/OP404OP.yaml"
 
       # 步骤 9: 验证 OP404OP/clash-speedtest 生成的文件
+      # 检查生成的 sc/OP404OP.yaml 文件是否有效
       - name: 验证 OP404OP/clash-speedtest 生成的文件
-        # 仅当 OP404OP 测试步骤成功时才检查
+        # 仅当 OP404OP 工具下载成功时才检查
         if: success() && steps.download_op404op_tool.outputs.OP_TOOL_DOWNLOADED == 'true'
         run: |
           if [ -f "sc/OP404OP.yaml" ]; then
@@ -137,6 +148,7 @@ jobs:
             echo "--- sc/OP404OP.yaml 文件内容 (前50行) ---"
             head -n 50 sc/OP404OP.yaml || true
             echo "----------------------------------------"
+            # 检查文件中是否包含代理节点，如果没有则发出警告
             if [ "$(grep -c 'name:' sc/OP404OP.yaml)" -eq 0 ]; then
               echo "警告: 'sc/OP404OP.yaml' 文件中没有检测到代理节点。可能所有节点都未通过 OP404OP/clash-speedtest 的过滤。"
             fi
@@ -145,9 +157,11 @@ jobs:
           fi
 
       # 步骤 10: 提交并推送 OP404OP 配置文件
+      # 使用 git-auto-commit-action 将结果文件推送到仓库
       - name: 提交并推送 OP404OP 配置文件
-        # 仅当 OP404OP 测试成功生成文件时才提交
-        if: success() && steps.download_op404op_tool.outputs.OP_TOOL_DOWNLOADED == 'true' && -f 'sc/OP404OP.yaml' && $(grep -c 'name:' sc/OP404OP.yaml) -ne 0
+        # 仅当前面的步骤成功，并且 OP404OP 工具成功下载时才尝试提交。
+        # 文件存在及内容检查已在之前的 run 脚本中处理。
+        if: success() && steps.download_op404op_tool.outputs.OP_TOOL_DOWNLOADED == 'true'
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "更新 OP404OP Clash 配置：节点已按速度排序并包含解锁信息"
