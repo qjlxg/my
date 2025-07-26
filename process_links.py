@@ -27,9 +27,20 @@ async def fetch_url(session: aiohttp.ClientSession, url: str) -> str:
         print(f"Error fetching {url}: {str(e)}")
         return ""
 
-def generate_node_name(protocol: str, server: str, port: int) -> str:
-    """生成默认节点名称"""
-    return f"{protocol}-{server}:{port}"
+def generate_node_name(protocol: str, server: Optional[str] = None, port: Optional[int] = None) -> str:
+    """生成默认节点名称，处理 server 和 port 可能为 None 的情况"""
+    server_str = server if server else "unknown_server"
+    port_str = str(port) if port is not None else "unknown_port"
+    return f"{protocol}-{server_str}:{port_str}"
+
+def ensure_node_name(node: Dict[str, Any], protocol: str) -> Dict[str, Any]:
+    """确保节点字典中存在 'name' 字段，如果缺失则生成"""
+    if 'name' not in node or not node['name']:
+        server = node.get('server')
+        port = node.get('port')
+        node['name'] = generate_node_name(protocol, server, port)
+        print(f"Warning: Node missing name, generated: {node['name']}")
+    return node
 
 def parse_vmess(data: str) -> Optional[Dict[str, Any]]:
     """解析 vmess 协议"""
@@ -37,11 +48,14 @@ def parse_vmess(data: str) -> Optional[Dict[str, Any]]:
         decoded_data = base64.b64decode(data + '==').decode('utf-8') # Add padding
         config = json.loads(decoded_data)
         
+        server = config.get('add')
+        port = int(config.get('port', 0)) # Ensure port is int, default 0 if missing
+        
         node = {
-            'name': config.get('ps', generate_node_name('vmess', config.get('add', ''), config.get('port', ''))),
+            'name': config.get('ps', generate_node_name('vmess', server, port)),
             'type': 'vmess',
-            'server': config.get('add'),
-            'port': int(config.get('port')),
+            'server': server,
+            'port': port,
             'uuid': config.get('id'),
             'alterId': int(config.get('aid', 0)),
             'cipher': 'auto'
@@ -51,7 +65,7 @@ def parse_vmess(data: str) -> Optional[Dict[str, Any]]:
         if config.get('tls') == 'tls':
             node['tls'] = True
             node['skip-cert-verify'] = bool(config.get('scy', False))
-            if 'sni' in config: # vmess often uses host for SNI
+            if 'host' in config and config['host']: # vmess often uses host for SNI
                 node['sni'] = config['host']
         
         # Network settings
@@ -65,7 +79,7 @@ def parse_vmess(data: str) -> Optional[Dict[str, Any]]:
             elif network == 'grpc':
                 node['grpc-service-name'] = config.get('path', '') # vmess uses path for serviceName
         
-        return node
+        return ensure_node_name(node, 'vmess')
     except Exception as e:
         print(f"Error parsing vmess data '{data[:50]}...': {e}")
         return None
@@ -78,7 +92,7 @@ def parse_trojan(data: str) -> Optional[Dict[str, Any]]:
         
         password = parsed_url.username
         server = parsed_url.hostname
-        port = parsed_url.port
+        port = parsed_url.port if parsed_url.port else 443
         name = unquote(parsed_url.fragment) if parsed_url.fragment else generate_node_name('trojan', server, port)
         
         # Parse query parameters
@@ -88,7 +102,7 @@ def parse_trojan(data: str) -> Optional[Dict[str, Any]]:
             'name': name,
             'type': 'trojan',
             'server': server,
-            'port': port or 443,
+            'port': port,
             'password': password,
             'tls': True # Trojan always uses TLS
         }
@@ -102,7 +116,7 @@ def parse_trojan(data: str) -> Optional[Dict[str, Any]]:
         if 'alpn' in params:
             node['alpn'] = params['alpn'][0].split(',')
 
-        return node
+        return ensure_node_name(node, 'trojan')
     except Exception as e:
         print(f"Error parsing trojan data '{data[:50]}...': {e}")
         return None
@@ -114,23 +128,26 @@ def parse_ss(data: str) -> Optional[Dict[str, Any]]:
         # Handle the base64 part first
         parts = data.split('#', 1)
         encoded_info = parts[0]
-        node_name = unquote(parts[1]) if len(parts) > 1 else 'shadowsocks_node'
-
+        
+        # Decode base64
         decoded_info = base64.b64decode(encoded_info + '==').decode('utf-8') # Add padding
         
         # Try to parse method:password@server:port
         match = re.match(r'(.+?):(.+?)@(.+?):(\d+)', decoded_info)
         if match:
-            method, password, server, port = match.groups()
+            method, password, server, port_str = match.groups()
+            port = int(port_str)
+            node_name_from_fragment = unquote(parts[1]) if len(parts) > 1 else None
+            
             node = {
-                'name': node_name if node_name != 'shadowsocks_node' else generate_node_name('ss', server, port),
+                'name': node_name_from_fragment if node_name_from_fragment else generate_node_name('ss', server, port),
                 'type': 'ss',
                 'server': server,
-                'port': int(port),
+                'port': port,
                 'cipher': method,
                 'password': password
             }
-            return node
+            return ensure_node_name(node, 'ss')
         else:
             print(f"SS data format not recognized: {decoded_info[:50]}...")
             return None
@@ -146,7 +163,7 @@ def parse_vless(data: str) -> Optional[Dict[str, Any]]:
         
         uuid = parsed_url.username
         server = parsed_url.hostname
-        port = parsed_url.port
+        port = parsed_url.port if parsed_url.port else 443
         name = unquote(parsed_url.fragment) if parsed_url.fragment else generate_node_name('vless', server, port)
         
         params = parse_qs(parsed_url.query)
@@ -155,7 +172,7 @@ def parse_vless(data: str) -> Optional[Dict[str, Any]]:
             'name': name,
             'type': 'vless',
             'server': server,
-            'port': port or 443,
+            'port': port,
             'uuid': uuid
         }
 
@@ -183,7 +200,7 @@ def parse_vless(data: str) -> Optional[Dict[str, Any]]:
         if 'flow' in params:
             node['flow'] = params['flow'][0]
 
-        return node
+        return ensure_node_name(node, 'vless')
     except Exception as e:
         print(f"Error parsing vless data '{data[:50]}...': {e}")
         return None
@@ -196,7 +213,7 @@ def parse_hysteria2(data: str) -> Optional[Dict[str, Any]]:
         
         password = parsed_url.username
         server = parsed_url.hostname
-        port = parsed_url.port
+        port = parsed_url.port if parsed_url.port else 443
         name = unquote(parsed_url.fragment) if parsed_url.fragment else generate_node_name('hysteria2', server, port)
         
         params = parse_qs(parsed_url.query)
@@ -205,7 +222,7 @@ def parse_hysteria2(data: str) -> Optional[Dict[str, Any]]:
             'name': name,
             'type': 'hysteria2',
             'server': server,
-            'port': port or 443,
+            'port': port,
             'password': password,
             'tls': True # Hysteria2 always uses TLS
         }
@@ -218,7 +235,7 @@ def parse_hysteria2(data: str) -> Optional[Dict[str, Any]]:
         if 'fastopen' in params:
             node['fast-open'] = (params.get('fastopen', ['0'])[0] == '1')
         
-        return node
+        return ensure_node_name(node, 'hysteria2')
     except Exception as e:
         print(f"Error parsing hysteria2 data '{data[:50]}...': {e}")
         return None
@@ -270,7 +287,7 @@ def parse_ssr(data: str) -> Optional[Dict[str, Any]]:
             'obfs': obfs,
             'obfs-param': obfs_param
         }
-        return node
+        return ensure_node_name(node, 'ssr')
     except Exception as e:
         print(f"Error parsing ssr data '{data[:50]}...': {e}")
         return None
@@ -285,11 +302,6 @@ def parse_line_as_node(line: str) -> List[Dict[str, Any]]:
     # 尝试直接解析协议
     for protocol in SUPPORTED_PROTOCOLS:
         if line.startswith(f"{protocol}://"):
-            # 对于 ssr://, vmess://, hysteria2://，其数据部分本身可能就是base64编码的
-            # 对于 trojan://, vless://，其数据部分通常是明文 (password@server:port...)
-            # 对于 ss://，其数据部分是base64编码的 (method:password@server:port)
-            
-            # 提取协议后的数据部分
             data_part = line[len(protocol) + 3:]
             
             parser = {
@@ -302,12 +314,12 @@ def parse_line_as_node(line: str) -> List[Dict[str, Any]]:
             }.get(protocol)
 
             if parser:
-                node = parser(data_part) # 传递数据部分给解析器
-                if node:
+                node = parser(data_part)
+                if node: # 确保解析出的节点不为 None
                     nodes.append(node)
                 else:
                     print(f"Failed to parse {protocol} node from line: {line[:100]}...")
-            return nodes # 如果匹配到协议，就尝试解析并返回，不再进行多层Base64
+            return nodes # 匹配到协议，就尝试解析并返回，不再进行多层Base64
 
     # 如果不是直接的协议链接，尝试多层 Base64 解码，然后再次尝试解析协议
     decoded_content = line
@@ -328,7 +340,6 @@ def parse_line_as_node(line: str) -> List[Dict[str, Any]]:
     # 这部分逻辑将由 parse_content 统一处理
     return nodes
 
-
 def parse_content(content: str) -> List[Dict[str, Any]]:
     """解析内容，可能包含多行节点、YAML 或 JSON"""
     nodes: List[Dict[str, Any]] = []
@@ -337,26 +348,33 @@ def parse_content(content: str) -> List[Dict[str, Any]]:
     try:
         data = yaml.safe_load(content)
         if isinstance(data, dict):
-            # Clash 配置通常在 'proxies' 键下
             if 'proxies' in data and isinstance(data['proxies'], list):
-                nodes.extend(data['proxies'])
-            else: # 如果整个YAML是一个Clash node的字典，直接加入
-                # 这部分需要更精确的判断，防止解析到非节点信息
-                # 简单判断一些关键键是否存在
-                if all(k in data for k in ['name', 'type', 'server', 'port']):
-                     nodes.append(data)
+                # 如果是 Clash 格式，直接取 proxies 列表
+                for proxy in data['proxies']:
+                    if isinstance(proxy, dict) and 'type' in proxy: # 确保是字典且有type
+                        # 确保从 YAML 中提取的节点也有 name 字段
+                        nodes.append(ensure_node_name(proxy, proxy.get('type', 'unknown')))
+                    else:
+                        print(f"Warning: Non-dict or missing type item found in YAML proxies: {str(proxy)[:100]}")
+            else: 
+                # 如果整个 YAML 是一个 Clash node 的字典，直接加入
+                if all(k in data for k in ['name', 'type', 'server', 'port']): # 简单判断一些关键键是否存在
+                     nodes.append(ensure_node_name(data, data.get('type', 'unknown')))
                 
         elif isinstance(data, list): # 可能是直接的节点列表
             for item in data:
-                if isinstance(item, dict) and all(k in item for k in ['name', 'type', 'server', 'port']):
-                    nodes.append(item)
+                if isinstance(item, dict) and 'type' in item: # 确保是字典且有type
+                    nodes.append(ensure_node_name(item, item.get('type', 'unknown')))
                 elif isinstance(item, str): # 列表中可能是字符串形式的节点链接
-                    nodes.extend(parse_line_as_node(item))
-        print(f"Content parsed as YAML, found {len(nodes)} nodes.")
+                    parsed_from_line = parse_line_as_node(item)
+                    for node in parsed_from_line:
+                        nodes.append(ensure_node_name(node, node.get('type', 'unknown')))
+        
         if nodes: # 如果成功解析到节点，就返回，不再尝试其他方式
+            print(f"Content parsed as YAML, found {len(nodes)} nodes.")
             return nodes
     except yaml.YAMLError as e:
-        # print(f"Content is not valid YAML or a proxy list: {e}")
+        # print(f"Content is not valid YAML or a proxy list: {e}") # Debugging
         pass # 不是YAML，继续尝试其他格式
 
     # 尝试解析 JSON
@@ -364,31 +382,40 @@ def parse_content(content: str) -> List[Dict[str, Any]]:
         data = json.loads(content)
         if isinstance(data, dict):
             if 'proxies' in data and isinstance(data['proxies'], list):
-                nodes.extend(data['proxies'])
-            else: # 如果整个JSON是一个Clash node的字典，直接加入
+                for proxy in data['proxies']:
+                    if isinstance(proxy, dict) and 'type' in proxy:
+                        nodes.append(ensure_node_name(proxy, proxy.get('type', 'unknown')))
+                    else:
+                        print(f"Warning: Non-dict or missing type item found in JSON proxies: {str(proxy)[:100]}")
+            else:
                 if all(k in data for k in ['name', 'type', 'server', 'port']):
-                     nodes.append(data)
+                     nodes.append(ensure_node_name(data, data.get('type', 'unknown')))
         elif isinstance(data, list): # 可能是直接的节点列表
             for item in data:
-                if isinstance(item, dict) and all(k in item for k in ['name', 'type', 'server', 'port']):
-                    nodes.append(item)
-                elif isinstance(item, str): # 列表中可能是字符串形式的节点链接
-                    nodes.extend(parse_line_as_node(item))
-        print(f"Content parsed as JSON, found {len(nodes)} nodes.")
+                if isinstance(item, dict) and 'type' in item:
+                    nodes.append(ensure_node_name(item, item.get('type', 'unknown')))
+                elif isinstance(item, str):
+                    parsed_from_line = parse_line_as_node(item)
+                    for node in parsed_from_line:
+                        nodes.append(ensure_node_name(node, node.get('type', 'unknown')))
+        
         if nodes: # 如果成功解析到节点，就返回
+            print(f"Content parsed as JSON, found {len(nodes)} nodes.")
             return nodes
     except json.JSONDecodeError as e:
-        # print(f"Content is not valid JSON or a proxy list: {e}")
+        # print(f"Content is not valid JSON or a proxy list: {e}") # Debugging
         pass # 不是JSON，继续尝试其他格式
 
-    # 按行解析（可能是 Base64 编码的多行节点，或直接的协议链接）
-    # 如果前面 YAML/JSON 解析成功，就不会执行到这里
+    # 如果 YAML/JSON 解析失败，按行解析（可能是 Base64 编码的多行节点，或直接的协议链接）
+    # 这部分是兜底策略，通常用于处理纯订阅链接文件
     for i, line in enumerate(content.splitlines()):
         line_nodes = parse_line_as_node(line)
         if line_nodes:
-            nodes.extend(line_nodes)
+            # 确保按行解析出来的节点也有 name 字段
+            for node in line_nodes:
+                nodes.append(ensure_node_name(node, node.get('type', 'unknown')))
         else:
-            if line.strip(): # 打印无法解析的非空行
+            if line.strip(): # 打印无法解析的非空行，以便调试
                 print(f"Could not parse line {i+1} as a node: {line.strip()[:100]}...")
 
     return nodes
@@ -403,20 +430,23 @@ def get_output_filename(url: str) -> str:
         # 移除文件扩展名，并取最后一段作为基础名
         base_filename = path_segments[-1].split('.')[0] if '.' in path_segments[-1] else path_segments[-1]
         
-        # 特殊处理，例如 raw.githubusercontent.com 的路径可能太长
+        # 特殊处理 raw.githubusercontent.com 的路径，使其文件名更具辨识度且不冗长
         if "raw.githubusercontent.com" in parsed_url.hostname:
-            repo_parts = parsed_url.path.split('/')
-            if len(repo_parts) >= 3: # /user/repo/branch/...
-                # Take user_repo_basefilename
-                filename_parts = [repo_parts[1], repo_parts[2]]
-                if base_filename and base_filename not in filename_parts: # Add actual file name if distinct
-                    filename_parts.append(base_filename)
-                return "_".join(filename_parts).replace('-', '_') + ".yaml"
-            elif base_filename:
-                return base_filename.replace('-', '_') + ".yaml"
+            repo_parts = [p for p in parsed_url.path.split('/') if p] # /user/repo/branch/path/to/file.txt
+            if len(repo_parts) >= 3: # 至少有 user/repo/branch
+                user = repo_parts[0]
+                repo = repo_parts[1]
+                # Try to use original filename from URL, otherwise use a generic name
+                file_segment = repo_parts[-1].split('.')[0] if '.' in repo_parts[-1] else repo_parts[-1]
+                
+                # Combine user_repo_filename, sanitize
+                filename = f"{user}_{repo}_{file_segment}"
+                return re.sub(r'[^a-zA-Z0-9_.-]', '', filename) + ".yaml" # Remove invalid chars
+
+            elif base_filename: # If not full repo path, just use sanitized base filename
+                return base_filename.replace('~', '').replace('.', '_').replace('-', '_') + ".yaml"
         
-        # 否则使用简化路径作为文件名
-        # 比如 /path/to/file.txt -> file.yaml
+        # 否则使用简化路径作为文件名，例如 /path/to/file.txt -> file.yaml
         # /~250630 -> 250630.yaml
         if base_filename:
             return base_filename.replace('~', '').replace('.', '_').replace('-', '_') + ".yaml"
@@ -453,7 +483,7 @@ async def process_url(session: aiohttp.ClientSession, url: str):
         print(f"No content fetched from {url}, skipping parsing.")
         return
 
-    nodes = parse_content(content)
+    nodes = parse_content(content) # content是url获取到的内容
     
     output_filename = get_output_filename(url)
     output_filepath = os.path.join('sc', output_filename)
