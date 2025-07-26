@@ -1,5 +1,5 @@
 # 工作流名称
-name: 订阅检查与节点更新 (Subconverter - tindyguo)
+name: 订阅检查与节点更新 (Subconverter Direct)
 
 # 触发工作流的事件
 on:
@@ -9,23 +9,31 @@ on:
 
 jobs:
   update-clash-config:
-    runs-on: ubuntu-latest # 在最新的 Ubuntu 环境上运行，提供必要的 Docker 支持
+    runs-on: ubuntu-latest # 在最新的 Ubuntu 环境上运行
 
     steps:
       - name: 检出仓库 # 第一步：将你的 GitHub 仓库代码克隆到 Actions 运行环境中
         uses: actions/checkout@v4 # 使用 actions/checkout@v4 动作来完成此操作
 
-      # --- 缓存 Docker 镜像层 ---
-      - name: 缓存 Docker 镜像层
-        uses: actions/cache@v4 # 使用 actions/cache 动作进行缓存
-        with:
-          path: /var/lib/docker # Docker 镜像层通常存储在这个路径
-          key: ${{ runner.os }}-docker-${{ hashFiles('**/Dockerfile') }}-${{ hashFiles('.github/workflows/*.yml') }} # 缓存键，当 Dockerfile 或工作流文件更改时失效
-          restore-keys: |
-            ${{ runner.os }}-docker- # 恢复键，用于部分匹配缓存
+      - name: 下载并解压 subconverter 二进制文件
+        run: |
+          # subconverter 最新 release 的下载地址 (Linux AMD64)
+          # 注意：请定期检查 https://github.com/tindyguo/subconverter/releases 获取最新版本和正确的下载链接
+          # 这里我们直接下载 subconverter-linux64.tar.gz
+          SUB_CONVERTER_URL="https://github.com/tindyguo/subconverter/releases/latest/download/subconverter-linux64.tar.gz"
+          
+          echo "下载 subconverter 二进制文件..."
+          curl -L "${SUB_CONVERTER_URL}" -o subconverter-linux64.tar.gz
+          
+          echo "解压 subconverter..."
+          tar -xzvf subconverter-linux64.tar.gz
+          
+          # 确保解压后的二进制文件可执行
+          chmod +x subconverter
 
-      # --- 使用 subconverter 处理订阅并保存 ---
-      - name: 使用 subconverter 处理订阅并保存
+          echo "subconverter 已准备就绪。"
+
+      - name: 使用 subconverter 处理订阅并生成 Clash 配置
         shell: bash # 强制使用 Bash shell 来执行此步骤的脚本
         run: |
           # 定义你的订阅链接。subconverter 可以同时处理多个，用 | 分隔
@@ -34,7 +42,7 @@ jobs:
           
           # 定义输出文件存放的目录和最终的文件名
           OUTPUT_DIR="sc"
-          OUTPUT_FILENAME="subconverter.yaml" # 输出文件名
+          OUTPUT_FILENAME="clash_config.yaml" # 新的文件名，避免与旧的混淆
           OUTPUT_PATH="${OUTPUT_DIR}/${OUTPUT_FILENAME}"
 
           echo "创建输出目录 ${OUTPUT_DIR}..."
@@ -42,19 +50,21 @@ jobs:
 
           echo "使用 subconverter 处理订阅并生成 Clash 配置..."
           
-          # 启动 subconverter 容器作为后台服务
-          # --name subconverter_instance: 给容器一个名字方便管理
-          # -p 25500:25500: 映射端口，因为我们从宿主机（GitHub Actions Runner）curl 访问
-          docker run -d --rm --name subconverter_instance -p 25500:25500 tindyguo/subconverter:latest
-
-          # 等待 subconverter 容器启动完成（给它一点时间）
-          echo "等待 subconverter 服务启动..."
-          sleep 15 # 稍微增加等待时间，确保服务完全可用
-
-          # 使用 curl 从 subconverter 容器的 API 获取配置
-          # 注意：URL 中的 host 应该指向 subconverter 容器监听的地址
-          # subconverter 的 api 接受以 | 分隔的多个 URL
+          # **核心改动**：直接运行下载的 subconverter 二进制文件
+          # subconverter 支持多种启动模式，这里我们启动其 Web API 模式，然后用 curl 访问
+          # 注意：直接运行的 subconverter 会监听 localhost:25500
           
+          # 启动 subconverter 作为后台服务
+          # ./subconverter: 执行当前目录下的 subconverter 二进制文件
+          # & 后台运行
+          # 2>&1 > /dev/null &：将标准错误和标准输出重定向到 /dev/null 并后台运行，避免日志干扰
+          ./subconverter &
+          SUB_CONVERTER_PID=$! # 获取后台进程的 PID
+
+          # 等待 subconverter 服务启动完成
+          echo "等待 subconverter 服务启动..."
+          sleep 15 # 给予足够时间启动
+
           # URL 编码订阅链接
           ENCODED_META_URL=$(echo "$SUBSCRIPTION_URL_META" | sed 's/\//%2F/g; s/:/%3A/g; s/?/%3F/g; s/&/%26/g; s/=/%3D/g')
           ENCODED_SS_TXT_URL=$(echo "$SUBSCRIPTION_URL_SS_TXT" | sed 's/\//%2F/g; s/:/%3A/g; s/?/%3F/g; s/&/%26/g; s/=/%3D/g')
@@ -77,9 +87,9 @@ jobs:
           # -f: 失败时（HTTP 状态码 >= 400）不输出到文件，直接报错
           curl -sSLf -o "${OUTPUT_PATH}" "${CONVERSION_API_ENDPOINT}"
           
-          # 停止并移除 subconverter 容器
-          echo "停止 subconverter 容器..."
-          docker stop subconverter_instance
+          # 停止 subconverter 进程
+          echo "停止 subconverter 服务..."
+          kill $SUB_CONVERTER_PID
 
           # 检查文件是否成功生成，如果文件不存在，则工作流失败
           if [ ! -f "$OUTPUT_PATH" ]; then
@@ -107,7 +117,7 @@ jobs:
         if: success() # 仅当所有前面的步骤都成功时才执行此步骤
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "更新 Clash 配置：从多订阅源获取节点并保存到 sc/subconverter.yaml"
+          commit_message: "更新 Clash 配置：从多订阅源获取节点并保存到 sc/clash_config.yaml"
           file_pattern: "${OUTPUT_PATH}" 
           branch: main # 指定目标分支
           commit_user_name: github-actions[bot]
