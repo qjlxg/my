@@ -11,16 +11,16 @@ import socket
 import subprocess
 import platform
 
-# --- Configuration Constants (same as yours) ---
+# --- Configuration Constants ---
 NODE_LIST_URL = "https://raw.githubusercontent.com/qjlxg/aggregator/refs/heads/main/ss.txt"
-TEST_FILE_URL = "https://speed.cloudflare.com/__down?bytes=10000000" # 10MB 测试文件
+TEST_FILE_URL = "https://speed.cloudflare.com/__down?bytes=10000000"  # 10MB 测试文件
 OUTPUT_DIR = "sc"
 PROJECT_NAME = "NodeDownloadSpeedTest"
 XRAY_SOCKS_PORT = 1080
-HYSTERIA_SOCKS_PORT = 1081 # Corresponding to Hysteria V1 (though not explicitly used for parsing in this script)
-HYSTERIA2_SOCKS_PORT = 1082 # Corresponding to Hysteria2
+HYSTERIA_SOCKS_PORT = 1081  # Corresponding to Hysteria V1
+HYSTERIA2_SOCKS_PORT = 1082  # Corresponding to Hysteria2
 
-# --- Global Proxy Settings Helper Functions (same as yours) ---
+# --- Global Proxy Settings Helper Functions ---
 def set_global_socks_proxy(host, port):
     """Set global SOCKS5 proxy"""
     socks.set_default_proxy(socks.SOCKS5, host, port)
@@ -29,118 +29,88 @@ def set_global_socks_proxy(host, port):
 def reset_global_socks_proxy():
     """Reset global proxy settings"""
     socks.set_default_proxy()
-    # Restore default socket, otherwise subsequent calls might fail
     if hasattr(socket, '_socket') and hasattr(socket._socket, 'socket'):
         socket.socket = socket._socket.socket
-    else:
-        # Fallback for environments where _socket.socket is not directly available
-        # This might not perfectly restore, but avoids crashes
-        pass
 
-# --- Node Parsing Function (IMPROVED) ---
+# --- Node Parsing Function ---
 def decode_node(node_str):
     """Parse node URL, return structured configuration and possible error message"""
     try:
-        # Explicitly ignore common non-proxy links
         if node_str.startswith("http://") or node_str.startswith("https://"):
             return None, "不支持的 HTTP/HTTPS 明文代理或非代理链接"
 
-        # Universal URL parsing to handle fragments and queries
         parsed_url = urlparse(node_str)
         scheme = parsed_url.scheme
-        path = parsed_url.path.lstrip('/') # Remove leading slash
-        fragment = parsed_url.fragment # Part after '#'
+        path = parsed_url.path.lstrip('/')
+        fragment = parsed_url.fragment
         query_params = parse_qs(parsed_url.query)
 
-        # Base64 decoding helper (with padding and error handling)
         def safe_b64decode(s):
-            # Pad string to be a multiple of 4
             s_padded = s + '=' * (-len(s) % 4)
             return base64.urlsafe_b64decode(s_padded).decode("utf-8", errors="ignore")
 
         if scheme == "ss":
-            # ss://method:password@server:port#name OR ss://base64encoded@server:port?plugin_params#name
-            # Handle base64 encoded user info or direct method:password
-            user_info_raw, server_info_part = parsed_url.netloc.split("@", 1) # netloc is method:password@server:port or base64@server:port
-            
-            # Extract server and port from server_info_part, accounting for potential plugin params
-            # Server_info_part could be like 'server:port' or 'server:port?plugin=...'
-            server_and_port = server_info_part.split("?")[0] # Get 'server:port'
-            
+            user_info_raw, server_info_part = parsed_url.netloc.split("@", 1)
+            server_and_port = server_info_part.split("?")[0]
             if ':' not in server_and_port:
                 return None, "SS 节点缺少端口信息或格式不正确"
             server, port_str = server_and_port.split(":")
-            
             try:
                 port = int(port_str)
             except ValueError:
                 return None, f"SS 端口 '{port_str}' 无效"
 
-            # Try to decode user info
             method = ""
             password = ""
             try:
                 decoded_user_info = safe_b64decode(user_info_raw)
                 if ':' in decoded_user_info:
-                    method, password = decoded_user_info.split(":", 1) # Split only on the first colon
+                    method, password = decoded_user_info.split(":", 1)
                 else:
-                    # If it's just a password or malformed, treat as password with default method if possible
                     password = decoded_user_info
-                    method = query_params.get("method", ["aes-256-gcm"])[0] # Fallback method
+                    method = query_params.get("method", ["aes-256-gcm"])[0]
             except Exception:
-                # If base64 fails, assume user_info_raw is already method:password
                 if ':' in user_info_raw:
                     method, password = user_info_raw.split(":", 1)
                 else:
-                    return None, "SS 用户信息解析失败" # Malformed user info
+                    return None, "SS 用户信息解析失败"
 
             name = unquote(fragment) if fragment else f"{server}:{port}"
             return {"type": "ss", "server": server, "port": port, "method": method, "password": password, "name": name, "original_url": node_str}, None
 
         elif scheme == "ssr":
-            # ssr://base64encoded
-            if not path: # path in ssr:// is the base64 part
+            if not path:
                 return None, "SSR 节点 Base64 部分为空"
-            
             decoded_ssr = safe_b64decode(path)
             parts = decoded_ssr.split(":")
-            
-            if len(parts) < 6: # server:port:protocol:method:obfs:password
+            if len(parts) < 6:
                 return None, f"SSR 节点信息不完整 (需要至少6个字段), 实际: {len(parts)}"
-            
             server, port_str, protocol, method, obfs, password_encoded = parts[:6]
-            
             try:
                 port = int(port_str)
             except ValueError:
                 return None, f"SSR 端口 '{port_str}' 无效"
-            
             try:
                 password = safe_b64decode(password_encoded)
             except Exception:
                 return None, "SSR 密码 Base64 解码失败"
 
-            # Optional parts for SSR (obfsparam, protparam, remarks)
             obfsparam = ""
             protparam = ""
-            remarks = ""
             if len(parts) > 6:
                 obfsparam_encoded = parts[6].split("/")[0] if parts[6] else ""
                 try:
                     obfsparam = safe_b64decode(obfsparam_encoded)
                 except Exception:
-                    pass # Keep as empty if decode fails
-
+                    pass
             if len(parts) > 7:
                 protparam_encoded = parts[7].split("/")[0] if parts[7] else ""
                 try:
                     protparam = safe_b64decode(protparam_encoded)
                 except Exception:
-                    pass # Keep as empty if decode fails
-            
-            # The fragment might contain remarks for SSR as well
+                    pass
+
             name = unquote(fragment) if fragment else f"{server}:{port}"
-            
             return {
                 "type": "ssr",
                 "server": server,
@@ -156,118 +126,83 @@ def decode_node(node_str):
             }, None
 
         elif scheme == "vmess":
-            # vmess://base64encoded_json
             if not path:
                 return None, "VMess 节点 Base64 部分为空"
-            
             decoded_vmess = safe_b64decode(path)
             try:
                 config = json.loads(decoded_vmess)
             except json.JSONDecodeError:
                 return None, "VMess JSON 配置解析失败"
-
-            # Basic validation for VMess
             required_keys = ["add", "port", "id"]
             if not all(k in config for k in required_keys):
                 return None, f"VMess 节点缺少必要字段: {required_keys}"
-            
             try:
                 port = int(config["port"])
             except ValueError:
                 return None, f"VMess 端口 '{config['port']}' 无效"
-
-            name = config.get("ps", f"{config['add']}:{port}") # ps is preferred for name
-            return {"type": "vmess", "server": config["add"], "port": port, "id": config["id"], 
+            name = config.get("ps", f"{config['add']}:{port}")
+            return {"type": "vmess", "server": config["add"], "port": port, "id": config["id"],
                     "net": config.get("net", "tcp"), "ps": name, "original_url": node_str}, None
 
         elif scheme == "trojan":
-            # trojan://password@server:port?query_params#name
-            # parsed_url.netloc is password@server:port
             password_raw, server_info_part = parsed_url.netloc.split("@", 1)
-            
-            server_and_port = server_info_part.split("?")[0] # Get 'server:port'
+            server_and_port = server_info_part.split("?")[0]
             if ':' not in server_and_port:
                 return None, "Trojan 节点缺少端口信息或格式不正确"
             server, port_str = server_and_port.split(":")
-            
             try:
                 port = int(port_str)
             except ValueError:
                 return None, f"Trojan 端口 '{port_str}' 无效"
-
             name = unquote(fragment) if fragment else f"{server}:{port}"
             return {"type": "trojan", "server": server, "port": port, "password": password_raw, "name": name, "original_url": node_str}, None
 
         elif scheme == "vless":
-            # vless://uuid@server:port?query_params#name
-            # parsed_url.netloc is uuid@server:port
             user_id, server_info_part = parsed_url.netloc.split("@", 1)
-
-            server_and_port = server_info_part.split("?")[0] # Get 'server:port'
+            server_and_port = server_info_part.split("?")[0]
             if ':' not in server_and_port:
                 return None, "VLESS 节点缺少端口信息或格式不正确"
             server, port_str = server_and_port.split(":")
-            
             try:
                 port = int(port_str)
             except ValueError:
                 return None, f"VLESS 端口 '{port_str}' 无效"
-
             name = unquote(fragment) if fragment else f"{server}:{port}"
-            # You might want to parse query_params for VLESS options like "type", "security", "fp", "flow"
-            # For simplicity, keeping it basic for now.
             return {"type": "vless", "server": server, "port": port, "id": user_id, "name": name, "original_url": node_str}, None
 
         elif scheme == "hysteria2":
-            # hysteria2://password@server:port?query_params#name
-            # parsed_url.netloc is password@server:port
             password_raw, server_info_part = parsed_url.netloc.split("@", 1)
-
-            # Ensure to strip any path component before splitting server:port
-            server_and_port_no_path = server_info_part.split("/")[0] # Remove /path if present
-            server_and_port = server_and_port_no_path.split("?")[0] # Remove ?query if present
-
+            server_and_port_no_path = server_info_part.split("/")[0]
+            server_and_port = server_and_port_no_path.split("?")[0]
             if ':' not in server_and_port:
                 return None, "Hysteria2 节点缺少端口信息或格式不正确"
             server, port_str = server_and_port.split(":")
-            
             try:
                 port = int(port_str)
             except ValueError:
                 return None, f"Hysteria2 端口 '{port_str}' 无效"
-
             name = unquote(fragment) if fragment else f"{server}:{port}"
             return {"type": "hysteria2", "server": server, "port": port, "password": password_raw, "name": name, "original_url": node_str}, None
-        
-        # Consider a generic "unknown scheme"
+
         else:
             return None, f"不支持的协议类型: '{scheme}'"
 
     except Exception as e:
         return None, f"解析节点失败: {type(e).__name__}: {e}"
 
-# --- Rest of your script (main function, test_download_speed, etc.) can remain the same for now ---
-
-# Place your existing main(), fetch_node_list(), generate_xray_config(), 
-# generate_hysteria_config(), generate_hysteria2_config(), test_download_speed()
-# and their associated helper functions here.
-# For brevity, I'm only including the updated decode_node in this response.
-
-# Example of how to integrate the rest of your script (just for completeness):
-
-# --- Fetch Node List (as provided by you) ---
+# --- Fetch Node List ---
 def fetch_node_list():
     """从URL获取节点列表"""
     try:
         response = requests.get(NODE_LIST_URL, timeout=10)
-        response.raise_for_status() # Check HTTP errors
+        response.raise_for_status()
         nodes = [line.strip() for line in response.text.splitlines() if line.strip()]
         return nodes
     except requests.exceptions.RequestException as e:
         print(f"获取节点列表失败: {e}")
         return []
 
-# --- Proxy Config Generation (as provided by you) ---
+# --- Proxy Config Generation ---
 def generate_xray_config(node_config, proxy_port):
     """根据节点配置生成 Xray 配置文件内容"""
     outbound = {
@@ -275,7 +210,6 @@ def generate_xray_config(node_config, proxy_port):
         "settings": {},
         "tag": "proxy"
     }
-
     stream_settings = {"network": node_config.get("net", "tcp")}
     if "ws" in stream_settings["network"]:
         stream_settings["wsSettings"] = {"path": node_config.get("path", "/"), "headers": {"Host": node_config.get("host", node_config['server'])}}
@@ -290,7 +224,7 @@ def generate_xray_config(node_config, proxy_port):
             "password": node_config["password"]
         }]
     elif node_config["type"] == "ssr":
-        return None # Temporarily not supported for direct Xray config
+        return None
     elif node_config["type"] == "vmess":
         users = [{"id": node_config["id"], "alterId": node_config.get("aid", 0)}]
         outbound["settings"]["vnext"] = [{
@@ -371,16 +305,13 @@ def generate_hysteria2_config(node_config, proxy_port):
     }
     return json.dumps(hysteria2_config, indent=2)
 
-# --- Speed Test Core Logic (as provided by you) ---
+# --- Speed Test Core Logic ---
 def test_download_speed(node_info):
-    """
-    Test download speed of a single node.
-    Launches different local proxy clients based on node type.
-    """
+    """Test download speed of a single node."""
     node_url, node_config = node_info
     node_type = node_config.get("type")
     node_name = node_config.get("name", node_url)
-    
+
     local_proxy_process = None
     proxy_port_to_use = None
     proxy_executable_path = None
@@ -394,42 +325,35 @@ def test_download_speed(node_info):
             proxy_port_to_use = XRAY_SOCKS_PORT
             config_file_path = f"/tmp/xray_config_{os.getpid()}.json"
             xray_config_content = generate_xray_config(node_config, proxy_port_to_use)
-            
             if not xray_config_content:
                 return node_url, 0, f"Xray config generation failed or full support for {node_type} is not implemented"
-
             with open(config_file_path, "w") as f:
                 f.write(xray_config_content)
-            
             proxy_executable_path = "./xray"
             proxy_command = [proxy_executable_path, "run", "-c", config_file_path]
             print(f"Starting Xray proxy ({node_type}) on port {proxy_port_to_use} for {node_name}")
-            
+
         elif node_type == "hysteria2":
             proxy_port_to_use = HYSTERIA2_SOCKS_PORT
             config_file_path = f"/tmp/hysteria2_config_{os.getpid()}.json"
             h2_config_content = generate_hysteria2_config(node_config, proxy_port_to_use)
-
             if not h2_config_content:
                 return node_url, 0, f"Hysteria2 config generation failed"
-            
             with open(config_file_path, "w") as f:
                 f.write(h2_config_content)
-            
             proxy_executable_path = "./hysteria2"
             proxy_command = [proxy_executable_path, "run", "-c", config_file_path]
             print(f"Starting Hysteria2 proxy ({node_type}) on port {proxy_port_to_use} for {node_name}")
-            
+
         elif node_type == "ssr":
-            return node_url, 0, f"SSR protocol is not directly supported for speed testing (higher complexity)"
-            
+            return node_url, 0, f"SSR protocol is not directly supported for speed testing"
+
         else:
             return node_url, 0, f"Unsupported protocol '{node_type}' for speed testing"
 
         local_proxy_process = subprocess.Popen(proxy_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        time.sleep(3) # Give proxy client enough time to start
+        time.sleep(3)
 
-        # Check if proxy process started successfully
         poll_result = local_proxy_process.poll()
         if poll_result is not None:
             stdout, stderr = local_proxy_process.communicate()
@@ -451,11 +375,8 @@ def test_download_speed(node_info):
         end_time = time.time()
 
         duration = end_time - start_time
-        if duration == 0:
-            speed_mbps = 0
-        else:
-            speed_mbps = (downloaded_bytes * 8 / 1024 / 1024) / duration
-            
+        speed_mbps = 0 if duration == 0 else (downloaded_bytes * 8 / 1024 / 1024) / duration
+
         if downloaded_bytes == 0:
             return node_url, 0, "No data downloaded (proxy connection might have failed or test target is unresponsive)"
 
@@ -477,7 +398,7 @@ def test_download_speed(node_info):
         if config_file_path and os.path.exists(config_file_path):
             os.remove(config_file_path)
 
-# --- Main Function (as provided by you) ---
+# --- Main Function ---
 def main():
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     nodes_raw = fetch_node_list()
@@ -490,13 +411,12 @@ def main():
     for node_str in nodes_raw:
         config, error = decode_node(node_str)
         if error:
-            # Shorten the node_str for logging to avoid excessively long lines
             display_node_str = node_str if len(node_str) < 70 else node_str[:67] + "..."
             print(f"Warning: Node '{display_node_str}' failed to parse: {error}")
             continue
         if config:
             nodes_to_test.append((node_str, config))
-            
+
     if not nodes_to_test:
         print("No valid nodes found for testing. Please check node format or subscription content.")
         return
@@ -509,7 +429,6 @@ def main():
         future_to_node = {executor.submit(test_download_speed, node_info): node_info for node_info in nodes_to_test}
         for i, future in enumerate(future_to_node):
             node_url, speed_mbps, error = future.result()
-            # Find the original name from the parsed nodes
             node_name = next((cfg['name'] for _, cfg in nodes_to_test if _ == node_url), node_url)
             status_msg = f"Speed: {speed_mbps:.2f} Mbps" if not error else f"Error: {error}"
             print(f"[{i+1}/{len(nodes_to_test)}] Node: {node_name[:40]}... -> {status_msg}")
@@ -538,7 +457,7 @@ def main():
             else:
                 f.write(f"Status: Success\nSpeed: {res['speed_mbps']:.2f} Mbps\n")
             f.write("-" * 50 + "\n")
-            
+
     with open(output_file_yaml, "w", encoding="utf-8") as f:
         yaml.dump(results, f, allow_unicode=True, default_flow_style=False)
 
