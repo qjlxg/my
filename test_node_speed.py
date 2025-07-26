@@ -13,24 +13,25 @@ import platform
 import re
 import logging
 
-# 配置日志
+# 配置日志输出格式
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 # --- 配置常量 ---
-NODE_LIST_URL = "https://raw.githubusercontent.com/qjlxg/aggregator/refs/heads/main/ss.txt"
-TEST_FILE_URL = "https://speed.cloudflare.com/__down?bytes=10000000"  # 10MB 测试文件
-OUTPUT_DIR = "sc"
-PROJECT_NAME = "NodeDownloadSpeedTest"
-XRAY_SOCKS_PORT = 1080
-HYSTERIA_SOCKS_PORT = 1081  # Hysteria V1（未在解析中使用）
-HYSTERIA2_SOCKS_PORT = 1082  # Hysteria2
+NODE_LIST_URL = "https://raw.githubusercontent.com/qjlxg/aggregator/refs/heads/main/ss.txt"  # 节点列表 URL
+TEST_FILE_URL = "https://speed.cloudflare.com/__down?bytes=10000000"  # 10MB 测试文件 URL
+OUTPUT_DIR = "sc"  # 输出目录
+PROJECT_NAME = "NodeDownloadSpeedTest"  # 项目名称
+XRAY_SOCKS_PORT = 1080  # Xray SOCKS 代理端口
+HYSTERIA_SOCKS_PORT = 1081  # Hysteria V1 端口（未在解析中使用）
+HYSTERIA2_SOCKS_PORT = 1082  # Hysteria2 SOCKS 代理端口
 
 # --- 全局代理设置辅助函数 ---
 def set_global_socks_proxy(host, port):
     """设置全局 SOCKS5 代理"""
     socks.set_default_proxy(socks.SOCKS5, host, port)
     socket.socket = socks.socksocket
+    logger.debug(f"设置 SOCKS5 代理: {host}:{port}")
 
 def reset_global_socks_proxy():
     """重置全局代理设置"""
@@ -38,25 +39,30 @@ def reset_global_socks_proxy():
     if hasattr(socket, '_socket') and hasattr(socket._socket, 'socket'):
         socket.socket = socket._socket.socket
     else:
-        pass
+        logger.debug("无法直接恢复默认 socket，跳过")
+    logger.debug("重置全局代理设置")
 
-# --- 节点解析函数（已优化） ---
+# --- 节点解析函数 ---
 def decode_node(node_str):
-    """解析节点 URL，返回结构化配置和可能的错误信息"""
-    try:
-        # 忽略常见的非代理链接
-        if node_str.startswith("http://") or node_str.startswith("https://"):
-            return None, "不支持的 HTTP/HTTPS 明文代理或非代理链接"
+    """解析节点 URL，返回结构化配置和错误信息
 
-        # 统一 URL 解析，处理片段和查询参数
+    Args:
+        node_str (str): 节点 URL 字符串
+
+    Returns:
+        tuple: (节点配置字典, 错误信息字符串)，成功时错误信息为 None
+    """
+    try:
+        # 解析 URL
         parsed_url = urlparse(node_str)
         scheme = parsed_url.scheme.lower()
-        path = parsed_url.path.lstrip('/')  # 移除前导斜杠
-        fragment = parsed_url.fragment  # '#' 后的部分
+        path = parsed_url.path.lstrip('/')
+        fragment = parsed_url.fragment
         query_params = parse_qs(parsed_url.query)
 
-        # Base64 解码辅助函数（带填充和错误处理）
+        # Base64 解码辅助函数
         def safe_b64decode(s):
+            """安全的 Base64 解码，处理空字符串和填充问题"""
             if not s:
                 return ""
             try:
@@ -66,14 +72,14 @@ def decode_node(node_str):
                 logger.warning(f"Base64 解码失败: {str(e)}")
                 return ""
 
-        # 处理 IPv6 地址
+        # 提取服务器和端口，支持 IPv6
         netloc = parsed_url.netloc
         server = ""
         port = 0
-        if netloc.startswith('['):  # IPv6 地址
+        if netloc.startswith('['):  # 处理 IPv6 地址
             match = re.match(r'\[(.*?)\](?::(\d+))?', netloc)
             if not match:
-                return None, f"Invalid {scheme.upper()} IPv6 address format"
+                return None, f"{scheme.upper()} 无效的 IPv6 地址格式"
             server, port_str = match.groups()
             if not port_str:
                 return None, f"{scheme.upper()} 节点缺少端口信息"
@@ -81,7 +87,7 @@ def decode_node(node_str):
                 port = int(port_str)
             except ValueError:
                 return None, f"{scheme.upper()} 端口 '{port_str}' 无效"
-        else:  # IPv4 或域名
+        else:  # 处理 IPv4 或域名
             server_and_port = netloc.split("?")[0]
             if ':' not in server_and_port:
                 return None, f"{scheme.upper()} 节点缺少端口信息"
@@ -91,11 +97,12 @@ def decode_node(node_str):
             except ValueError:
                 return None, f"{scheme.upper()} 端口 '{port_str}' 无效"
 
+        # 解析不同协议
         if scheme == "ss":
-            # ss://method:password@server:port#name 或 ss://base64encoded@server:port?plugin_params#name
-            if '@' not in parsed_url.netloc:
+            # ss://method:password@server:port#name 或 ss://base64encoded@server:port
+            if '@' not in netloc:
                 return None, "SS 节点缺少用户信息"
-            user_info_raw, _ = parsed_url.netloc.split("@", 1)
+            user_info_raw, _ = netloc.split("@", 1)
             method = ""
             password = ""
             try:
@@ -110,7 +117,7 @@ def decode_node(node_str):
                     method, password = user_info_raw.split(":", 1)
                 else:
                     return None, "SS 用户信息解析失败"
-            name = unquote(fragment) if fragment else f"{server}:{port}"
+            name = unquote(fragment) or f"{server}:{port}"
             return {
                 "type": "ss",
                 "server": server,
@@ -136,8 +143,8 @@ def decode_node(node_str):
                 return None, f"SSR 端口 '{port_str}' 无效"
             password = safe_b64decode(password_encoded)
             obfsparam = protparam = remarks = ""
-            if '/' in decoded_ssr:
-                params_part = decoded_ssr.split('/?')[1] if '/?' in decoded_ssr else ""
+            if '/?' in decoded_ssr:
+                params_part = decoded_ssr.split('/?')[1]
                 params = parse_qs(params_part)
                 obfsparam = safe_b64decode(params.get('obfsparam', [''])[0])
                 protparam = safe_b64decode(params.get('protoparam', [''])[0])
@@ -191,10 +198,10 @@ def decode_node(node_str):
 
         elif scheme == "trojan":
             # trojan://password@server:port?query_params#name
-            if '@' not in parsed_url.netloc:
+            if '@' not in netloc:
                 return None, "Trojan 节点缺少密码"
-            password_raw, _ = parsed_url.netloc.split("@", 1)
-            name = unquote(fragment) if fragment else f"{server}:{port}"
+            password_raw, _ = netloc.split("@", 1)
+            name = unquote(fragment) or f"{server}:{port}"
             return {
                 "type": "trojan",
                 "server": server,
@@ -206,10 +213,10 @@ def decode_node(node_str):
 
         elif scheme == "vless":
             # vless://uuid@server:port?query_params#name
-            if '@' not in parsed_url.netloc:
+            if '@' not in netloc:
                 return None, "VLESS 节点缺少用户 ID"
-            user_id, _ = parsed_url.netloc.split("@", 1)
-            name = unquote(fragment) if fragment else f"{server}:{port}"
+            user_id, _ = netloc.split("@", 1)
+            name = unquote(fragment) or f"{server}:{port}"
             return {
                 "type": "vless",
                 "server": server,
@@ -221,10 +228,10 @@ def decode_node(node_str):
 
         elif scheme == "hysteria2":
             # hysteria2://password@server:port?query_params#name
-            if '@' not in parsed_url.netloc:
+            if '@' not in netloc:
                 return None, "Hysteria2 节点缺少密码"
-            password_raw, _ = parsed_url.netloc.split("@", 1)
-            name = unquote(fragment) if fragment else f"{server}:{port}"
+            password_raw, _ = netloc.split("@", 1)
+            name = unquote(fragment) or f"{server}:{port}"
             return {
                 "type": "hysteria2",
                 "server": server,
@@ -242,11 +249,12 @@ def decode_node(node_str):
 
 # --- 获取节点列表 ---
 def fetch_node_list():
-    """从 URL 获取节点列表"""
+    """从指定 URL 获取节点列表"""
     try:
         response = requests.get(NODE_LIST_URL, timeout=10)
         response.raise_for_status()
         nodes = [line.strip() for line in response.text.splitlines() if line.strip()]
+        logger.info(f"获取到 {len(nodes)} 个原始节点")
         return nodes
     except requests.exceptions.RequestException as e:
         logger.error(f"获取节点列表失败: {str(e)}")
@@ -360,7 +368,14 @@ def generate_hysteria2_config(node_config, proxy_port):
 
 # --- 速度测试核心逻辑 ---
 def test_download_speed(node_info):
-    """测试单个节点的下载速度，根据节点类型启动本地代理客户端"""
+    """测试单个节点的下载速度，根据节点类型启动本地代理客户端
+
+    Args:
+        node_info (tuple): (节点 URL, 节点配置字典)
+
+    Returns:
+        tuple: (节点 URL, 下载速度 Mbps, 错误信息)
+    """
     node_url, node_config = node_info
     node_type = node_config.get("type")
     node_name = node_config.get("name", node_url)
@@ -453,6 +468,7 @@ def test_download_speed(node_info):
 
 # --- 主函数 ---
 def main():
+    """主函数，执行节点获取、解析和速度测试"""
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     nodes_raw = fetch_node_list()
     if not nodes_raw:
@@ -477,7 +493,7 @@ def main():
     logger.info(f"成功解析 {len(nodes_to_test)} 个有效节点，开始测试...")
 
     results = []
-    max_workers = 3
+    max_workers = 3  # 限制并发线程数，防止资源过载
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         future_to_node = {executor.submit(test_download_speed, node_info): node_info for node_info in nodes_to_test}
         for i, future in enumerate(future_to_node):
@@ -492,23 +508,25 @@ def main():
                 "error": error
             })
 
+    # 按速度排序
     results.sort(key=lambda x: x["speed_mbps"], reverse=True)
 
+    # 保存结果到文件
     output_file_txt = os.path.join(OUTPUT_DIR, f"{PROJECT_NAME}.txt")
     output_file_yaml = os.path.join(OUTPUT_DIR, f"{PROJECT_NAME}.yaml")
 
     with open(output_file_txt, "w", encoding="utf-8") as f:
-        f.write("Node Download Speed Test Results\n")
-        f.write(f"Test Time: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())}\n")
-        f.write(f"Test File: {TEST_FILE_URL}\n")
+        f.write("节点下载速度测试结果\n")
+        f.write(f"测试时间: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())}\n")
+        f.write(f"测试文件: {TEST_FILE_URL}\n")
         f.write("-" * 50 + "\n")
         for res in results:
-            f.write(f"Node Name: {res['name']}\n")
-            f.write(f"Original URL: {res['node_url']}\n")
+            f.write(f"节点名称: {res['name']}\n")
+            f.write(f"原始 URL: {res['node_url']}\n")
             if res["error"]:
-                f.write(f"Status: Failed\nError: {res['error']}\n")
+                f.write(f"状态: 失败\n错误: {res['error']}\n")
             else:
-                f.write(f"Status: Success\nSpeed: {res['speed_mbps']:.2f} Mbps\n")
+                f.write(f"状态: 成功\n速度: {res['speed_mbps']:.2f} Mbps\n")
             f.write("-" * 50 + "\n")
 
     with open(output_file_yaml, "w", encoding="utf-8") as f:
