@@ -11,26 +11,25 @@ import socket
 import subprocess
 import platform
 
-# --- 配置常量 ---
+# --- Configuration Constants (same as yours) ---
 NODE_LIST_URL = "https://raw.githubusercontent.com/qjlxg/aggregator/refs/heads/main/ss.txt"
 TEST_FILE_URL = "https://speed.cloudflare.com/__down?bytes=10000000" # 10MB 测试文件
 OUTPUT_DIR = "sc"
 PROJECT_NAME = "NodeDownloadSpeedTest"
-# 本地代理端口，确保不冲突
 XRAY_SOCKS_PORT = 1080
-HYSTERIA_SOCKS_PORT = 1081 # 对应Hysteria V1
-HYSTERIA2_SOCKS_PORT = 1082 # 对应Hysteria2
+HYSTERIA_SOCKS_PORT = 1081 # Corresponding to Hysteria V1 (though not explicitly used for parsing in this script)
+HYSTERIA2_SOCKS_PORT = 1082 # Corresponding to Hysteria2
 
-# --- 全局代理设置辅助函数 ---
+# --- Global Proxy Settings Helper Functions (same as yours) ---
 def set_global_socks_proxy(host, port):
-    """设置全局 SOCKS5 代理"""
+    """Set global SOCKS5 proxy"""
     socks.set_default_proxy(socks.SOCKS5, host, port)
     socket.socket = socks.socksocket
 
 def reset_global_socks_proxy():
-    """重置全局代理设置"""
+    """Reset global proxy settings"""
     socks.set_default_proxy()
-    # 恢复默认 socket，否则后续可能报错
+    # Restore default socket, otherwise subsequent calls might fail
     if hasattr(socket, '_socket') and hasattr(socket._socket, 'socket'):
         socket.socket = socket._socket.socket
     else:
@@ -38,88 +37,237 @@ def reset_global_socks_proxy():
         # This might not perfectly restore, but avoids crashes
         pass
 
-# --- 节点解析函数 ---
+# --- Node Parsing Function (IMPROVED) ---
 def decode_node(node_str):
-    """解析节点URL，返回结构化的配置和可能的错误信息"""
+    """Parse node URL, return structured configuration and possible error message"""
     try:
-        if node_str.startswith("ss://"):
-            user_info_encoded, server_info = node_str[5:].split("@", 1)
-            user_info = base64.urlsafe_b64decode(user_info_encoded + "===").decode("utf-8", errors="ignore")
-            method, password = user_info.split(":")
-            server, port_str = server_info.split(":")
-            port = int(port_str.split("#")[0])
-            name = unquote(port_str.split("#", 1)[1]) if "#" in port_str else f"{server}:{port}"
-            return {"type": "ss", "server": server, "port": port, "method": method, "password": password, "name": name, "original_url": node_str}, None
-        elif node_str.startswith("ssr://"):
-            decoded = base64.urlsafe_b64decode(node_str[6:] + "===").decode("utf-8", errors="ignore")
-            parts = decoded.split(":")
-            server, port_str, protocol, method, obfs, password_encoded = parts[:6]
-            password = base64.urlsafe_b64decode(password_encoded + "===").decode("utf-8", errors="ignore")
-            params = parse_qs(urlparse(decoded).query)
-            name = unquote(params.get("remarks", [""])[0]) or f"{server}:{port_str}"
-            return {"type": "ssr", "server": server, "port": int(port_str), "protocol": protocol, "method": method, "obfs": obfs, "password": password, "name": name, "original_url": node_str}, None
-        elif node_str.startswith("vmess://"):
-            decoded = base64.urlsafe_b64decode(node_str[8:] + "===").decode("utf-8", errors="ignore")
-            config = json.loads(decoded)
-            return {"type": "vmess", "server": config["add"], "port": int(config["port"]), "id": config["id"], "net": config.get("net", "tcp"), "ps": config.get("ps", f"{config['add']}:{config['port']}"), "original_url": node_str}, None
-        elif node_str.startswith("trojan://"):
-            password, server_info = node_str[9:].split("@", 1)
-            server_port_part = server_info.split("?")[0]
-            server, port_str = server_port_part.split(":")
-            port = int(port_str)
-            name = unquote(server_info.split("#", 1)[1]) if "#" in server_info else f"{server}:{port}"
-            return {"type": "trojan", "server": server, "port": port, "password": password, "name": name, "original_url": node_str}, None
-        elif node_str.startswith("vless://"):
-            user_id, server_info = node_str[8:].split("@", 1)
-            server_port_part = server_info.split("?")[0]
-            server, port_str = server_port_part.split(":")
-            port = int(port_str)
-            name = unquote(server_info.split("#", 1)[1]) if "#" in server_info else f"{server}:{port}"
-            return {"type": "vless", "server": server, "port": port, "id": user_id, "name": name, "original_url": node_str}, None
-        elif node_str.startswith("hysteria2://"):
-            password, server_info = node_str[12:].split("@", 1)
-            server_port_part = server_info.split("?")[0]
-            server, port_str = server_port_part.split(":")
-            port = int(port_str)
-            name = unquote(server_info.split("#", 1)[1]) if "#" in server_info else f"{server}:{port}"
-            return {"type": "hysteria2", "server": server, "port": port, "password": password, "name": name, "original_url": node_str}, None
-        else:
-            # 尝试解析明文 YAML 或 JSON 格式
-            try:
-                # 尝试 YAML
-                config = yaml.safe_load(node_str)
-                if isinstance(config, dict) and "port" in config and "server" in config:
-                    # 假定这是一个简化的YAML节点配置
-                    node_type = config.get("type", "unknown")
-                    name = config.get("name", f"{config['server']}:{config['port']}")
-                    return {"type": node_type, "server": config["server"], "port": int(config["port"]), "name": name, "original_url": node_str, "raw_config": config}, None
-            except yaml.YAMLError:
-                pass
-            try:
-                # 尝试 JSON
-                config = json.loads(node_str)
-                if isinstance(config, dict) and "add" in config and "port" in config:
-                    # 假定这是一个简化的VMess JSON配置
-                    return {"type": "vmess", "server": config["add"], "port": int(config["port"]), "id": config.get("id", ""), "net": config.get("net", "tcp"), "ps": config.get("ps", f"{config['add']}:{config['port']}"), "name": config.get("ps", f"{config['add']}:{config['port']}"), "original_url": node_str}, None
-            except json.JSONDecodeError:
-                pass
-            return None, "不支持的节点格式或明文解析失败"
-    except Exception as e:
-        return None, f"解析节点失败: {e}"
+        # Explicitly ignore common non-proxy links
+        if node_str.startswith("http://") or node_str.startswith("https://"):
+            return None, "不支持的 HTTP/HTTPS 明文代理或非代理链接"
 
-# --- 获取节点列表 ---
+        # Universal URL parsing to handle fragments and queries
+        parsed_url = urlparse(node_str)
+        scheme = parsed_url.scheme
+        path = parsed_url.path.lstrip('/') # Remove leading slash
+        fragment = parsed_url.fragment # Part after '#'
+        query_params = parse_qs(parsed_url.query)
+
+        # Base64 decoding helper (with padding and error handling)
+        def safe_b64decode(s):
+            # Pad string to be a multiple of 4
+            s_padded = s + '=' * (-len(s) % 4)
+            return base64.urlsafe_b64decode(s_padded).decode("utf-8", errors="ignore")
+
+        if scheme == "ss":
+            # ss://method:password@server:port#name OR ss://base64encoded@server:port?plugin_params#name
+            # Handle base64 encoded user info or direct method:password
+            user_info_raw, server_info_part = parsed_url.netloc.split("@", 1) # netloc is method:password@server:port or base64@server:port
+            
+            # Extract server and port from server_info_part, accounting for potential plugin params
+            # Server_info_part could be like 'server:port' or 'server:port?plugin=...'
+            server_and_port = server_info_part.split("?")[0] # Get 'server:port'
+            
+            if ':' not in server_and_port:
+                return None, "SS 节点缺少端口信息或格式不正确"
+            server, port_str = server_and_port.split(":")
+            
+            try:
+                port = int(port_str)
+            except ValueError:
+                return None, f"SS 端口 '{port_str}' 无效"
+
+            # Try to decode user info
+            method = ""
+            password = ""
+            try:
+                decoded_user_info = safe_b64decode(user_info_raw)
+                if ':' in decoded_user_info:
+                    method, password = decoded_user_info.split(":", 1) # Split only on the first colon
+                else:
+                    # If it's just a password or malformed, treat as password with default method if possible
+                    password = decoded_user_info
+                    method = query_params.get("method", ["aes-256-gcm"])[0] # Fallback method
+            except Exception:
+                # If base64 fails, assume user_info_raw is already method:password
+                if ':' in user_info_raw:
+                    method, password = user_info_raw.split(":", 1)
+                else:
+                    return None, "SS 用户信息解析失败" # Malformed user info
+
+            name = unquote(fragment) if fragment else f"{server}:{port}"
+            return {"type": "ss", "server": server, "port": port, "method": method, "password": password, "name": name, "original_url": node_str}, None
+
+        elif scheme == "ssr":
+            # ssr://base64encoded
+            if not path: # path in ssr:// is the base64 part
+                return None, "SSR 节点 Base64 部分为空"
+            
+            decoded_ssr = safe_b64decode(path)
+            parts = decoded_ssr.split(":")
+            
+            if len(parts) < 6: # server:port:protocol:method:obfs:password
+                return None, f"SSR 节点信息不完整 (需要至少6个字段), 实际: {len(parts)}"
+            
+            server, port_str, protocol, method, obfs, password_encoded = parts[:6]
+            
+            try:
+                port = int(port_str)
+            except ValueError:
+                return None, f"SSR 端口 '{port_str}' 无效"
+            
+            try:
+                password = safe_b64decode(password_encoded)
+            except Exception:
+                return None, "SSR 密码 Base64 解码失败"
+
+            # Optional parts for SSR (obfsparam, protparam, remarks)
+            obfsparam = ""
+            protparam = ""
+            remarks = ""
+            if len(parts) > 6:
+                obfsparam_encoded = parts[6].split("/")[0] if parts[6] else ""
+                try:
+                    obfsparam = safe_b64decode(obfsparam_encoded)
+                except Exception:
+                    pass # Keep as empty if decode fails
+
+            if len(parts) > 7:
+                protparam_encoded = parts[7].split("/")[0] if parts[7] else ""
+                try:
+                    protparam = safe_b64decode(protparam_encoded)
+                except Exception:
+                    pass # Keep as empty if decode fails
+            
+            # The fragment might contain remarks for SSR as well
+            name = unquote(fragment) if fragment else f"{server}:{port}"
+            
+            return {
+                "type": "ssr",
+                "server": server,
+                "port": port,
+                "protocol": protocol,
+                "method": method,
+                "obfs": obfs,
+                "password": password,
+                "obfsparam": obfsparam,
+                "protparam": protparam,
+                "name": name,
+                "original_url": node_str
+            }, None
+
+        elif scheme == "vmess":
+            # vmess://base64encoded_json
+            if not path:
+                return None, "VMess 节点 Base64 部分为空"
+            
+            decoded_vmess = safe_b64decode(path)
+            try:
+                config = json.loads(decoded_vmess)
+            except json.JSONDecodeError:
+                return None, "VMess JSON 配置解析失败"
+
+            # Basic validation for VMess
+            required_keys = ["add", "port", "id"]
+            if not all(k in config for k in required_keys):
+                return None, f"VMess 节点缺少必要字段: {required_keys}"
+            
+            try:
+                port = int(config["port"])
+            except ValueError:
+                return None, f"VMess 端口 '{config['port']}' 无效"
+
+            name = config.get("ps", f"{config['add']}:{port}") # ps is preferred for name
+            return {"type": "vmess", "server": config["add"], "port": port, "id": config["id"], 
+                    "net": config.get("net", "tcp"), "ps": name, "original_url": node_str}, None
+
+        elif scheme == "trojan":
+            # trojan://password@server:port?query_params#name
+            # parsed_url.netloc is password@server:port
+            password_raw, server_info_part = parsed_url.netloc.split("@", 1)
+            
+            server_and_port = server_info_part.split("?")[0] # Get 'server:port'
+            if ':' not in server_and_port:
+                return None, "Trojan 节点缺少端口信息或格式不正确"
+            server, port_str = server_and_port.split(":")
+            
+            try:
+                port = int(port_str)
+            except ValueError:
+                return None, f"Trojan 端口 '{port_str}' 无效"
+
+            name = unquote(fragment) if fragment else f"{server}:{port}"
+            return {"type": "trojan", "server": server, "port": port, "password": password_raw, "name": name, "original_url": node_str}, None
+
+        elif scheme == "vless":
+            # vless://uuid@server:port?query_params#name
+            # parsed_url.netloc is uuid@server:port
+            user_id, server_info_part = parsed_url.netloc.split("@", 1)
+
+            server_and_port = server_info_part.split("?")[0] # Get 'server:port'
+            if ':' not in server_and_port:
+                return None, "VLESS 节点缺少端口信息或格式不正确"
+            server, port_str = server_and_port.split(":")
+            
+            try:
+                port = int(port_str)
+            except ValueError:
+                return None, f"VLESS 端口 '{port_str}' 无效"
+
+            name = unquote(fragment) if fragment else f"{server}:{port}"
+            # You might want to parse query_params for VLESS options like "type", "security", "fp", "flow"
+            # For simplicity, keeping it basic for now.
+            return {"type": "vless", "server": server, "port": port, "id": user_id, "name": name, "original_url": node_str}, None
+
+        elif scheme == "hysteria2":
+            # hysteria2://password@server:port?query_params#name
+            # parsed_url.netloc is password@server:port
+            password_raw, server_info_part = parsed_url.netloc.split("@", 1)
+
+            # Ensure to strip any path component before splitting server:port
+            server_and_port_no_path = server_info_part.split("/")[0] # Remove /path if present
+            server_and_port = server_and_port_no_path.split("?")[0] # Remove ?query if present
+
+            if ':' not in server_and_port:
+                return None, "Hysteria2 节点缺少端口信息或格式不正确"
+            server, port_str = server_and_port.split(":")
+            
+            try:
+                port = int(port_str)
+            except ValueError:
+                return None, f"Hysteria2 端口 '{port_str}' 无效"
+
+            name = unquote(fragment) if fragment else f"{server}:{port}"
+            return {"type": "hysteria2", "server": server, "port": port, "password": password_raw, "name": name, "original_url": node_str}, None
+        
+        # Consider a generic "unknown scheme"
+        else:
+            return None, f"不支持的协议类型: '{scheme}'"
+
+    except Exception as e:
+        return None, f"解析节点失败: {type(e).__name__}: {e}"
+
+# --- Rest of your script (main function, test_download_speed, etc.) can remain the same for now ---
+
+# Place your existing main(), fetch_node_list(), generate_xray_config(), 
+# generate_hysteria_config(), generate_hysteria2_config(), test_download_speed()
+# and their associated helper functions here.
+# For brevity, I'm only including the updated decode_node in this response.
+
+# Example of how to integrate the rest of your script (just for completeness):
+
+# --- Fetch Node List (as provided by you) ---
 def fetch_node_list():
     """从URL获取节点列表"""
     try:
         response = requests.get(NODE_LIST_URL, timeout=10)
-        response.raise_for_status() # 检查HTTP错误
+        response.raise_for_status() # Check HTTP errors
         nodes = [line.strip() for line in response.text.splitlines() if line.strip()]
         return nodes
     except requests.exceptions.RequestException as e:
         print(f"获取节点列表失败: {e}")
         return []
 
-# --- 代理配置文件生成 ---
+# --- Proxy Config Generation (as provided by you) ---
 def generate_xray_config(node_config, proxy_port):
     """根据节点配置生成 Xray 配置文件内容"""
     outbound = {
@@ -142,12 +290,9 @@ def generate_xray_config(node_config, proxy_port):
             "password": node_config["password"]
         }]
     elif node_config["type"] == "ssr":
-        # SSR 在 Xray 中通过 Shadowsocks 协议扩展实现，需要较复杂的配置
-        # 为了简化，这里可能不完全支持所有 SSR 特性，只转换基本SS部分
-        # 建议SSRR等复杂协议直接通过Xray自身的配置转换工具，或用户自行提供兼容Xray的SS/VMess等
-        return None # 暂时不支持在Xray中直接配置SSR
+        return None # Temporarily not supported for direct Xray config
     elif node_config["type"] == "vmess":
-        users = [{"id": node_config["id"], "alterId": node_config.get("aid", 0)}] # 假设 aid 为 0
+        users = [{"id": node_config["id"], "alterId": node_config.get("aid", 0)}]
         outbound["settings"]["vnext"] = [{
             "address": node_config["server"],
             "port": node_config["port"],
@@ -155,7 +300,7 @@ def generate_xray_config(node_config, proxy_port):
         }]
         outbound["streamSettings"] = stream_settings
     elif node_config["type"] == "vless":
-        users = [{"id": node_config["id"], "flow": node_config.get("flow", "")}] # 假设 flow
+        users = [{"id": node_config["id"], "flow": node_config.get("flow", "")}]
         outbound["settings"]["vnext"] = [{
             "address": node_config["server"],
             "port": node_config["port"],
@@ -167,7 +312,7 @@ def generate_xray_config(node_config, proxy_port):
             "address": node_config["server"],
             "port": node_config["port"],
             "password": node_config["password"],
-            "flow": node_config.get("flow", "") # 可选 flow
+            "flow": node_config.get("flow", "")
         }]
         outbound["streamSettings"] = stream_settings
 
@@ -183,7 +328,7 @@ def generate_xray_config(node_config, proxy_port):
         "routing": {
             "rules": [
                 {"type": "field", "outboundTag": "proxy", "port": str(proxy_port)},
-                {"type": "field", "outboundTag": "direct", "port": "0-65535"} # Fallback
+                {"type": "field", "outboundTag": "direct", "port": "0-65535"}
             ]
         }
     }
@@ -191,21 +336,20 @@ def generate_xray_config(node_config, proxy_port):
 
 def generate_hysteria_config(node_config, proxy_port):
     """根据节点配置生成 Hysteria 客户端配置文件内容 (Hysteria V1)"""
-    # Hysteria V1 配置文件通常更简单
     hysteria_config = {
         "listen": f"socks5://0.0.0.0:{proxy_port}",
         "server": f"{node_config['server']}:{node_config['port']}",
-        "up_mbps": node_config.get("up_mbps", 10), # 默认值
-        "down_mbps": node_config.get("down_mbps", 100), # 默认值
+        "up_mbps": node_config.get("up_mbps", 10),
+        "down_mbps": node_config.get("down_mbps", 100),
         "password": node_config['password'],
-        "alpn": node_config.get("alpn", "h3"), # 默认 alpn
+        "alpn": node_config.get("alpn", "h3"),
         "bandwidth": {
             "up": f"{node_config.get('up_mbps', 10)}Mbps",
             "down": f"{node_config.get('down_mbps', 100)}Mbps"
         },
         "tls": {
             "disable_sni": True,
-            "insecure": True # 测试时可以 Insecure，生产不建议
+            "insecure": True
         }
     }
     return json.dumps(hysteria_config, indent=2)
@@ -218,7 +362,7 @@ def generate_hysteria2_config(node_config, proxy_port):
         "password": node_config['password'],
         "tls": {
             "disable_sni": node_config.get("tls_disable_sni", False),
-            "insecure": node_config.get("tls_insecure", True), # 测试时可以 Insecure，生产不建议
+            "insecure": node_config.get("tls_insecure", True),
             "sni": node_config.get("tls_sni", node_config['server']),
             "ca": node_config.get("tls_ca", "")
         },
@@ -227,15 +371,15 @@ def generate_hysteria2_config(node_config, proxy_port):
     }
     return json.dumps(hysteria2_config, indent=2)
 
-# --- 测速核心逻辑 ---
+# --- Speed Test Core Logic (as provided by you) ---
 def test_download_speed(node_info):
     """
-    测试单个节点的下载速度。
-    根据节点类型启动不同的本地代理客户端。
+    Test download speed of a single node.
+    Launches different local proxy clients based on node type.
     """
     node_url, node_config = node_info
     node_type = node_config.get("type")
-    node_name = node_config.get("name", node_url) # 使用解析出的名称
+    node_name = node_config.get("name", node_url)
     
     local_proxy_process = None
     proxy_port_to_use = None
@@ -243,24 +387,23 @@ def test_download_speed(node_info):
     config_file_path = None
     proxy_command = []
 
-    print(f"准备测试节点: {node_name} ({node_type})")
+    print(f"Preparing to test node: {node_name} ({node_type})")
 
     try:
-        # Xray 处理大部分协议
         if node_type in ["ss", "vmess", "vless", "trojan"]:
             proxy_port_to_use = XRAY_SOCKS_PORT
-            config_file_path = f"/tmp/xray_config_{os.getpid()}.json" # 使用PID确保唯一性
+            config_file_path = f"/tmp/xray_config_{os.getpid()}.json"
             xray_config_content = generate_xray_config(node_config, proxy_port_to_use)
             
             if not xray_config_content:
-                return node_url, 0, f"Xray 配置生成失败或不支持 {node_type} 协议的完整配置"
+                return node_url, 0, f"Xray config generation failed or full support for {node_type} is not implemented"
 
             with open(config_file_path, "w") as f:
                 f.write(xray_config_content)
             
             proxy_executable_path = "./xray"
             proxy_command = [proxy_executable_path, "run", "-c", config_file_path]
-            print(f"启动 Xray 代理 ({node_type}) on port {proxy_port_to_use} for {node_name}")
+            print(f"Starting Xray proxy ({node_type}) on port {proxy_port_to_use} for {node_name}")
             
         elif node_type == "hysteria2":
             proxy_port_to_use = HYSTERIA2_SOCKS_PORT
@@ -268,46 +411,40 @@ def test_download_speed(node_info):
             h2_config_content = generate_hysteria2_config(node_config, proxy_port_to_use)
 
             if not h2_config_content:
-                return node_url, 0, f"Hysteria2 配置生成失败"
+                return node_url, 0, f"Hysteria2 config generation failed"
             
             with open(config_file_path, "w") as f:
                 f.write(h2_config_content)
             
             proxy_executable_path = "./hysteria2"
             proxy_command = [proxy_executable_path, "run", "-c", config_file_path]
-            print(f"启动 Hysteria2 代理 ({node_type}) on port {proxy_port_to_use} for {node_name}")
+            print(f"Starting Hysteria2 proxy ({node_type}) on port {proxy_port_to_use} for {node_name}")
             
         elif node_type == "ssr":
-            # SSR 比较特殊，如果 Xray 不支持，可能需要 SSR 专用客户端
-            # 目前Xray对SSR支持有限，且可能需要额外的插件/配置。
-            # 这里暂时标记为不支持，或者可以考虑通过其他工具转换成SS/VMess再测试
-            return node_url, 0, f"暂不支持 SSR 协议的直接下载测速 (复杂性较高)"
+            return node_url, 0, f"SSR protocol is not directly supported for speed testing (higher complexity)"
             
         else:
-            return node_url, 0, f"暂不支持 {node_type} 协议的下载测速"
+            return node_url, 0, f"Unsupported protocol '{node_type}' for speed testing"
 
-        # 启动本地代理进程
         local_proxy_process = subprocess.Popen(proxy_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        time.sleep(3) # 给予代理客户端足够时间启动
+        time.sleep(3) # Give proxy client enough time to start
 
-        # 检查代理进程是否成功启动
+        # Check if proxy process started successfully
         poll_result = local_proxy_process.poll()
-        if poll_result is not None: # 如果进程已退出
+        if poll_result is not None:
             stdout, stderr = local_proxy_process.communicate()
-            return node_url, 0, f"代理客户端 {proxy_executable_path} 启动失败 (Exit Code: {poll_result}). STDOUT: {stdout.decode(errors='ignore')}. STDERR: {stderr.decode(errors='ignore')}"
+            return node_url, 0, f"Proxy client {proxy_executable_path} failed to start (Exit Code: {poll_result}). STDOUT: {stdout.decode(errors='ignore')}. STDERR: {stderr.decode(errors='ignore')}"
 
-        # 设置 requests 使用本地代理
         set_global_socks_proxy("127.0.0.1", proxy_port_to_use)
         session = requests.Session()
 
         start_time = time.time()
-        response = session.get(TEST_FILE_URL, stream=True, timeout=15) # 增加超时时间
-        response.raise_for_status() # 检查HTTP状态码
+        response = session.get(TEST_FILE_URL, stream=True, timeout=15)
+        response.raise_for_status()
 
         downloaded_bytes = 0
-        # 限制下载量 (例如 5MB)，防止长时间运行
         for chunk in response.iter_content(chunk_size=4096):
-            if chunk: # 确保接收到数据块
+            if chunk:
                 downloaded_bytes += len(chunk)
             if downloaded_bytes >= 5 * 1024 * 1024:
                 break
@@ -318,66 +455,64 @@ def test_download_speed(node_info):
             speed_mbps = 0
         else:
             speed_mbps = (downloaded_bytes * 8 / 1024 / 1024) / duration
-        
+            
         if downloaded_bytes == 0:
-            return node_url, 0, "未下载到任何数据 (代理连接可能失败或测试目标无响应)"
+            return node_url, 0, "No data downloaded (proxy connection might have failed or test target is unresponsive)"
 
         return node_url, speed_mbps, None
 
     except requests.exceptions.RequestException as e:
-        return node_url, 0, f"网络请求失败或代理连接问题: {e}"
+        return node_url, 0, f"Network request failed or proxy connection issue: {e}"
     except Exception as e:
-        return node_url, 0, f"测试过程中发生错误: {type(e).__name__}: {e}"
+        return node_url, 0, f"An error occurred during testing: {type(e).__name__}: {e}"
     finally:
-        # 清理：停止代理进程
         if local_proxy_process:
-            print(f"停止代理进程 for {node_name}")
+            print(f"Stopping proxy process for {node_name}")
             local_proxy_process.terminate()
             try:
                 local_proxy_process.wait(timeout=5)
             except subprocess.TimeoutExpired:
-                local_proxy_process.kill() # 如果 terminate 不够，强制杀死
-        # 恢复默认 socket 设置
+                local_proxy_process.kill()
         reset_global_socks_proxy()
-        # 清理配置文件
         if config_file_path and os.path.exists(config_file_path):
             os.remove(config_file_path)
 
-# --- 主函数 ---
+# --- Main Function (as provided by you) ---
 def main():
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     nodes_raw = fetch_node_list()
     if not nodes_raw:
-        print("未获取到节点列表，退出程序。")
+        print("Failed to fetch node list, exiting.")
         return
 
     nodes_to_test = []
-    print(f"从订阅获取到 {len(nodes_raw)} 个原始节点。开始解析...")
+    print(f"Retrieved {len(nodes_raw)} raw nodes from subscription. Starting parsing...")
     for node_str in nodes_raw:
         config, error = decode_node(node_str)
         if error:
-            print(f"警告: 节点 '{node_str[:50]}...' 解析失败: {error}")
+            # Shorten the node_str for logging to avoid excessively long lines
+            display_node_str = node_str if len(node_str) < 70 else node_str[:67] + "..."
+            print(f"Warning: Node '{display_node_str}' failed to parse: {error}")
             continue
         if config:
             nodes_to_test.append((node_str, config))
-    
+            
     if not nodes_to_test:
-        print("没有可用于测试的有效节点。请检查节点格式或订阅内容。")
+        print("No valid nodes found for testing. Please check node format or subscription content.")
         return
 
-    print(f"成功解析 {len(nodes_to_test)} 个有效节点，开始测试...")
+    print(f"Successfully parsed {len(nodes_to_test)} valid nodes, starting test...")
 
     results = []
-    # 限制并发数，避免GitHub Actions资源限制或被目标网站封禁
-    # 可以根据节点数量和GitHub Actions的免费额度调整
-    max_workers = 3 
+    max_workers = 3
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         future_to_node = {executor.submit(test_download_speed, node_info): node_info for node_info in nodes_to_test}
         for i, future in enumerate(future_to_node):
             node_url, speed_mbps, error = future.result()
+            # Find the original name from the parsed nodes
             node_name = next((cfg['name'] for _, cfg in nodes_to_test if _ == node_url), node_url)
-            status_msg = f"速度: {speed_mbps:.2f} Mbps" if not error else f"错误: {error}"
-            print(f"[{i+1}/{len(nodes_to_test)}] 节点: {node_name[:40]}... -> {status_msg}")
+            status_msg = f"Speed: {speed_mbps:.2f} Mbps" if not error else f"Error: {error}"
+            print(f"[{i+1}/{len(nodes_to_test)}] Node: {node_name[:40]}... -> {status_msg}")
             results.append({
                 "name": node_name,
                 "node_url": node_url,
@@ -391,24 +526,23 @@ def main():
     output_file_yaml = os.path.join(OUTPUT_DIR, f"{PROJECT_NAME}.yaml")
 
     with open(output_file_txt, "w", encoding="utf-8") as f:
-        f.write("节点下载速度测试结果\n")
-        f.write(f"测试时间: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())}\n")
-        f.write(f"测试文件: {TEST_FILE_URL}\n")
+        f.write("Node Download Speed Test Results\n")
+        f.write(f"Test Time: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())}\n")
+        f.write(f"Test File: {TEST_FILE_URL}\n")
         f.write("-" * 50 + "\n")
         for res in results:
-            f.write(f"节点名称: {res['name']}\n")
-            f.write(f"原始URL: {res['node_url']}\n")
+            f.write(f"Node Name: {res['name']}\n")
+            f.write(f"Original URL: {res['node_url']}\n")
             if res["error"]:
-                f.write(f"状态: 失败\n错误: {res['error']}\n")
+                f.write(f"Status: Failed\nError: {res['error']}\n")
             else:
-                f.write(f"状态: 成功\n速度: {res['speed_mbps']:.2f} Mbps\n")
+                f.write(f"Status: Success\nSpeed: {res['speed_mbps']:.2f} Mbps\n")
             f.write("-" * 50 + "\n")
-    
-    # 也可以输出为 YAML 格式，方便机器读取
+            
     with open(output_file_yaml, "w", encoding="utf-8") as f:
         yaml.dump(results, f, allow_unicode=True, default_flow_style=False)
 
-    print(f"测试完成，结果已保存到 {output_file_txt} 和 {output_file_yaml}")
+    print(f"Test complete, results saved to {output_file_txt} and {output_file_yaml}")
 
 if __name__ == "__main__":
     main()
