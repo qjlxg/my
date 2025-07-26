@@ -1,12 +1,9 @@
 name: Mihomo Node Speed Test
 
 on:
-  push:
-    branches:
-      - KodeBarinn.yml # 当有代码推送到 main 分支时自动运行。如果您使用 master 分支，请改为 master。
-  # workflow_dispatch: # 如果需要手动触发，请取消注释此行
-  # schedule:
-  #   - cron: '0 */6 * * *' # 如果需要定时触发，请取消注释此行
+  workflow_dispatch: # 只允许手动触发此工作流
+  schedule:
+    - cron: '0 */6 * * *' # 可选：每 6 小时定时运行一次（UTC时间）
 
 jobs:
   test-and-filter:
