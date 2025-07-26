@@ -1438,7 +1438,6 @@ proxies:
   cipher: auto
   tls: true
   skip-cert-verify: true
-  sni: ''
   network: ws
   ws-path: /uiAxvH6OkVk0VCfa7dX3JIrYk7zm
 - name: 🇺🇸 US 541
@@ -1932,7 +1931,6 @@ proxies:
   cipher: auto
   tls: true
   skip-cert-verify: true
-  sni: ''
   network: ws
   ws-path: /vmess/
 - name: 🇨🇦 CA 3

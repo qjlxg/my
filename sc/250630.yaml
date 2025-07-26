@@ -22,7 +22,7 @@ proxies:
   tls: true
   skip-cert-verify: false
   sni: x1-germany-amazon-v2.devefun.org
-- name: Telegram==@xStack</li></br>
+- name: 'Telegram==@xStack</li></br> #2'
   type: trojan
   server: x1-france-scaleway-v2.devefun.org
   port: 1935
@@ -30,7 +30,7 @@ proxies:
   tls: true
   skip-cert-verify: false
   sni: x1-france-scaleway-v2.devefun.org
-- name: Telegram==@xStack</li></br>
+- name: 'Telegram==@xStack</li></br> #3'
   type: trojan
   server: x1-japan-amazon-v2.devefun.org
   port: 1935
@@ -38,7 +38,7 @@ proxies:
   tls: true
   skip-cert-verify: false
   sni: x1-japan-amazon-v2.devefun.org
-- name: Telegram==@xStack</li></br>
+- name: 'Telegram==@xStack</li></br> #4'
   type: trojan
   server: x8-england-amazon-v2-uq8p8.devefun.org
   port: 1935
@@ -46,7 +46,7 @@ proxies:
   tls: true
   skip-cert-verify: false
   sni: x8-england-amazon-v2-uq8p8.devefun.org
-- name: Telegram==@xStack</li></br>
+- name: 'Telegram==@xStack</li></br> #5'
   type: trojan
   server: afi.devefun.org
   port: 1935
@@ -54,7 +54,7 @@ proxies:
   tls: true
   skip-cert-verify: false
   sni: afi.devefun.org
-- name: Telegram==@xStack</li></br>
+- name: 'Telegram==@xStack</li></br> #6'
   type: trojan
   server: x1-usa-amazon-v2.devefun.org
   port: 1935
@@ -62,7 +62,7 @@ proxies:
   tls: true
   skip-cert-verify: false
   sni: x1-usa-amazon-v2.devefun.org
-- name: Telegram==@xStack</li></br>
+- name: 'Telegram==@xStack</li></br> #7'
   type: trojan
   server: x6-canada-amazon-v2-bzsn4.devefun.org
   port: 1935
@@ -70,7 +70,7 @@ proxies:
   tls: true
   skip-cert-verify: false
   sni: x6-canada-amazon-v2-bzsn4.devefun.org
-- name: Telegram==@xStack</li></br>
+- name: 'Telegram==@xStack</li></br> #8'
   type: trojan
   server: x3-france-scaleway-v2.devefun.org
   port: 1935
@@ -78,7 +78,7 @@ proxies:
   tls: true
   skip-cert-verify: false
   sni: x3-france-scaleway-v2.devefun.org
-- name: Telegram==@xStack</li></br>
+- name: 'Telegram==@xStack</li></br> #9'
   type: trojan
   server: x5-germany-amazon-v2-tw4od.devefun.org
   port: 1935
@@ -86,7 +86,7 @@ proxies:
   tls: true
   skip-cert-verify: false
   sni: x5-germany-amazon-v2-tw4od.devefun.org
-- name: Telegram==@xStack</li></br>
+- name: 'Telegram==@xStack</li></br> #10'
   type: trojan
   server: x1-sweden-linode-v2-71u92.devefun.org
   port: 1935
@@ -94,7 +94,7 @@ proxies:
   tls: true
   skip-cert-verify: false
   sni: x1-sweden-linode-v2-71u92.devefun.org
-- name: Telegram==@xStack</li></br>
+- name: 'Telegram==@xStack</li></br> #11'
   type: trojan
   server: x1-italy-linode-v2-au5kx.devefun.org
   port: 1935
@@ -102,7 +102,7 @@ proxies:
   tls: true
   skip-cert-verify: false
   sni: x1-italy-linode-v2-au5kx.devefun.org
-- name: Telegram==@xStack</li></br>
+- name: 'Telegram==@xStack</li></br> #12'
   type: trojan
   server: x4-germany-ionos-v2-k4ap5.devefun.org
   port: 1935
@@ -110,7 +110,7 @@ proxies:
   tls: true
   skip-cert-verify: false
   sni: x4-germany-ionos-v2-k4ap5.devefun.org
-- name: Telegram==@xStack</li></br>
+- name: 'Telegram==@xStack</li></br> #13'
   type: trojan
   server: x1-ireland-amazon-v2.devefun.org
   port: 1935
@@ -118,7 +118,7 @@ proxies:
   tls: true
   skip-cert-verify: false
   sni: x1-ireland-amazon-v2.devefun.org
-- name: Telegram==@xStack</li></br>
+- name: 'Telegram==@xStack</li></br> #14'
   type: trojan
   server: x5-usa-amazon-v2-p1sqx.devefun.org
   port: 1935
@@ -126,7 +126,7 @@ proxies:
   tls: true
   skip-cert-verify: false
   sni: x5-usa-amazon-v2-p1sqx.devefun.org
-- name: Telegram==@xStack</li></br>
+- name: 'Telegram==@xStack</li></br> #15'
   type: trojan
   server: x8-germany-amazon-v2-rug6e.devefun.org
   port: 1935
@@ -134,7 +134,7 @@ proxies:
   tls: true
   skip-cert-verify: false
   sni: x8-germany-amazon-v2-rug6e.devefun.org
-- name: Telegram==@xStack</li></br>
+- name: 'Telegram==@xStack</li></br> #16'
   type: trojan
   server: x1-sweden-amazon-v2.devefun.org
   port: 1935
@@ -142,7 +142,7 @@ proxies:
   tls: true
   skip-cert-verify: false
   sni: x1-sweden-amazon-v2.devefun.org
-- name: Telegram==@xStack</li></br>
+- name: 'Telegram==@xStack</li></br> #17'
   type: trojan
   server: x3-france-scaleway-v2-ss3mk.devefun.org
   port: 1935
@@ -150,7 +150,7 @@ proxies:
   tls: true
   skip-cert-verify: false
   sni: x3-france-scaleway-v2-ss3mk.devefun.org
-- name: Telegram==@xStack</li></br>
+- name: 'Telegram==@xStack</li></br> #18'
   type: trojan
   server: x1-germany-linode-v2-jk001.devefun.org
   port: 1935
@@ -158,7 +158,7 @@ proxies:
   tls: true
   skip-cert-verify: false
   sni: x1-germany-linode-v2-jk001.devefun.org
-- name: Telegram==@xStack</li></br>
+- name: 'Telegram==@xStack</li></br> #19'
   type: trojan
   server: x1-france-linode-v2-m899o.devefun.org
   port: 1935
@@ -175,7 +175,7 @@ proxies:
   skip-cert-verify: false
   sni: proxy.yudhy.net
   fingerprint: randomized
-- name: '[GB] Digital Ocean 🇬🇧'')'
+- name: '[GB] Digital Ocean 🇬🇧'') #2'
   type: trojan
   server: tunnel.triadz.web.id
   port: 443
@@ -184,7 +184,7 @@ proxies:
   skip-cert-verify: false
   sni: tunnel.triadz.web.id
   fingerprint: randomized
-- name: Telegram==@xStack</li></br>
+- name: 'Telegram==@xStack</li></br> #20'
   type: trojan
   server: x1-germany-aruba-v2.devefun.org
   port: 1935
@@ -192,7 +192,7 @@ proxies:
   tls: true
   skip-cert-verify: false
   sni: x1-germany-aruba-v2.devefun.org
-- name: Telegram==@xStack</li></br>
+- name: 'Telegram==@xStack</li></br> #21'
   type: trojan
   server: x1-usa-digitalocean-v2.devefun.org
   port: 1935
@@ -200,7 +200,7 @@ proxies:
   tls: true
   skip-cert-verify: false
   sni: x1-usa-digitalocean-v2.devefun.org
-- name: Telegram==@xStack</li></br>
+- name: 'Telegram==@xStack</li></br> #22'
   type: trojan
   server: x1-france-aruba-v2.devefun.org
   port: 1935
@@ -208,7 +208,7 @@ proxies:
   tls: true
   skip-cert-verify: false
   sni: x1-france-aruba-v2.devefun.org
-- name: Telegram==@xStack</li></br>
+- name: 'Telegram==@xStack</li></br> #23'
   type: trojan
   server: x1-amsterdam-linode-v2-9oqj5.devefun.org
   port: 1935
@@ -216,7 +216,7 @@ proxies:
   tls: true
   skip-cert-verify: false
   sni: x1-amsterdam-linode-v2-9oqj5.devefun.org
-- name: Telegram==@xStack</li></br>
+- name: 'Telegram==@xStack</li></br> #24'
   type: trojan
   server: x1-france-scaleway-v2-399j2.devefun.org
   port: 1935
@@ -224,7 +224,7 @@ proxies:
   tls: true
   skip-cert-verify: false
   sni: x1-france-scaleway-v2-399j2.devefun.org
-- name: Telegram==@xStack</li></br>
+- name: 'Telegram==@xStack</li></br> #25'
   type: trojan
   server: x7-england-amazon-v2-j0t4m.devefun.org
   port: 1935
@@ -232,7 +232,7 @@ proxies:
   tls: true
   skip-cert-verify: false
   sni: x7-england-amazon-v2-j0t4m.devefun.org
-- name: Telegram==@xStack</li></br>
+- name: 'Telegram==@xStack</li></br> #26'
   type: trojan
   server: x1-spian-linode-v2-7xk23.devefun.org
   port: 1935
@@ -240,7 +240,7 @@ proxies:
   tls: true
   skip-cert-verify: false
   sni: x1-spian-linode-v2-7xk23.devefun.org
-- name: Telegram==@xStack</li></br>
+- name: 'Telegram==@xStack</li></br> #27'
   type: trojan
   server: mamad.devefun.tech
   port: 1935
@@ -248,7 +248,7 @@ proxies:
   tls: true
   skip-cert-verify: false
   sni: mamad.devefun.tech
-- name: Telegram==@xStack</li></br>
+- name: 'Telegram==@xStack</li></br> #28'
   type: trojan
   server: x1-italy-aruba-v2.devefun.org
   port: 1935
@@ -256,7 +256,7 @@ proxies:
   tls: true
   skip-cert-verify: false
   sni: x1-italy-aruba-v2.devefun.org
-- name: Telegram==@xStack</li></br>
+- name: 'Telegram==@xStack</li></br> #29'
   type: trojan
   server: x2-france-scaleway-v2.devefun.org
   port: 1935
@@ -264,7 +264,7 @@ proxies:
   tls: true
   skip-cert-verify: false
   sni: x2-france-scaleway-v2.devefun.org
-- name: Telegram==@xStack</li></br>
+- name: 'Telegram==@xStack</li></br> #30'
   type: trojan
   server: x2-poland-scaleway-v2-bvvgo.devefun.org
   port: 1935
@@ -272,7 +272,7 @@ proxies:
   tls: true
   skip-cert-verify: false
   sni: x2-poland-scaleway-v2-bvvgo.devefun.org
-- name: Telegram==@xStack</li></br>
+- name: 'Telegram==@xStack</li></br> #31'
   type: trojan
   server: x1-england-linode-v2-56k2k.devefun.org
   port: 1935
@@ -280,7 +280,7 @@ proxies:
   tls: true
   skip-cert-verify: false
   sni: x1-england-linode-v2-56k2k.devefun.org
-- name: Telegram==@xStack</li></br>
+- name: 'Telegram==@xStack</li></br> #32'
   type: trojan
   server: x1-japan-linode-v2-pwlzp.devefun.org
   port: 1935
@@ -288,7 +288,7 @@ proxies:
   tls: true
   skip-cert-verify: false
   sni: x1-japan-linode-v2-pwlzp.devefun.org
-- name: Telegram==@xStack</li></br>
+- name: 'Telegram==@xStack</li></br> #33'
   type: trojan
   server: x1-england-aruba-v2.devefun.org
   port: 1935
@@ -296,7 +296,7 @@ proxies:
   tls: true
   skip-cert-verify: false
   sni: x1-england-aruba-v2.devefun.org
-- name: Telegram==@xStack</li></br>
+- name: 'Telegram==@xStack</li></br> #34'
   type: trojan
   server: x2-germany-amazon-v2.devefun.org
   port: 1935
@@ -304,7 +304,7 @@ proxies:
   tls: true
   skip-cert-verify: false
   sni: x2-germany-amazon-v2.devefun.org
-- name: Telegram==@xStack</li></br>
+- name: 'Telegram==@xStack</li></br> #35'
   type: trojan
   server: x1-england-amazon-v2.devefun.org
   port: 1935
@@ -312,7 +312,7 @@ proxies:
   tls: true
   skip-cert-verify: false
   sni: x1-england-amazon-v2.devefun.org
-- name: Telegram==@xStack</li></br>
+- name: 'Telegram==@xStack</li></br> #36'
   type: trojan
   server: x2-sweden-amazon-v2.devefun.org
   port: 1935
@@ -320,7 +320,7 @@ proxies:
   tls: true
   skip-cert-verify: false
   sni: x2-sweden-amazon-v2.devefun.org
-- name: Telegram==@xStack</li></br>
+- name: 'Telegram==@xStack</li></br> #37'
   type: trojan
   server: x1-usa-linode-v2-99z1f.devefun.org
   port: 1935
@@ -328,7 +328,7 @@ proxies:
   tls: true
   skip-cert-verify: false
   sni: x1-usa-linode-v2-99z1f.devefun.org
-- name: Telegram==@xStack</li></br>
+- name: 'Telegram==@xStack</li></br> #38'
   type: trojan
   server: x2-usa-amazon-v2.devefun.org
   port: 1935
@@ -336,7 +336,7 @@ proxies:
   tls: true
   skip-cert-verify: false
   sni: x2-usa-amazon-v2.devefun.org
-- name: Telegram==@xStack</li></br>
+- name: 'Telegram==@xStack</li></br> #39'
   type: trojan
   server: x1-canada-linode-v2-fl879.devefun.org
   port: 1935
@@ -344,7 +344,7 @@ proxies:
   tls: true
   skip-cert-verify: false
   sni: x1-canada-linode-v2-fl879.devefun.org
-- name: Telegram==@xStack</li></br>
+- name: 'Telegram==@xStack</li></br> #40'
   type: trojan
   server: x1-poland-aruba-v2.devefun.org
   port: 1935
@@ -352,7 +352,7 @@ proxies:
   tls: true
   skip-cert-verify: false
   sni: x1-poland-aruba-v2.devefun.org
-- name: Telegram==@xStack</li></br>
+- name: 'Telegram==@xStack</li></br> #41'
   type: trojan
   server: x5-sweden-amazon-v2-34z0x.devefun.org
   port: 1935
@@ -445,56 +445,56 @@ proxies:
   uuid: 007a18ea-0893-427b-ab43-418c9e10a270
   network: ws
   ws-path: /
-- name: Telegram==@Devefun</li></br>
+- name: 'Telegram==@Devefun</li></br> #2'
   type: vless
   server: x1-ireland-amazon-v2.we-are-team-xstack-this-is-free-config-join-us-enjoy.net
   port: 8080
   uuid: 0091cbe7-86e5-4f4a-beb3-abe11bee8508
   network: ws
   ws-path: /
-- name: Telegram==@Devefun</li></br>
+- name: 'Telegram==@Devefun</li></br> #3'
   type: vless
   server: x1-france-scaleway-v2-399j2.we-are-team-xstack-this-is-free-config-join-us-enjoy.net
   port: 8080
   uuid: 0097bc65-3f8c-420d-9816-0f6e70af83fb
   network: ws
   ws-path: /
-- name: Telegram==@Devefun</li></br>
+- name: 'Telegram==@Devefun</li></br> #4'
   type: vless
   server: x1-sweden-linode-v2-71u92.we-are-team-xstack-this-is-free-config-join-us-enjoy.net
   port: 8080
   uuid: 0175301a-6d22-4ef4-a25b-5a5028d65b23
   network: ws
   ws-path: /
-- name: Telegram==@Devefun</li></br>
+- name: 'Telegram==@Devefun</li></br> #5'
   type: vless
   server: x1-germany-linode-v2-jk001.we-are-team-xstack-this-is-free-config-join-us-enjoy.net
   port: 8080
   uuid: 017c624b-b56c-49dd-a7d2-82423513d9b4
   network: ws
   ws-path: /
-- name: Telegram==@Devefun</li></br>
+- name: 'Telegram==@Devefun</li></br> #6'
   type: vless
   server: x1-england-amazon-v2.we-are-team-xstack-this-is-free-config-join-us-enjoy.net
   port: 8080
   uuid: 01b1a8e1-80ab-4e17-950c-7cc9d5f72a20
   network: ws
   ws-path: /
-- name: Telegram==@Devefun</li></br>
+- name: 'Telegram==@Devefun</li></br> #7'
   type: vless
   server: x1-japan-linode-v2-pwlzp.we-are-team-xstack-this-is-free-config-join-us-enjoy.net
   port: 8080
   uuid: 02178d4d-de78-4d63-ab66-cb774129103e
   network: ws
   ws-path: /
-- name: Telegram==@Devefun</li></br>
+- name: 'Telegram==@Devefun</li></br> #8'
   type: vless
   server: x3-france-scaleway-v2.we-are-team-xstack-this-is-free-config-join-us-enjoy.net
   port: 8080
   uuid: 0256342f-a112-4c27-8922-b88a9e1ab54d
   network: ws
   ws-path: /
-- name: Telegram==@Devefun</li></br>
+- name: 'Telegram==@Devefun</li></br> #9'
   type: vless
   server: x1-japan-amazon-v2.we-are-team-xstack-this-is-free-config-join-us-enjoy.net
   port: 8080
@@ -507,14 +507,14 @@ proxies:
   port: 443
   uuid: 0452fc91-9edb-43b9-b897-f4f6148d6d3d
   network: tcp
-- name: Telegram==@Devefun</li></br>
+- name: 'Telegram==@Devefun</li></br> #10'
   type: vless
   server: afi.we-are-team-xstack-this-is-free-config-join-us-enjoy.net
   port: 8080
   uuid: 04a370c5-a445-4781-b366-94bae5b1e4c7
   network: ws
   ws-path: /
-- name: Telegram==@Devefun</li></br>
+- name: 'Telegram==@Devefun</li></br> #11'
   type: vless
   server: x1-germany-aruba-v2.we-are-team-xstack-this-is-free-config-join-us-enjoy.net
   port: 8080
@@ -527,28 +527,28 @@ proxies:
   port: 22539
   uuid: 04d250c3-1b5a-4643-9f09-7fb174cff102
   network: tcp
-- name: Telegram==@Devefun</li></br>
+- name: 'Telegram==@Devefun</li></br> #12'
   type: vless
   server: x2-poland-scaleway-v2-bvvgo.we-are-team-xstack-this-is-free-config-join-us-enjoy.net
   port: 8080
   uuid: 0724d794-c7d3-47c0-ad17-e6faee5542c9
   network: ws
   ws-path: /
-- name: Telegram==@Devefun</li></br>
+- name: 'Telegram==@Devefun</li></br> #13'
   type: vless
   server: x1-italy-linode-v2-au5kx.we-are-team-xstack-this-is-free-config-join-us-enjoy.net
   port: 8080
   uuid: 098dfd72-333c-49ef-9041-7a3d8c1afac2
   network: ws
   ws-path: /
-- name: Telegram==@Devefun</li></br>
+- name: 'Telegram==@Devefun</li></br> #14'
   type: vless
   server: x1-amsterdam-linode-v2-9oqj5.we-are-team-xstack-this-is-free-config-join-us-enjoy.net
   port: 8080
   uuid: 09d7f778-ae07-4f64-a579-089a1874c643
   network: ws
   ws-path: /
-- name: Telegram==@Devefun</li></br>
+- name: 'Telegram==@Devefun</li></br> #15'
   type: vless
   server: x1-france-scaleway-v2.we-are-team-xstack-this-is-free-config-join-us-enjoy.net
   port: 8080
@@ -561,35 +561,35 @@ proxies:
   port: 53609
   uuid: 0a864c19-0d4f-48c5-d80d-423f03284d9d
   network: kcp
-- name: Telegram==@Devefun</li></br>
+- name: 'Telegram==@Devefun</li></br> #16'
   type: vless
   server: x3-france-scaleway-v2-ss3mk.we-are-team-xstack-this-is-free-config-join-us-enjoy.net
   port: 8080
   uuid: 0cedcc99-c9cd-484f-a2cc-c81d9697182d
   network: ws
   ws-path: /
-- name: Telegram==@Devefun</li></br>
+- name: 'Telegram==@Devefun</li></br> #17'
   type: vless
   server: x1-usa-digitalocean-v2.we-are-team-xstack-this-is-free-config-join-us-enjoy.net
   port: 8080
   uuid: 0cf5b157-166f-481b-8205-9cb3b3022e73
   network: ws
   ws-path: /
-- name: Telegram==@Devefun</li></br>
+- name: 'Telegram==@Devefun</li></br> #18'
   type: vless
   server: x1-usa-linode-v2-99z1f.we-are-team-xstack-this-is-free-config-join-us-enjoy.net
   port: 8080
   uuid: 0f7948ce-0ad9-4297-b3e0-4609de2aef0f
   network: ws
   ws-path: /
-- name: Telegram==@Devefun</li></br>
+- name: 'Telegram==@Devefun</li></br> #19'
   type: vless
   server: x2-sweden-amazon-v2.we-are-team-xstack-this-is-free-config-join-us-enjoy.net
   port: 8080
   uuid: 0fa5b354-fd07-4dbf-9cf6-7c22d07dbbde
   network: ws
   ws-path: /
-- name: Telegram==@Devefun</li></br>
+- name: 'Telegram==@Devefun</li></br> #20'
   type: vless
   server: x2-usa-amazon-v2.we-are-team-xstack-this-is-free-config-join-us-enjoy.net
   port: 8080
@@ -606,35 +606,35 @@ proxies:
   sni: example.com
   network: ws
   ws-path: /path
-- name: Telegram==@Devefun</li></br>
+- name: 'Telegram==@Devefun</li></br> #21'
   type: vless
   server: x1-england-aruba-v2.we-are-team-xstack-this-is-free-config-join-us-enjoy.net
   port: 8080
   uuid: 151095d4-9fd9-4b47-a98d-ec083a1a8840
   network: ws
   ws-path: /
-- name: Telegram==@Devefun</li></br>
+- name: 'Telegram==@Devefun</li></br> #22'
   type: vless
   server: x2-france-scaleway-v2.we-are-team-xstack-this-is-free-config-join-us-enjoy.net
   port: 8080
   uuid: 1665ca50-d70b-4c09-ab99-f8194b129335
   network: ws
   ws-path: /
-- name: Telegram==@Devefun</li></br>
+- name: 'Telegram==@Devefun</li></br> #23'
   type: vless
   server: x1-france-linode-v2-m899o.we-are-team-xstack-this-is-free-config-join-us-enjoy.net
   port: 8080
   uuid: 17b75059-2105-4dc4-a77c-482dc9a5d687
   network: ws
   ws-path: /
-- name: Telegram==@Devefun</li></br>
+- name: 'Telegram==@Devefun</li></br> #24'
   type: vless
   server: x1-england-linode-v2-56k2k.we-are-team-xstack-this-is-free-config-join-us-enjoy.net
   port: 8080
   uuid: 18f3bd2a-de89-4d21-b29f-32c0f954ba52
   network: ws
   ws-path: /
-- name: Telegram==@Devefun</li></br>
+- name: 'Telegram==@Devefun</li></br> #25'
   type: vless
   server: x8-england-amazon-v2-uq8p8.we-are-team-xstack-this-is-free-config-join-us-enjoy.net
   port: 8080
@@ -648,27 +648,27 @@ proxies:
   uuid: 1bd3acb0-3cdc-463c-a78b-a82b34afb249
   network: ws
   ws-path: /61f468b4
-- name: Telegram==@Devefun</li></br>
+- name: 'Telegram==@Devefun</li></br> #26'
   type: vless
   server: x1-sweden-amazon-v2.we-are-team-xstack-this-is-free-config-join-us-enjoy.net
   port: 8080
   uuid: 1c044db7-0493-457e-8219-8722389e70ef
   network: ws
   ws-path: /
-- name: 0|0
+- name: '0|0 #2'
   type: vless
   server: 172.174.140.24
   port: 51104
   uuid: 1e4ed343-0c19-4442-9f2e-b236f758e333
   network: tcp
-- name: Telegram==@Devefun</li></br>
+- name: 'Telegram==@Devefun</li></br> #27'
   type: vless
   server: x1-france-aruba-v2.we-are-team-xstack-this-is-free-config-join-us-enjoy.net
   port: 8080
   uuid: 1ece65be-a84e-4bb6-97d0-d41ead025f9d
   network: ws
   ws-path: /
-- name: Telegram==@Devefun</li></br>
+- name: 'Telegram==@Devefun</li></br> #28'
   type: vless
   server: x6-canada-amazon-v2-bzsn4.we-are-team-xstack-this-is-free-config-join-us-enjoy.net
   port: 8080
@@ -681,7 +681,7 @@ proxies:
   port: 23234
   uuid: 20187ad1-41af-40bf-8a17-fc47dc980d79
   network: tcp
-- name: Telegram==@Devefun</li></br>
+- name: 'Telegram==@Devefun</li></br> #29'
   type: vless
   server: x1-canada-linode-v2-fl879.we-are-team-xstack-this-is-free-config-join-us-enjoy.net
   port: 8080
@@ -702,7 +702,7 @@ proxies:
   uuid: 26b50969-f01b-4b0e-8992-0f2cb7fb40f0
   network: grpc
   grpc-service-name: gapi
-- name: Telegram==@Devefun</li></br>
+- name: 'Telegram==@Devefun</li></br> #30'
   type: vless
   server: x2-germany-amazon-v2.we-are-team-xstack-this-is-free-config-join-us-enjoy.net
   port: 8080
@@ -716,20 +716,20 @@ proxies:
   uuid: 2c6445dc-8be7-4c4a-f7a8-056f68bcaa66
   network: grpc
   grpc-service-name: ''
-- name: Telegram==@Devefun</li></br>
+- name: 'Telegram==@Devefun</li></br> #31'
   type: vless
   server: x1-poland-aruba-v2.we-are-team-xstack-this-is-free-config-join-us-enjoy.net
   port: 8080
   uuid: 2ea5f11d-f7e4-4c0d-b89d-e6bae3e211ba
   network: ws
   ws-path: /
-- name: 盐湖城|0
+- name: '盐湖城|0 #2'
   type: vless
   server: 129.80.49.38
   port: 16580
   uuid: 31172243-6907-4216-e069-5511bc6f7ba9
   network: tcp
-- name: Telegram==@Devefun</li></br>
+- name: 'Telegram==@Devefun</li></br> #32'
   type: vless
   server: x5-germany-amazon-v2-tw4od.we-are-team-xstack-this-is-free-config-join-us-enjoy.net
   port: 8080
@@ -746,42 +746,42 @@ proxies:
   sni: vljp.zyttbywy.xyz
   network: ws
   ws-path: /vws
-- name: Telegram==@Devefun</li></br>
+- name: 'Telegram==@Devefun</li></br> #33'
   type: vless
   server: x1-usa-amazon-v2.we-are-team-xstack-this-is-free-config-join-us-enjoy.net
   port: 8080
   uuid: 3ca14815-0f7c-4aaf-a8f1-281e758de209
   network: ws
   ws-path: /
-- name: Telegram==@Devefun</li></br>
+- name: 'Telegram==@Devefun</li></br> #34'
   type: vless
   server: x1-germany-amazon-v2.we-are-team-xstack-this-is-free-config-join-us-enjoy.net
   port: 8080
   uuid: 41faf0b5-2cbc-465a-bb0b-de4d915e6a1c
   network: ws
   ws-path: /
-- name: Telegram==@Devefun</li></br>
+- name: 'Telegram==@Devefun</li></br> #35'
   type: vless
   server: x5-sweden-amazon-v2-34z0x.we-are-team-xstack-this-is-free-config-join-us-enjoy.net
   port: 8080
   uuid: 431da87b-6702-40fc-999d-772420f19cfb
   network: ws
   ws-path: /
-- name: Telegram==@Devefun</li></br>
+- name: 'Telegram==@Devefun</li></br> #36'
   type: vless
   server: x1-italy-aruba-v2.we-are-team-xstack-this-is-free-config-join-us-enjoy.net
   port: 8080
   uuid: 43a4fdd5-6842-4fa2-8738-85c80cf7f1c8
   network: ws
   ws-path: /
-- name: Telegram==@Devefun</li></br>
+- name: 'Telegram==@Devefun</li></br> #37'
   type: vless
   server: x5-usa-amazon-v2-p1sqx.we-are-team-xstack-this-is-free-config-join-us-enjoy.net
   port: 8080
   uuid: 473fb6ce-4616-4ce0-ba8b-fecf0812b445
   network: ws
   ws-path: /
-- name: '[GB] Digital Ocean 🇬🇧'')'
+- name: '[GB] Digital Ocean 🇬🇧'') #3'
   type: vless
   server: proxy.yudhy.net
   port: 443
@@ -794,7 +794,7 @@ proxies:
   ws-path: /YudhyNet-GB1
   ws-headers:
     Host: proxy.yudhy.net
-- name: '[GB] Digital Ocean 🇬🇧'')'
+- name: '[GB] Digital Ocean 🇬🇧'') #4'
   type: vless
   server: tunnel.triadz.web.id
   port: 443
@@ -807,14 +807,14 @@ proxies:
   ws-path: /YudhyNet-GB1
   ws-headers:
     Host: tunnel.triadz.web.id
-- name: Telegram==@Devefun</li></br>
+- name: 'Telegram==@Devefun</li></br> #38'
   type: vless
   server: x8-germany-amazon-v2-rug6e.we-are-team-xstack-this-is-free-config-join-us-enjoy.net
   port: 8080
   uuid: 4abea64e-8415-4f72-b814-90b52c327e60
   network: ws
   ws-path: /
-- name: Telegram==@Devefun</li></br>
+- name: 'Telegram==@Devefun</li></br> #39'
   type: vless
   server: x7-england-amazon-v2-j0t4m.we-are-team-xstack-this-is-free-config-join-us-enjoy.net
   port: 8080
@@ -831,7 +831,7 @@ proxies:
   sni: vless.zyttbywy.xyz
   network: ws
   ws-path: /vws
-- name: Telegram==@Devefun</li></br>
+- name: 'Telegram==@Devefun</li></br> #40'
   type: vless
   server: x4-germany-ionos-v2-k4ap5.we-are-team-xstack-this-is-free-config-join-us-enjoy.net
   port: 8080
@@ -844,7 +844,7 @@ proxies:
   port: 35149
   uuid: 6717c361-fdd8-4031-b616-57f83ad71877
   network: tcp
-- name: Telegram==@Devefun</li></br>
+- name: 'Telegram==@Devefun</li></br> #41'
   type: vless
   server: mamad.we-are-team-xstack-this-is-free-config-join-us-enjoy.net
   port: 8080
@@ -1129,7 +1129,7 @@ proxies:
   alterId: 0
   cipher: auto
   network: tcp
-- name: 0|0
+- name: '0|0 #3'
   type: vmess
   server: 104.128.93.97
   port: 80
@@ -1138,7 +1138,7 @@ proxies:
   cipher: auto
   network: ws
   ws-path: /
-- name: 0|0
+- name: '0|0 #4'
   type: vmess
   server: 64.176.41.30
   port: 46581
@@ -1147,7 +1147,7 @@ proxies:
   cipher: auto
   network: ws
   ws-path: /
-- name: 0|0
+- name: '0|0 #5'
   type: vmess
   server: cc.996828.xyz
   port: 443
@@ -1174,7 +1174,7 @@ proxies:
   alterId: 0
   cipher: auto
   network: tcp
-- name: 0|阿里巴巴
+- name: '0|阿里巴巴 #2'
   type: vmess
   server: 8.222.192.178
   port: 40998
@@ -1183,7 +1183,7 @@ proxies:
   cipher: auto
   network: ws
   ws-path: /
-- name: 0|阿里巴巴
+- name: '0|阿里巴巴 #3'
   type: vmess
   server: 8.222.202.209
   port: 56793
@@ -1192,7 +1192,7 @@ proxies:
   cipher: auto
   network: ws
   ws-path: /
-- name: 0|阿里巴巴
+- name: '0|阿里巴巴 #4'
   type: vmess
   server: 8.222.255.182
   port: 38828
@@ -1209,7 +1209,7 @@ proxies:
   alterId: 0
   cipher: auto
   network: tcp
-- name: '2'
+- name: '2 #2'
   type: vmess
   server: 38.207.162.119
   port: 10190
@@ -1914,7 +1914,7 @@ proxies:
   cipher: auto
   network: ws
   ws-path: /
-- name: 圣克拉拉|阿里巴巴
+- name: '圣克拉拉|阿里巴巴 #2'
   type: vmess
   server: 47.236.136.48
   port: 42145
@@ -1923,7 +1923,7 @@ proxies:
   cipher: auto
   network: ws
   ws-path: /
-- name: 圣克拉拉|阿里巴巴
+- name: '圣克拉拉|阿里巴巴 #3'
   type: vmess
   server: 47.236.138.254
   port: 21608
@@ -1932,7 +1932,7 @@ proxies:
   cipher: auto
   network: ws
   ws-path: /
-- name: 圣克拉拉|阿里巴巴
+- name: '圣克拉拉|阿里巴巴 #4'
   type: vmess
   server: 47.238.167.110
   port: 37543
@@ -1940,7 +1940,7 @@ proxies:
   alterId: 0
   cipher: auto
   network: tcp
-- name: 圣克拉拉|阿里巴巴
+- name: '圣克拉拉|阿里巴巴 #5'
   type: vmess
   server: 47.76.187.28
   port: 44215
@@ -2084,7 +2084,7 @@ proxies:
   cipher: auto
   network: ws
   ws-path: /
-- name: 深圳市|阿里云
+- name: '深圳市|阿里云 #2'
   type: vmess
   server: 39.108.72.153
   port: 39508
@@ -2115,7 +2115,7 @@ proxies:
   cipher: auto
   network: ws
   ws-path: /test
-- name: 测试
+- name: '测试 #2'
   type: vmess
   server: 164.92.123.108
   port: 45979
@@ -2124,7 +2124,7 @@ proxies:
   cipher: auto
   network: ws
   ws-path: /test
-- name: 测试
+- name: '测试 #3'
   type: vmess
   server: 93.179.112.232
   port: 80
@@ -2176,7 +2176,7 @@ proxies:
   alterId: 0
   cipher: auto
   network: tcp
-- name: 盐湖城|0
+- name: '盐湖城|0 #3'
   type: vmess
   server: 129.80.49.38
   port: 17099
