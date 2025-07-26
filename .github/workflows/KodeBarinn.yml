@@ -1,53 +1,54 @@
 name: Mihomo Node Speed Test
 
 on:
-  workflow_dispatch:
+  workflow_dispatch: # 允许在 GitHub Actions 界面手动触发
   schedule:
-    - cron: '0 */6 * * *'
+    - cron: '0 */6 * * *' # 每 6 小时自动运行一次（UTC 时间）
 
 jobs:
   test-and-filter:
-    runs-on: ubuntu-latest
-    timeout-minutes: 360
+    runs-on: ubuntu-latest # 使用最新的 Ubuntu 环境
+    timeout-minutes: 360 # 设置最大运行时间为 6 小时
 
     steps:
       - name: ⬇️ 检出仓库代码
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4 # 检出仓库代码
 
       - name: 🛠️ 设置 Rust 编程环境
-        uses: actions-rs/toolchain@v1
+        uses: actions-rs/toolchain@v1 # 配置 Rust 环境
         with:
-          toolchain: stable
-          profile: minimal
-          override: true
+          toolchain: stable # 使用稳定版 Rust
+          profile: minimal # 最小化安装
+          override: true # 覆盖默认工具链
 
       - name: ♻️ 缓存 Rust 依赖和编译结果
-        uses: actions/cache@v4
+        uses: actions/cache@v4 # 缓存 Rust 相关目录
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-          key: ${{ runner.os }}-cargo-${{ hashFiles('mihomo-speedtest-rs/Cargo.lock') }}
+            mihomo-speedtest-rs/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-
+        # 新增：如果缓存命中，但编译仍然失败，可以考虑在此处添加一个 'on-cache-hit: restore,skip' 或者强制重建的逻辑
+        # 但通常强制清理目录和缓存效果更好
 
       - name: 📦 安装 mihomo-speedtest-rs 工具
         run: |
           echo "正在从 GitHub 仓库编译并安装 mihomo-speedtest-rs..."
+          # --- 关键修改：强制删除并重新克隆仓库 ---
           if [ -d "mihomo-speedtest-rs" ]; then
-            echo "发现旧的 mihomo-speedtest-rs 目录，正在删除..."
-            rm -rf mihomo-speedtest-rs
+            echo "发现 mihomo-speedtest-rs 仓库已存在，正在删除并重新克隆以确保完整性..."
+            rm -rf mihomo-speedtest-rs || { echo "错误：删除现有 mihomo-speedtest-rs 目录失败！"; exit 1; }
+          else
+            echo "mihomo-speedtest-rs 仓库不存在，将进行克隆。"
           fi
-          echo "克隆 mihomo-speedtest-rs 仓库..."
+          
           git clone https://github.com/KodeBarinn/mihomo-speedtest-rs.git || { echo "错误：克隆 mihomo-speedtest-rs 仓库失败！"; exit 1; }
+          # --- 关键修改结束 ---
           
           cd mihomo-speedtest-rs
-          if [ ! -f "Cargo.toml" ]; then
-            echo "错误：Cargo.toml 文件不存在，请检查 mihomo-speedtest-rs 仓库！"
-            ls -la
-            exit 1
-          fi
-          echo "正在编译 mihomo-speedtest-rs..."
           cargo build --release || { echo "错误：编译 mihomo-speedtest-rs 失败！"; exit 1; }
           
           if [ ! -f "target/release/mihomo-speedtest" ]; then
@@ -58,13 +59,13 @@ jobs:
           sudo mv target/release/mihomo-speedtest /usr/local/bin/mihomo-speedtest
           echo "mihomo-speedtest-rs 工具已成功安装到 /usr/local/bin/mihomo-speedtest。"
 
-      # 以下是其余步骤（保持不变）
       - name: ⬇️ 获取 Mihomo 版本号
         id: download_mihomo_version
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # 使用 GitHub Token 提高 API 请求配额
         run: |
           echo "正在检测 Mihomo 最新稳定版本..."
+          # 调试：打印 API 请求的原始响应
           RESPONSE=$(curl -s -H "Authorization: token $GITHUB_TOKEN" "https://api.github.com/repos/MetaCubeX/mihomo/releases/latest")
           echo "GitHub API 响应: $RESPONSE"
           
@@ -73,6 +74,7 @@ jobs:
             echo "错误：无法获取 Mihomo 最新版本号，请检查 GitHub API 或网络连接。"
             exit 1
           fi
+          # 清理版本号，确保不包含非法字符
           MIHOMO_VERSION=$(echo "$MIHOMO_VERSION" | tr -d '\n\r"')
           echo "version=$MIHOMO_VERSION" >> $GITHUB_ENV
           echo "检测到 Mihomo 最新版本: $MIHOMO_VERSION"
@@ -88,7 +90,7 @@ jobs:
 
       - name: ⬇️ 下载 Mihomo 核心二进制文件
         run: |
-          set -x
+          set -x # 启用调试，打印每条命令
           CACHE_HIT="${{ steps.cache-mihomo.outputs.cache-hit }}"
           echo "缓存命中状态: $CACHE_HIT"
           
@@ -118,79 +120,84 @@ jobs:
           chmod +x mihomo
           sudo mv mihomo /usr/local/bin/mihomo
           echo "Mihomo 核心已成功安装到 /usr/local/bin/mihomo。"
-          set +x
+          set +x # 关闭调试
 
       - name: ⬇️ 下载原始 Clash 订阅配置
         id: download_config
         run: |
           echo "开始下载原始 Clash 订阅配置文件..."
-          curl -sSLo original_clash_config.yaml "https://raw.githubusercontent.com/qjlxg/ss/refs/heads/master/list_raw.txt" || { echo "错误：下载订阅文件失败！"; exit 1; }
+          # 注意：这里我们下载的是原始的txt文件
+          curl -sSLo raw_nodes.txt "https://raw.githubusercontent.com/qjlxg/ss/refs/heads/master/list_raw.txt" || { echo "错误：下载订阅文件失败！"; exit 1; }
           
-          if [ ! -f ./original_clash_config.yaml ] || [ ! -s ./original_clash_config.yaml ]; then
-            echo "错误：original_clash_config.yaml 文件未成功下载或为空，请检查订阅链接。"
-            cat original_clash_config.yaml || echo "文件为空或不存在"
-            exit 1
+          if [ ! -f ./raw_nodes.txt ] || [ ! -s ./raw_nodes.txt ]; then
+            echo "错误：raw_nodes.txt 文件未成功下载或为空，请检查订阅链接。"<br>
+            exit 1<br>
+          fi<br>
+          echo "原始订阅下载完成，等待转换。"<br>
+          node_count=$(grep -c '^' raw_nodes.txt || true) # 估算行数，不一定是节点数
+          echo "原始订阅文件约包含 ${node_count} 行内容。"<br>
+
+      - name: 🔄 将原始订阅转换为 Clash YAML (通过 Base64 解码)
+        id: convert_to_clash_yaml
+        run: |
+          echo "开始尝试将原始订阅文件解码并转换为 Clash YAML 格式..."
+          # 尝试解码原始文件内容，看是否是有效的YAML
+          if base64 -d raw_nodes.txt 2>/dev/null | grep -q "proxies:"; then
+            echo "原始文件似乎是 Base64 编码的 Clash YAML，正在解码..."
+            base64 -d raw_nodes.txt > original_clash_config.yaml
+            if [ ! -f ./original_clash_config.yaml ] || [ ! -s ./original_clash_config.yaml ]; then
+              echo "错误：Base64 解码后 original_clash_config.yaml 文件为空。"<br>
+              exit 1<br>
+            fi<br>
+            echo "Base64 解码并转换为 original_clash_config.yaml 成功。"<br>
+            converted_node_count=$(grep -c '^- name:' original_clash_config.yaml || true)<br>
+            echo "转换后约包含 ${converted_node_count} 个节点。"<br>
+          else
+            echo "原始文件似乎不是 Base64 编码的 Clash YAML，跳过直接解码。"
+            echo "此工作流需要原始订阅是 Clash YAML 格式或 Base64 编码的 Clash YAML。"
+            echo "如果您确定原始订阅是其他格式（如直链列表），请手动添加一个 Subconverter 步骤。"
+            # 为了让工作流能够继续，我们仍然复制原始文件，但后续步骤很可能会失败
+            cp raw_nodes.txt original_clash_config.yaml
+            echo "警告：raw_nodes.txt 直接复制为 original_clash_config.yaml，请检查格式是否兼容 mihomo-speedtest-rs。"
+            exit 1 # 明确指示可能无法处理，并中断以引起注意
           fi
-          echo "原始 Clash 订阅配置下载完成。"
-          echo "订阅文件内容："
-          cat original_clash_config.yaml
-          node_count=$(grep -c '^- name:' original_clash_config.yaml || true)
-          echo "原始订阅约包含 ${node_count} 个节点。"
 
       - name: 📁 创建 output 目录
         run: |
           mkdir -p output
           echo "已创建 output/ 目录。"
 
-      - name: 🔍 调试 Mihomo 运行状态
-        run: |
-          echo "检查 mihomo 核心版本..."
-          /usr/local/bin/mihomo --version || { echo "错误：mihomo 核心无法运行！"; exit 1; }
-          echo "尝试运行 mihomo 以验证连接..."
-          /usr/local/bin/mihomo -f ./original_clash_config.yaml -d . > mihomo.log 2>&1 &
-          sleep 5
-          echo "mihomo 日志："
-          cat mihomo.log
-          if ! pgrep mihomo; then
-            echo "错误：mihomo 进程未运行！"
-            exit 1
-          fi
-          echo "mihomo 进程正在运行，准备进行节点测试。"
-
       - name: 🚀 运行 mihomo-speedtest-rs 进行节点测试与过滤
         id: mihomo_test
         run: |
           echo "开始使用 mihomo-speedtest-rs 进行综合节点测试和智能过滤..."
           /usr/local/bin/mihomo-speedtest \
-            --config ./original_clash_config.yaml \
+            --config ./original_clash_config.yaml \ # 注意这里现在是转换后的文件
             --use-mihomo \
             --mihomo-binary /usr/local/bin/mihomo \
-            --max-latency 2000ms \
-            --min-download-speed 1 \
+            --max-latency 1000ms \
+            --min-download-speed 3 \
             --download-size 5 \
             --upload-size 1 \
             --timeout 60s \
-            --max-concurrent 50 \
-           # --filter "sg|jp|kr|us|ca|de|fr|uk|nl" \
-           # --block "cn|china|中国|大陆|北京|上海" \
+            --max-concurrent 100 \
+            --filter "sg|jp|kr|us|ca|de|fr|uk|nl" \
+            --block "cn|china|中国|大陆|北京|上海" \
             --output ./output/KodeBarinn.yaml \
             --verbose || { echo "错误：mihomo-speedtest-rs 测试失败！"; exit 1; }
           
           if [ ! -f ./output/KodeBarinn.yaml ] || [ ! -s ./output/KodeBarinn.yaml ]; then
-            echo "错误：output/KodeBarinn.yaml 文件未生成或为空，可能是没有节点通过测试。"
-            cat ./output/KodeBarinn.yaml || echo "文件为空或不存在"
-            exit 1
-          fi
-          echo "mihomo-speedtest-rs 测试和过滤已完成，合格节点已保存到 output/KodeBarinn.yaml。"
-          final_node_count=$(grep -c '^- name:' ./output/KodeBarinn.yaml || true)
-          echo "最终生成了 ${final_node_count} 个合格节点。"
+            echo "错误：output/KodeBarinn.yaml 文件未生成或为空，可能是没有节点通过测试。"<br>
+            exit 1<br>
+          fi<br>
+          echo "mihomo-speedtest-rs 测试和过滤已完成，合格节点已保存到 output/KodeBarinn.yaml。"<br>
+          final_node_count=$(grep -c '^- name:' ./output/KodeBarinn.yaml || true)<br>
+          echo "最终生成了 ${final_node_count} 个合格节点。"<br>
 
       - name: ⬆️ 提交结果到仓库
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          echo "提交前检查 KodeBarinn.yaml 内容："
-          cat output/KodeBarinn.yaml
           git add output/KodeBarinn.yaml
           git commit -m "Update KodeBarinn.yaml with latest node test results" || { echo "没有新的更改需要提交"; exit 0; }
           git push || { echo "错误：推送更改到仓库失败！"; exit 1; }
