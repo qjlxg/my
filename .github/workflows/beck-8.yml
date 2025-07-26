@@ -1,5 +1,5 @@
 # 工作流名称
-name: 订阅检查与节点更新 (LiteSpeedTest)
+name: 订阅检查与节点更新
 
 # 触发工作流的事件
 on:
@@ -24,122 +24,70 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-docker- # 恢复键，用于部分匹配缓存
 
-      # --- 使用 LiteSpeedTest 处理多个订阅并保存 ---
-      - name: 使用 LiteSpeedTest 处理多个订阅并保存
+      # --- 使用 subs-check 处理多个订阅并保存 ---
+      - name: 使用 subs-check 处理多个订阅并保存
         shell: bash # 强制使用 Bash shell 来执行此步骤的脚本
         run: |
           # 定义你的第一个订阅链接 (Clash Meta 格式)
-          # LiteSpeedTest 自动识别订阅类型，所以不需要特殊标记
           SUBSCRIPTION_URL_META="https://raw.githubusercontent.com/qjlxg/ss/refs/heads/master/list.meta.yml"
-          # 定义你的第二个订阅链接 (SS 明文或 Base64 编码)
+          # 定义你的第二个订阅链接 (SS 明文或 Base64 编码，subs-check 会自动识别和解析)
           SUBSCRIPTION_URL_SS_TXT="https://raw.githubusercontent.com/qjlxg/aggregator/refs/heads/main/ss.txt"
           
           # 定义输出文件存放的目录和最终的文件名
           OUTPUT_DIR="sc"
-          OUTPUT_FILENAME="litespeedtest.yaml" # 更改输出文件名以匹配 LiteSpeedTest
+          OUTPUT_FILENAME="beck-8.yaml"
           OUTPUT_PATH="${OUTPUT_DIR}/${OUTPUT_FILENAME}"
 
           echo "创建输出目录 ${OUTPUT_DIR}..."
           mkdir -p "$OUTPUT_DIR" # 如果 'sc/' 目录不存在，则创建它
 
-          echo "使用 LiteSpeedTest 处理订阅并测速、排序..."
+          echo "使用 subs-check 处理订阅并测速、排序..."
           
-          # 将 docker run 命令写入临时脚本文件 (run_litespeedtest.sh)
-          # LiteSpeedTest 默认将结果输出到 /tmp/clash.yaml，
-          # 我们需要将其复制到挂载的输出目录。
-          cat <<EOF > run_litespeedtest.sh
+          # **核心改动**：将 docker run 命令写入一个临时脚本文件 (run_subs_check.sh)
+          # **最终尝试 `beck-8/subs-check`**：
+          # 使用 'sh -c' 显式地在容器内执行 '/usr/local/bin/subs-check check ...'。
+          # 这是 Docker 镜像中 Go 应用程序常见的安装路径。
+          cat <<EOF > run_subs_check.sh
           #!/bin/bash
-          # 运行 LiteSpeedTest Docker 容器
-          # -v "${{ github.workspace }}:/app/output"：将仓库根目录挂载到容器的 /app/output
-          # -e SUB_URL="...": LiteSpeedTest 通过环境变量接收订阅链接
-          # -e OUTPUT_NAME="clash": 指定输出文件名，它会在容器内生成 clash.yaml
-          # -e ENABLE_CHECK_STREAM="true": 开启流媒体检测
-          # -e SPEED_TEST_URL="...": 设置测速地址
-          # -e RENAMER="true": 启用节点重命名
-          # -e FILTER="speed>0.1": 过滤速度低于 0.1 MB/s 的节点
-          # -e SORTER="speed": 按照速度降序排序
-          # -e PROXY_PROVIDER="true": 输出 Clash provider 格式
-          # -e UPLOAD_CONFIG_TO_REPO="false": 我们自己管理 GitHub 提交，所以这里设为 false
-          # 最后使用 '&& cp' 将容器内生成的文件复制到我们挂载的输出目录
-          
-          docker run --rm \\
-            -v "${{ github.workspace }}:/app/output" \\
-            -e SUB_URL="${SUBSCRIPTION_URL_META},${SUBSCRIPTION_URL_SS_TXT}" \\
-            -e OUTPUT_NAME="clash" \\
-            -e ENABLE_CHECK_STREAM="true" \\
-            -e SPEED_TEST_URL="http://speed.cloudflare.com/__down?bytes=10485760" \\ # 10MB文件
-            -e RENAMER="true" \\
-            -e FILTER="speed>0.1" \\
-            -e SORTER="speed" \\
-            -e PROXY_PROVIDER="true" \\
-            -e UPLOAD_CONFIG_TO_REPO="false" \\
-            "xxf098/litespeedtest:latest"
-          
-          # LiteSpeedTest 默认输出到 /tmp/clash.yaml，需要将其复制到实际的输出路径
-          # LiteSpeedTest 容器运行完后，我们通过挂载的卷访问其内部生成的文件
-          # 假设 LiteSpeedTest 会在 /app/output (即我们的仓库根目录) 下生成文件
-          # 如果 LiteSpeedTest 默认输出在容器的 /tmp 目录，我们需要更复杂的 Docker 命令
-          # 但通常，当挂载了输出目录，LiteSpeedTest 会尊重这个路径
-          
-          # LiteSpeedTest 的输出通常直接在挂载的输出路径下生成。
-          # 假设它会生成到 /app/output/clash.yaml，然后我们再移动。
-          # 实际情况可能是 LiteSpeedTest 将其内部输出目录当作 /app/output 来处理，
-          # 也就是会直接生成到 ${{ github.workspace }}/clash.yaml。
-          # 让我们尝试直接从 ${{ github.workspace }} 目录中查找 'clash.yaml'，并移动它。
-          
-          if [ -f "clash.yaml" ]; then
-            mv clash.yaml "${OUTPUT_PATH}"
-            echo "LiteSpeedTest 生成的 clash.yaml 已移动到 ${OUTPUT_PATH}。"
-          elif [ -f "/tmp/clash.yaml" ]; then # 备用检查，以防它坚持输出到 /tmp
-            echo "警告: LiteSpeedTest 输出到 /tmp/clash.yaml, 尝试复制。"
-            docker cp $(docker ps -aq | head -n 1):/tmp/clash.yaml . # 这是一个复杂操作，先不使用
-            # 简单起见，如果它没输出到挂载目录，暂时先让它失败，便于调试
-            echo "错误: LiteSpeedTest 未能将文件输出到工作目录或其子目录。"
-            exit 1 # 暂不执行，如果 LiteSpeedTest 的挂载工作正常，这行不会触发
-          else
-            echo "错误: LiteSpeedTest 未能生成 clash.yaml 文件。"
-            exit 1
-          fi
+          docker run --rm -v "${{ github.workspace }}:/app/output" "ghcr.io/beck-8/subs-check:latest" sh -c "/usr/local/bin/subs-check check -t 30000 -c 50 -o \"/app/output/${OUTPUT_PATH}\" -proxy-api-url \"$SUBSCRIPTION_URL_META,$SUBSCRIPTION_URL_SS_TXT\" -download-url \"https://speed.cloudflare.com/__down?bytes=10485760\" -upload-url \"https://speed.cloudflare.com/__up\" -stream-test \"youtube,netflix\" -rename \"{{.Emoji}}{{.Country}} | {{.Speed | printf \\"%.2f\\"}}MB/s | {{.Remark}}\" -filter \"speed > 0.1\" -sort \"speed:desc\""
           EOF
 
-          chmod +x run_litespeedtest.sh
-          ./run_litespeedtest.sh
+          # 赋予临时脚本执行权限
+          chmod +x run_subs_check.sh
+          # 执行临时脚本
+          ./run_subs_check.sh
 
           # 检查文件是否成功生成，如果文件不存在，则工作流失败
           if [ ! -f "$OUTPUT_PATH" ]; then
-            echo "错误: LiteSpeedTest 未能生成文件 ${OUTPUT_PATH}。"
-            exit 1 # 终止工作流并标记为失败
+            echo "错误: subs-check 未能生成文件 ${OUTPUT_PATH}。"
+            exit 1
           fi
-          echo "Clash 配置已通过 LiteSpeedTest 生成并保存到 ${OUTPUT_PATH}。"
+          echo "Clash 配置已通过 subs-check 生成并保存到 ${OUTPUT_PATH}。"
 
       # --- 解决非快进问题：在提交前拉取远程最新代码 ---
       - name: 拉取远程最新代码 (解决非快进问题)
-        if: success() # 仅当所有前面的步骤都成功时才执行此步骤
+        if: success()
         run: |
           echo "尝试拉取远程 main 分支的最新更改..."
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git pull --rebase origin main
-          if [ $? -ne 0 ]; then # 检查上一个 Git 命令的退出状态码，如果非零则表示失败
+          if [ $? -ne 0 ]; then
             echo "错误: git pull --rebase 失败。可能存在无法自动解决的冲突，请检查仓库历史。"
-            exit 1 # 终止工作流并标记为失败
+            exit 1
           fi
           echo "远程代码拉取并rebase成功。"
 
       # --- 提交并推送更新后的配置文件 ---
       - name: 提交并推送更新后的配置文件
-        if: success() # 仅当所有前面的步骤都成功时才执行此步骤
+        if: success()
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          # 提交信息，清晰地说明本次提交的目的和内容
-          commit_message: "更新 Clash 配置：从多订阅源获取节点并保存到 sc/litespeedtest.yaml"
-          # 指定要提交的文件模式。这里只提交新生成的 'sc/litespeedtest.yaml' 文件。
+          commit_message: "更新 Clash 配置：从多订阅源获取节点并保存到 sc/beck-8.yaml"
           file_pattern: "${OUTPUT_PATH}" 
-          branch: main # 指定目标分支，工作流会将更改推送到这个分支
-          # 提交用户的名称和邮箱，这些信息会显示在 Git 提交记录中
+          branch: main
           commit_user_name: github-actions[bot]
           commit_user_email: 41898282+github-actions[bot]@users.noreply.github.com
-          # 提交作者信息，你可以设置为你自己的 GitHub 用户名和邮箱
           commit_author: qjlxg <12179157+qjlxg@users.noreply.github.com>
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # 这是一个 GitHub 自动提供的令牌，用于认证 Git 操作。确保你的仓库设置中“Workflow permissions”为“Read and write”。
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
