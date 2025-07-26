@@ -11,10 +11,11 @@ proxy:
   - type: hysteria2
 check:
   interval: 3600
-  timeout: 10
-  concurrency: 4
+  timeout: 5
+  concurrency: 28  # 减少并发以降低资源占用
   speedtest: true
-  speedtest_url: https://speed.cloudflare.com/__down?bytes=10000000
+  speedtest_url: https://speed.cloudflare.com/__down?bytes=5000000  # 减少到 5MB
+  debug: true  # 启用调试日志，显示测试进度
 output:
-  path: sc/NodeDownloadSpeedTest.yaml
+  path: /output/NodeDownloadSpeedTest.yaml
   format: yaml
