@@ -1,40 +1,43 @@
-name: Node Speed Tester
+```yaml
+# 工作流名称
+name: Speed Tester Workflow
 
+# 触发条件
 on:
-  workflow_run:
-    workflows: ["Node Parser and Data Export"] # 依赖 Node Parser 工作流
-    types:
-      - completed # 当 Node Parser 工作流完成时触发
-  workflow_dispatch: # 允许手动触发 (如果需要独立运行)
+  push:
+    branches:
+      - main  # 当推送代码到 main 分支时触发
+  pull_request:
+    branches:
+      - main  # 当提交 PR 到 main 分支时触发
 
-permissions:
-  contents: write # 写入结果文件和推送
-  actions: write # 下载 Artifacts 需要此权限
-
+# 工作流任务
 jobs:
-  run-speed-test:
+  test-nodes:
+    # 指定运行环境
     runs-on: ubuntu-latest
-    # 仅当 Node Parser 成功时才运行此工作流
-    if: |
-      github.event_name == 'workflow_dispatch' || \
-      github.event.workflow_run.conclusion == 'success'
 
+    # 任务步骤
     steps:
-      - name: Checkout repository
+      # 检出代码
+      - name: 检出代码
         uses: actions/checkout@v4
 
-      - name: Set up Python
+      # 设置 Python 环境
+      - name: 设置 Python 环境
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: '3.10'  # 使用 Python 3.10
+          cache: 'pip'  # 缓存 pip 依赖以加速构建
 
-      - name: Install Python dependencies
+      # 安装依赖
+      - name: 安装 Python 依赖
         run: |
           python -m pip install --upgrade pip
-          pip install requests pysocks pyyaml
+          pip install requests PyYAML pysocks
 
-      # --- 下载并安装 Xray ---
-      - name: Download and Install Xray
+      # 下载并安装 Xray
+      - name: 下载并安装 Xray
         id: download_xray
         run: |
           XRAY_VERSION="25.7.25"
@@ -45,31 +48,31 @@ jobs:
           elif [ "$ARCH" = "aarch64" ]; then
             XRAY_FILE="Xray-linux-arm64-v8a.zip"
           else
-            echo "Unsupported architecture: $ARCH"
+            echo "不支持的架构: $ARCH"
             exit 1
           fi
           
           XRAY_URL="https://github.com/XTLS/Xray-core/releases/download/v${XRAY_VERSION}/${XRAY_FILE}"
-          echo "Downloading Xray from: ${XRAY_URL}"
+          echo "从 ${XRAY_URL} 下载 Xray"
           curl -fSsL --retry 5 --retry-delay 10 -o xray.zip "${XRAY_URL}"
           
           if [ ! -s xray.zip ]; then
-            echo "Xray download failed: xray.zip is empty or non-existent."
+            echo "Xray 下载失败: xray.zip 文件为空或不存在"
             exit 1
           fi
           
           if ! unzip -o xray.zip "xray" -d .; then
-            echo "Failed to unzip xray.zip."
+            echo "解压 xray.zip 失败"
             exit 1
           fi
           
           chmod +x ./xray
-          echo "Xray installed successfully."
+          echo "Xray 安装成功"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # --- 下载并安装 Hysteria2 ---
-      - name: Download and Install Hysteria2
+      # 下载并安装 Hysteria2
+      - name: 下载并安装 Hysteria2
         id: download_hysteria2
         run: |
           HY2_VERSION="2.6.2"
@@ -79,260 +82,50 @@ jobs:
           elif [ "$MACHINE_ARCH" = "aarch64" ]; then
             HY2_FILE="hysteria-linux-arm64"
           else
-            echo "Unsupported architecture: $MACHINE_ARCH"
+            echo "不支持的架构: $MACHINE_ARCH"
             exit 1
           fi
 
           HY2_URL="https://github.com/apernet/hysteria/releases/download/app/v${HY2_VERSION}/${HY2_FILE}"
-          echo "Downloading Hysteria2 from: ${HY2_URL}"
+          echo "从 ${HY2_URL} 下载 Hysteria2"
           curl -fSsL --retry 5 --retry-delay 10 -o hysteria2 "${HY2_URL}"
           
           if [ ! -s hysteria2 ]; then
-            echo "Hysteria2 download failed: hysteria2 is empty or non-existent."
+            echo "Hysteria2 下载失败: hysteria2 文件为空或不存在"
             exit 1
           fi
 
           chmod +x ./hysteria2
-          echo "Hysteria2 installed successfully."
+          echo "Hysteria2 安装成功"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Download Parsed Nodes Data
-        uses: actions/download-artifact@v4
+      # 运行 speed_tester.py 脚本
+      - name: 运行速度测试脚本
+        run: |
+          python speed_tester.py
+        continue-on-error: true  # 如果脚本运行失败，继续执行后续步骤
+        env:
+          PYTHONUNBUFFERED: 1  # 确保实时输出日志
+
+      # 上传测试结果作为工件
+      - name: 上传测试结果
+        uses: actions/upload-artifact@v4
         with:
-          name: parsed-nodes-data # 匹配 node-parser-workflow 中上传的 Artifact 名称
-          path: node_data # 下载到此目录
+          name: speed-test-results
+          path: |
+            sc/NodeDownloadSpeedTest_results.txt
+            sc/NodeDownloadSpeedTest_results.yaml
+          retention-days: 7  # 保留 7 天
 
-      - name: Run Node Speed Test Script
+      # 检查测试结果
+      - name: 检查测试结果
         run: |
-          # 确保输出目录存在
-          mkdir -p sc
-          # 运行 speed_tester.py，并传入解析后的节点数据文件路径
-          # 为此，您需要修改 speed_tester.py，让它从文件而不是直接从 URL 读取节点
-          # 例如： python speed_tester.py --input-file node_data/parsed_nodes.json
-          
-          # 为了能让 speed_tester.py 独立运行并读取数据，我们对其进行一些修改：
-          # 在 speed_tester.py 中，您需要修改 fetch_node_list 函数，
-          # 或者是新增一个函数来从 'node_data/parsed_nodes.json' 读取数据。
-          # 示例：
-          cat << EOF > run_tester.py
-import json
-import os
-import time
-import requests
-import socks
-import socket
-import subprocess
-import yaml
-import logging
-from concurrent.futures import ThreadPoolExecutor
-
-# 从 node_parser 模块导入相关函数
-from node_parser import decode_node, generate_xray_config, generate_hysteria2_config
-
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
-
-# --- 配置常量 ---
-TEST_FILE_URL = "https://speed.cloudflare.com/__down?bytes=10000000"
-OUTPUT_DIR = "sc"
-PROJECT_NAME = "NodeDownloadSpeedTest"
-XRAY_SOCKS_PORT = 1080
-HYSTERIA2_SOCKS_PORT = 1082
-
-# --- 全局代理设置辅助函数 ---
-def set_global_socks_proxy(host, port):
-    socks.set_default_proxy(socks.SOCKS5, host, port)
-    socket.socket = socks.socksocket
-    logger.debug(f"设置 SOCKS5 代理: {host}:{port}")
-
-def reset_global_socks_proxy():
-    socks.set_default_proxy()
-    if hasattr(socket, '_socket') and hasattr(socket._socket, 'socket'):
-        socket.socket = socket._socket.socket
-    else:
-        logger.debug("无法直接恢复默认 socket，跳过")
-    logger.debug("重置全局代理设置")
-
-# --- 速度测试核心逻辑 (与之前 speed_tester.py 中的 test_download_speed 相同) ---
-def test_download_speed(node_info):
-    node_url = node_info.get("original_url", "N/A") # 从解析后的字典获取原始URL
-    node_config = node_info # 直接使用传入的节点配置字典
-    node_type = node_config.get("type")
-    node_name = node_config.get("name", node_url)
-    
-    local_proxy_process = None
-    proxy_port_to_use = None
-    proxy_executable_path = None
-    config_file_path = None
-    proxy_command = []
-
-    logger.info(f"准备测试节点: {node_name} ({node_type})")
-
-    try:
-        if node_type in ["ss", "vmess", "vless", "trojan"]:
-            proxy_port_to_use = XRAY_SOCKS_PORT
-            config_file_path = f"/tmp/xray_config_{os.getpid()}.json"
-            xray_config_content = generate_xray_config(node_config, proxy_port_to_use)
-            if not xray_config_content:
-                return node_url, 0, f"Xray 配置生成失败或 {node_type} 协议支持不完整。"
-            with open(config_file_path, "w") as f:
-                f.write(xray_config_content)
-            proxy_executable_path = "./xray"
-            proxy_command = [proxy_executable_path, "run", "-c", config_file_path]
-            logger.info(f"启动 Xray 代理 ({node_type})，端口 {proxy_port_to_use}，节点 {node_name}")
-
-        elif node_type == "hysteria2":
-            proxy_port_to_use = HYSTERIA2_SOCKS_PORT
-            config_file_path = f"/tmp/hysteria2_config_{os.getpid()}.json"
-            h2_config_content = generate_hysteria2_config(node_config, proxy_port_to_use)
-            if not h2_config_content:
-                return node_url, 0, "Hysteria2 配置生成失败。"
-            with open(config_file_path, "w") as f:
-                f.write(h2_config_content)
-            proxy_executable_path = "./hysteria2"
-            proxy_command = [proxy_executable_path, "run", "-c", config_file_path]
-            logger.info(f"启动 Hysteria2 代理 ({node_type})，端口 {proxy_port_to_use}，节点 {node_name}")
-
-        elif node_type == "ssr":
-            return node_url, 0, "SSR 协议暂不支持直接速度测试（配置复杂，需要独立客户端或 Xray 高级配置）"
-
-        else:
-            return node_url, 0, f"不支持的协议 '{node_type}'。"
-
-        local_proxy_process = subprocess.Popen(proxy_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        time.sleep(3)
-
-        poll_result = local_proxy_process.poll()
-        if poll_result is not None:
-            stdout, stderr = local_proxy_process.communicate()
-            return node_url, 0, f"代理客户端 {proxy_executable_path} 启动失败 (退出码: {poll_result})。STDOUT: {stdout.decode(errors='ignore')}. STDERR: {stderr.decode(errors='ignore')}"
-
-        set_global_socks_proxy("127.0.0.1", proxy_port_to_use)
-        session = requests.Session()
-
-        start_time = time.time()
-        response = session.get(TEST_FILE_URL, stream=True, timeout=15)
-        response.raise_for_status()
-
-        downloaded_bytes = 0
-        for chunk in response.iter_content(chunk_size=4096):
-            if chunk:
-                downloaded_bytes += len(chunk)
-            if downloaded_bytes >= 5 * 1024 * 1024:
-                break
-        end_time = time.time()
-
-        duration = end_time - start_time
-        speed_mbps = 0 if duration == 0 else (downloaded_bytes * 8 / 1024 / 1024) / duration
-        
-        if downloaded_bytes == 0:
-            return node_url, 0, "未下载到数据（代理连接可能失败或测试目标无响应）"
-
-        return node_url, speed_mbps, None
-
-    except requests.exceptions.RequestException as e:
-        return node_url, 0, f"网络请求失败或代理连接问题: {str(e)}"
-    except Exception as e:
-        return node_url, 0, f"测试过程中发生意外错误: {type(e).__name__}: {str(e)}"
-    finally:
-        if local_proxy_process:
-            logger.info(f"停止代理进程，节点: {node_name}")
-            local_proxy_process.terminate()
-            try:
-                local_proxy_process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                local_proxy_process.kill()
-        reset_global_socks_proxy()
-        if config_file_path and os.path.exists(config_file_path):
-            os.remove(config_file_path)
-
-# --- 主函数 ---
-def main():
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
-    
-    # 从下载的 Artifact 读取解析后的节点数据
-    parsed_nodes_file = "node_data/parsed_nodes.json"
-    if not os.path.exists(parsed_nodes_file):
-        logger.error(f"未找到解析后的节点数据文件: {parsed_nodes_file}，程序退出。")
-        return
-
-    with open(parsed_nodes_file, 'r', encoding='utf-8') as f:
-        nodes_to_test = json.load(f)
-
-    if not nodes_to_test:
-        logger.error("未找到可测试的有效节点，请检查节点解析阶段。")
-        return
-
-    logger.info(f"成功加载 {len(nodes_to_test)} 个有效节点，开始并行测试...")
-
-    results = []
-    max_workers = 5
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        future_to_node = {executor.submit(test_download_speed, node_info): node_info for node_info in nodes_to_test}
-        
-        for i, future in enumerate(future_to_node):
-            node_info_original = future_to_node[future] # 获取原始的节点字典
-            node_url, speed_mbps, error = future.result() 
-            node_name = node_info_original.get('name', node_url) # 使用 original_url 作为 fallback
-            
-            status_msg = f"速度: {speed_mbps:.2f} Mbps" if not error else f"错误: {error}"
-            logger.info(f"[{i+1}/{len(nodes_to_test)}] 节点: {node_name[:40]}... -> {status_msg}")
-            
-            results.append({
-                "name": node_name,
-                "node_url": node_url,
-                "speed_mbps": speed_mbps,
-                "error": error
-            })
-
-    results.sort(key=lambda x: x["speed_mbps"], reverse=True)
-
-    output_file_txt = os.path.join(OUTPUT_DIR, f"{PROJECT_NAME}_results.txt")
-    output_file_yaml = os.path.join(OUTPUT_DIR, f"{PROJECT_NAME}_results.yaml")
-
-    with open(output_file_txt, "w", encoding="utf-8") as f:
-        f.write("节点下载速度测试结果\n")
-        f.write(f"测试时间: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())}\n")
-        f.write(f"测试文件: {TEST_FILE_URL}\n")
-        f.write("-" * 50 + "\n")
-        for res in results:
-            f.write(f"节点名称: {res['name']}\n")
-            f.write(f"原始 URL: {res['node_url']}\n")
-            if res["error"]:
-                f.write(f"状态: 失败\n错误: {res['error']}\n")
-            else:
-                f.write(f"状态: 成功\n速度: {res['speed_mbps']:.2f} Mbps\n")
-            f.write("-" * 50 + "\n")
-
-    with open(output_file_yaml, "w", encoding="utf-8") as f:
-        yaml.dump(results, f, allow_unicode=True, default_flow_style=False)
-
-    logger.info(f"测试完成，结果已保存至 {output_file_txt} 和 {output_file_yaml}")
-
-if __name__ == "__main__":
-    main()
-EOF
-          python run_tester.py
-
-
-      - name: Check output files
-        run: |
-          echo "Listing files in sc/ directory:"
-          ls -l sc/ || echo "No files in sc directory"
-          echo "--- Content of output TXT file ---"
-          cat sc/${{ env.PROJECT_NAME }}_results.txt || echo "Output TXT file not found"
-          echo "--- Content of output YAML file ---"
-          cat sc/${{ env.PROJECT_NAME }}_results.yaml || echo "Output YAML file not found"
-        env:
-          PROJECT_NAME: NodeDownloadSpeedTest
-
-      - name: Commit and push results
-        run: |
-          git config --global user.name 'GitHub Action'
-          git config --global user.email 'action@github.com'
-          git add sc/*
-          git commit -m "Update node speed test results" || echo "No changes to commit"
-          git push origin main
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          if [ -f sc/NodeDownloadSpeedTest_results.txt ] && [ -s sc/NodeDownloadSpeedTest_results.txt ]; then
+            echo "速度测试成功，输出文件不为空"
+            cat sc/NodeDownloadSpeedTest_results.txt
+          else
+            echo "速度测试失败或输出文件为空"
+            exit 1
+          fi
+```
