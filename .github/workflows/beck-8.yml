@@ -1,94 +1,102 @@
 # 工作流名称
 name: 订阅检查与节点更新
 
+# 触发工作流的事件
 on:
-  workflow_dispatch: # 允许手动触发
+  workflow_dispatch: # 允许手动从 GitHub Actions 页面触发此工作流
   schedule:
-    - cron: '0 */6 * * *' # 每 6 小时运行一次
+    - cron: '0 */6 * * *' # 每 6 小时运行一次 (例如，0点、6点、12点、18点)
 
 jobs:
   update-clash-config:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest # 在最新的 Ubuntu 环境上运行
+
     steps:
-      - name: 检出仓库
+      - name: 检出仓库 # 拉取你的 GitHub 仓库代码到运行环境中
         uses: actions/checkout@v4
 
-      # --- 使用 Docker 镜像运行 subs-check ---
+      # --- 使用 Docker 镜像运行 beck-8/subs-check ---
+      # 这个步骤会直接拉取并运行 subs-check 的 Docker 镜像
+      # 这样就无需手动下载、解压 subs-check 的二进制文件，也更稳定
       - name: 使用 subs-check 处理多个订阅并保存
-        shell: bash
+        shell: bash # 强制使用 Bash 来执行此步骤的脚本，避免语法错误
         run: |
           # 定义第一个订阅链接 (Clash Meta 格式)
           SUBSCRIPTION_URL_META="https://raw.githubusercontent.com/qjlxg/ss/refs/heads/master/list.meta.yml"
-          # 定义第二个订阅链接 (SS 明文或 Base64 格式，假设 subs-check 能直接解析)
+          # 定义第二个订阅链接 (SS 明文或 Base64 格式，subs-check 会自动解析)
           SUBSCRIPTION_URL_SS_TXT="https://raw.githubusercontent.com/qjlxg/aggregator/refs/heads/main/ss.txt"
           
-          # 定义输出目录和文件名
+          # 定义输出目录和最终文件名
           OUTPUT_DIR="sc"
           OUTPUT_FILENAME="beck-8.yaml"
           OUTPUT_PATH="${OUTPUT_DIR}/${OUTPUT_FILENAME}"
 
           echo "创建输出目录 ${OUTPUT_DIR}..."
-          mkdir -p "$OUTPUT_DIR"
+          mkdir -p "$OUTPUT_DIR" # 如果目录不存在，则创建它
 
           echo "使用 subs-check 处理订阅并测速、排序..."
           
-          # 使用 docker run 命令执行 subs-check 的 check 功能
-          # -v $(pwd):/app/output 挂载当前仓库目录到容器的 /app/output，以便 subs-check 将文件输出到这里
-          # ghcr.io/beck-8/subs-check:latest 是官方 Docker 镜像
-          # 后面的 "check ..." 是传递给容器内 subs-check 命令的参数
+          # 使用 docker run 命令执行 subs-check 的 'check' 功能
+          # --rm：容器运行结束后自动删除
+          # -v "${{ github.workspace }}:/app/output"：将 GitHub Actions 的工作目录 (你的仓库根目录)
+          #     挂载到 Docker 容器内的 /app/output 目录，这样 subs-check 就可以把文件输出到你的仓库里
+          # "ghcr.io/beck-8/subs-check:latest"：指定要使用的 subs-check Docker 镜像
+          # 后面的 'check' 和其他参数都是传递给容器内 subs-check 命令的
           docker run --rm \
-            -v "${{ github.workspace }}:/app/output" \ # 使用 GitHub Actions 内置的工作区路径变量
-            ghcr.io/beck-8/subs-check:latest check \
-            -t 30000 \ # 超时时间 30 秒 (30000 毫秒)
-            -c 50 \ # 并发测试 50 个节点
-            -o "/app/output/${OUTPUT_PATH}" \ # 输出路径必须是容器内挂载的路径，并包含目录和文件名
+            -v "${{ github.workspace }}:/app/output" \
+            "ghcr.io/beck-8/subs-check:latest" check \
+            -t 30000 \ # 设置超时时间为 30 秒 (30000 毫秒)，可以根据节点质量调整
+            -c 50 \ # 设置并发测试的节点数量为 50
+            -o "/app/output/${OUTPUT_PATH}" \ # 指定输出文件路径，必须是容器内挂载的路径
             -proxy-api-url "$SUBSCRIPTION_URL_META,$SUBSCRIPTION_URL_SS_TXT" \ # 传入多个订阅链接，用逗号分隔
-            -download-url "https://speed.cloudflare.com/__down?bytes=10485760" \ # 测试 10MB 文件
-            -upload-url "https://speed.cloudflare.com/__up" \
-            -stream-test "youtube,netflix" \ # 测试 YouTube 和 Netflix 解锁 (可选)
-            -rename "{{.Emoji}}{{.Country}} | {{.Speed | printf \"%.2f\"}}MB/s | {{.Remark}}" \ # 重命名节点
+            -download-url "https://speed.cloudflare.com/__down?bytes=10485760" \ # 设置测试下载文件大小为 10MB (10 * 1024 * 1024 字节)
+            -upload-url "https://speed.cloudflare.com/__up" \ # 上传测试的 URL
+            -stream-test "youtube,netflix" \ # 可选：测试 YouTube 和 Netflix 等流媒体解锁情况
+            -rename "{{.Emoji}}{{.Country}} | {{.Speed | printf \"%.2f\"}}MB/s | {{.Remark}}" \ # 自定义节点命名格式，包含国旗、国家、速度和原始备注
             -filter "speed > 0.1" \ # 过滤掉下载速度低于 0.1 MB/s 的节点
-            -sort "speed:desc" # 按照下载速度降序排列
+            -sort "speed:desc" # 按照下载速度降序排列节点 (最快的排在前面)
           
-          # 检查文件是否成功生成
+          # 检查文件是否成功生成，如果文件不存在，则视为失败
           if [ ! -f "$OUTPUT_PATH" ]; then
             echo "错误: subs-check 未能生成文件 ${OUTPUT_PATH}。"
             exit 1
           fi
           echo "Clash 配置已通过 subs-check 生成并保存到 ${OUTPUT_PATH}。"
 
-      # --- 步骤：备份旧的 Clash 配置 (此处不需要对beck-8进行备份，如果你想备份，请调整) ---
-      # 注意：此步骤默认是备份 clash.yaml，如果你想备份 sc/beck-8.yaml 的历史版本，需要单独配置。
-      # 目前这个工作流直接覆盖 sc/beck-8.yaml，不保留历史备份。
-      # 如果需要，你可以取消注释并修改此备份步骤，使其针对 sc/beck-8.yaml 进行备份。
-
-      # --- 拉取远程最新代码 (解决非快进问题) ---
+      # --- 解决非快进问题：在提交前拉取远程最新代码 ---
+      # 这一步非常重要，它确保你在提交之前，本地仓库的代码是最新的，
+      # 避免与远程仓库发生冲突，特别是当有其他提交发生时
       - name: 拉取远程最新代码 (解决非快进问题)
-        if: success()
+        if: success() # 仅当前面的步骤成功时执行
         run: |
           echo "尝试拉取远程 main 分支的最新更改..."
+          # 配置 Git 用户名和邮箱，以便进行提交
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # 使用 --rebase 方式拉取，将本地更改放到最新远程提交的上面，避免额外的合并提交
           git pull --rebase origin main
-          if [ $? -ne 0 ]; then
+          if [ $? -ne 0 ]; then # 检查上一个命令的退出状态码，非0表示失败
             echo "错误: git pull --rebase 失败。可能存在无法自动解决的冲突，请检查仓库历史。"
-            exit 1
+            exit 1 # 终止工作流
           fi
           echo "远程代码拉取并rebase成功。"
 
       # --- 提交并推送更新后的配置文件 ---
+      # 使用 git-auto-commit-action 自动提交并推送更改
       - name: 提交并推送更新后的配置文件
-        if: success()
+        if: success() # 仅当前面的步骤都成功时执行
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           # 提交信息，明确更新了哪些文件
           commit_message: "更新 Clash 配置：从多订阅源获取节点并保存到 sc/beck-8.yaml"
-          # 指定要提交的文件模式，包括新的 sc/beck-8.yaml
-          file_pattern: "${OUTPUT_PATH}" # 只提交新生成的文件
-          # 如果你的仓库还有其他需要提交的文件，可以改为 file_pattern: "sc/" 或 "clash.yaml sc/"
-          branch: main
+          # 指定要提交的文件模式，这里只提交新生成的 beck-8.yaml 文件
+          # 如果你的仓库还有其他需要提交的文件，可以调整此模式，例如 "sc/" 提交 sc 目录下所有文件
+          file_pattern: "${OUTPUT_PATH}" 
+          branch: main # 目标分支
+          # 提交用户的名称和邮箱
           commit_user_name: github-actions[bot]
           commit_user_email: 41898282+github-actions[bot]@users.noreply.github.com
+          # 提交作者信息，可以设置为你的 GitHub 用户名
           commit_author: qjlxg <12179157+qjlxg@users.noreply.github.com>
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # 这是一个 GitHub 自动提供的令牌，用于认证操作
