@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   test-node-speed:
-    runs-on: ubuntu-latest # 使用最新的 Ubuntu runner
+    runs-on: ubuntu-latest # 使用最新的 Ubuntu runner，默认是 x86_64 (AMD64) 架构
 
     steps:
       - name: Checkout repository # 检出你的代码
@@ -30,36 +30,41 @@ jobs:
           pip install requests pysocks pyyaml
 
       # --- 下载并安装 Xray ---
-      # 注意：这里使用 curl 下载，并增加了 --fail-with-body 和 --retry
-      # 请确保 URL 和文件名与Xray的发布页面完全一致
+      # 这个步骤会根据运行环境的架构自动选择下载正确的 Xray-core 文件
       - name: Download and Install Xray
         id: download_xray # 添加 ID 以便后续判断是否成功
         run: |
-          XRAY_VERSION="25.7.25" # 已更新为 Xray-core v25.7.25
+          XRAY_VERSION="25.7.25" # **已更新为 Xray-core v25.7.25**
           ARCH=$(uname -m)
+          XRAY_FILE="" # 初始化文件名变量
+
+          # 根据不同的架构选择对应的 Xray 文件名
           if [ "$ARCH" = "x86_64" ]; then
-            # Xray-core v25.7.25 针对 x86_64 的文件名为 Xray-linux-64v8.zip
-            XRAY_FILE="Xray-linux-64v8.zip"
+            # 对于 x86_64 (AMD64) 架构，这是 ubuntu-latest 默认使用的
+            XRAY_FILE="Xray-linux-64.zip" # **已修正为 v25.7.25 实际的文件名**
           elif [ "$ARCH" = "aarch64" ]; then
+            # 对于 ARM64 架构 (例如自托管的 ARM 机器)
             XRAY_FILE="Xray-linux-arm64-v8a.zip"
           else
             echo "Unsupported architecture: $ARCH"
             exit 1
           fi
+          
           XRAY_URL="https://github.com/XTLS/Xray-core/releases/download/v${XRAY_VERSION}/${XRAY_FILE}"
           echo "Downloading Xray from: ${XRAY_URL}"
           
-          # 使用 curl 下载，增加 -fSsL (fail, silent, show-error, location) 和 --retry 选项
+          # 使用 curl 下载并检查状态，增加重试机制和错误报告
           curl -fSsL --retry 5 --retry-delay 10 -o xray.zip "${XRAY_URL}"
           
-          # 检查下载是否成功
-          if [ ! -s xray.zip ]; then # -s 检查文件是否非空
+          # 检查下载是否成功（文件是否存在且非空）
+          if [ ! -s xray.zip ]; then
             echo "Xray download failed: xray.zip is empty or non-existent."
             exit 1
           fi
           
-          # 尝试解压，如果解压失败则报告错误
-          if ! unzip -o xray.zip "xray" -d .; then # -o 覆盖现有文件
+          # 解压 Xray 可执行文件到当前目录，并覆盖同名文件
+          # 确保解压出来的可执行文件名为 'xray'
+          if ! unzip -o xray.zip "xray" -d .; then
             echo "Failed to unzip xray.zip. It might be corrupted or not a valid zip file."
             exit 1
           fi
@@ -67,15 +72,14 @@ jobs:
           chmod +x ./xray # 添加执行权限
           echo "Xray installed successfully."
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # 使用GITHUB_TOKEN可能有助于提高下载稳定性
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # 使用 GitHub Token 提高下载稳定性
 
       # --- 下载并安装 Hysteria2 ---
-      # 同样增加 curl 的重试和文件检查
+      # 这个步骤保持不变，因为它已经能够正确下载 Hysteria2
       - name: Download and Install Hysteria2
         id: download_hysteria2
         run: |
-          HY2_VERSION="2.1.0" # Hysteria2版本，保持不变
-          # 根据 GitHub Actions 的运行环境架构选择正确的文件名
+          HY2_VERSION="2.1.0" # Hysteria2 版本
           MACHINE_ARCH=$(uname -m)
           if [ "$MACHINE_ARCH" = "x86_64" ]; then
             HY2_FILE="hysteria-linux-amd64"
@@ -104,7 +108,7 @@ jobs:
       - name: Run Node Speed Test Script # 运行你的 Python 脚本
         run: python test_node_speed.py
 
-      - name: Check output files # 检查生成的文件
+      - name: Check output files # 检查生成的文件，以便调试
         run: |
           echo "Listing files in sc/ directory:"
           ls -l sc/ || echo "No files in sc directory"
@@ -115,12 +119,12 @@ jobs:
         env:
           PROJECT_NAME: NodeDownloadSpeedTest # 和 Python 脚本中的 PROJECT_NAME 保持一致
 
-      - name: Commit and push results # 提交并推送结果文件
+      - name: Commit and push results # 提交并推送结果文件到仓库
         run: |
           git config --global user.name 'GitHub Action'
           git config --global user.email 'action@github.com'
           git add sc/* # 添加 sc 目录下的所有文件
-          git commit -m "Update node speed test results" || echo "No changes to commit"
+          git commit -m "Update node speed test results" || echo "No changes to commit" # 如果没有文件更改，则不执行 commit
           git push origin main # 推送到 main 分支
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # 使用 GITHUB_TOKEN 进行认证
