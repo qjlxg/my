@@ -36,26 +36,15 @@ jobs:
 
           echo "使用 subs-check 处理订阅并测速、排序..."
           
-          # 核心改动：将 docker run 命令写入一个临时脚本文件 (run_subs_check.sh)
+          # **核心改动**：将 docker run 命令写入一个临时脚本文件 (run_subs_check.sh)
           # 使用 'cat <<EOF > run_subs_check.sh' 语法，可以方便地写入多行内容到文件
           cat <<EOF > run_subs_check.sh
           #!/bin/bash
           # 确保脚本使用 bash 执行
           
-          # Docker run 命令，参数分行书写，更易读
-          docker run --rm \\
-            -v "${{ github.workspace }}:/app/output" \\
-            "ghcr.io/beck-8/subs-check:latest" subs-check check \\ # <-- 关键修正：将 'check' 改为 'subs-check check'
-            -t 30000 \\
-            -c 50 \\
-            -o "/app/output/${OUTPUT_PATH}" \\
-            -proxy-api-url "$SUBSCRIPTION_URL_META,$SUBSCRIPTION_URL_SS_TXT" \\
-            -download-url "https://speed.cloudflare.com/__down?bytes=10485760" \\
-            -upload-url "https://speed.cloudflare.com/__up" \\
-            -stream-test "youtube,netflix" \\
-            -rename "{{.Emoji}}{{.Country}} | {{.Speed | printf \\"%.2f\\"}}MB/s | {{.Remark}}" \\
-            -filter "speed > 0.1" \\
-            -sort "speed:desc"
+          # **关键修正**：Docker run 命令现在完全在单行，没有使用反斜杠 \\ 进行换行。
+          # 这样可以确保 Shell 正确解析所有参数。
+          docker run --rm -v "${{ github.workspace }}:/app/output" "ghcr.io/beck-8/subs-check:latest" subs-check check -t 30000 -c 50 -o "/app/output/${OUTPUT_PATH}" -proxy-api-url "$SUBSCRIPTION_URL_META,$SUBSCRIPTION_URL_SS_TXT" -download-url "https://speed.cloudflare.com/__down?bytes=10485760" -upload-url "https://speed.cloudflare.com/__up" -stream-test "youtube,netflix" -rename "{{.Emoji}}{{.Country}} | {{.Speed | printf \\"%.2f\\"}}MB/s | {{.Remark}}" -filter "speed > 0.1" -sort "speed:desc"
           EOF
 
           # 赋予临时脚本执行权限
