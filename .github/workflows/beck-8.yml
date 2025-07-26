@@ -1,5 +1,5 @@
 # 工作流名称
-name: 订阅检查与节点更新
+name: 订阅检查与节点更新 (Subconverter)
 
 # 触发工作流的事件
 on:
@@ -24,70 +24,123 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-docker- # 恢复键，用于部分匹配缓存
 
-      # --- 使用 subs-check 处理多个订阅并保存 ---
-      - name: 使用 subs-check 处理多个订阅并保存
+      # --- 使用 subconverter 处理订阅并保存 ---
+      - name: 使用 subconverter 处理订阅并保存
         shell: bash # 强制使用 Bash shell 来执行此步骤的脚本
         run: |
-          # 定义你的第一个订阅链接 (Clash Meta 格式)
-          SUBSCRIPTION_URL_META="https://raw.githubusercontent.com/qjlxg/ss/refs/heads/master/list.meta.yml"
-          # 定义你的第二个订阅链接 (SS 明文或 Base64 编码，subs-check 会自动识别和解析)
-          SUBSCRIPTION_URL_SS_TXT="https://raw.githubusercontent.com/qjlxg/aggregator/refs/heads/main/ss.txt"
-          
+          # 定义你的订阅链接。subconverter 可以同时处理多个，用 | 分隔
+          # 注意：为了让 subconverter 处理不同类型订阅，可能需要更复杂的URL参数。
+          # 简单起见，我们先将两个URL合并，subconverter 通常会尝试解析。
+          # subconverter 的典型格式是 API_URL?target=clash&url=<订阅URL>&insert=false&config=
+          # 对于 Clash Meta，可能需要特定的target=clashr或target=clash&udp=true等。
+          # 为了通用性，我们使用一个简单的组合 URL
+          SUBSCRIPTION_URL_COMBINED="${SUBSCRIPTION_URL_META}|${SUBSCRIPTION_URL_SS_TXT}"
+
+          # subconverter 的公共 API 地址，我们可以在容器内部搭建一个
+          # 但更简单的是直接用 subconverter 的命令行模式（如果支持）或它的API模式
+          # liruqi/subconverter 镜像默认运行一个 Web API 服务。
+          # 我们需要在这个容器内调用它的 API。
+
           # 定义输出文件存放的目录和最终的文件名
           OUTPUT_DIR="sc"
-          OUTPUT_FILENAME="beck-8.yaml"
+          OUTPUT_FILENAME="subconverter.yaml" # 更改输出文件名以匹配 subconverter
           OUTPUT_PATH="${OUTPUT_DIR}/${OUTPUT_FILENAME}"
 
           echo "创建输出目录 ${OUTPUT_DIR}..."
           mkdir -p "$OUTPUT_DIR" # 如果 'sc/' 目录不存在，则创建它
 
-          echo "使用 subs-check 处理订阅并测速、排序..."
+          echo "使用 subconverter 处理订阅并生成 Clash 配置..."
           
-          # **核心改动**：将 docker run 命令写入一个临时脚本文件 (run_subs_check.sh)
-          # **最终尝试 `beck-8/subs-check`**：
-          # 使用 'sh -c' 显式地在容器内执行 '/usr/local/bin/subs-check check ...'。
-          # 这是 Docker 镜像中 Go 应用程序常见的安装路径。
-          cat <<EOF > run_subs_check.sh
-          #!/bin/bash
-          docker run --rm -v "${{ github.workspace }}:/app/output" "ghcr.io/beck-8/subs-check:latest" sh -c "/usr/local/bin/subs-check check -t 30000 -c 50 -o \"/app/output/${OUTPUT_PATH}\" -proxy-api-url \"$SUBSCRIPTION_URL_META,$SUBSCRIPTION_URL_SS_TXT\" -download-url \"https://speed.cloudflare.com/__down?bytes=10485760\" -upload-url \"https://speed.cloudflare.com/__up\" -stream-test \"youtube,netflix\" -rename \"{{.Emoji}}{{.Country}} | {{.Speed | printf \\"%.2f\\"}}MB/s | {{.Remark}}\" -filter \"speed > 0.1\" -sort \"speed:desc\""
-          EOF
+          # **核心改动**：运行 subconverter 容器，并在容器内部启动它的 web API。
+          # 然后使用 curl 从容器内部的 web API 获取转换后的配置。
+          # 这样可以利用 subconverter 提供的所有转换和测试功能。
+          # subconverter 容器将监听 25500 端口（默认）
+          # 我们将其映射到本地的随机端口，并在容器内部调用。
+          
+          # 启动 subconverter 容器作为后台服务
+          # -d: 后台运行
+          # -p 25500:25500: 映射端口 (如果需要从外部访问，这里不需要，我们从内部访问)
+          # --name subconverter_instance: 给容器一个名字方便管理
+          docker run -d --rm --name subconverter_instance -p 25500:25500 liruqi/subconverter:latest
 
-          # 赋予临时脚本执行权限
-          chmod +x run_subs_check.sh
-          # 执行临时脚本
-          ./run_subs_check.sh
+          # 等待 subconverter 容器启动完成（给它一点时间）
+          sleep 10
+
+          # 使用 curl 从 subconverter 容器的 API 获取配置
+          # 注意：URL 中的 host 应该指向 subconverter 容器内部的 IP 或名称（如果它们在同一网络）
+          # 但最简单的是直接从 'localhost:25500' 访问，因为它们都在同一个 GitHub Actions runner 上运行
+          # 这里的 URL 参数 `url` 对应你的订阅，`target` 对应输出格式。
+          # `clash` 对应 Clash YAML，`clashr` 对应 Clash Meta (OpenClash)
+          # `udp=true` 开启 UDP，`tfo=true` 开启 TFO，`sc=true` 开启速度测试 (speed check)
+          # `fast_url` 等参数可以用于测速。
+
+          # 注意：subconverter 的 URL 参数需要进行 URL 编码
+          ENCODED_META_URL=$(echo "$SUBSCRIPTION_URL_META" | sed 's/\//%2F/g; s/:/%3A/g; s/?/%3F/g; s/&/%26/g; s/=/%3D/g')
+          ENCODED_SS_TXT_URL=$(echo "$SUBSCRIPTION_URL_SS_TXT" | sed 's/\//%2F/g; s/:/%3A/g; s/?/%3F/g; s/&/%26/g; s/=/%3D/g')
+
+          # 组合两个订阅URL，用 | 分隔，并进行 URL 编码
+          # subconverter 的 api 接受以 | 分隔的多个 URL
+          API_URL_PARAMS="url=${ENCODED_META_URL}|${ENCODED_SS_TXT_URL}"
+          
+          # subconverter API 完整 URL
+          # target=clashr 适用于 Clash Meta (OpenClash)
+          # filter=speed>0.1 过滤速度，注意URL编码
+          # tfo=true, sc=true, udp=true 开启特性和测速
+          # rename=true 开启重命名
+          # fast_url=http://speed.cloudflare.com/__down?bytes=10485760 测速地址
+          # 更多参数请参考 subconverter 文档
+          
+          # IMPORTANT: For subconverter's speed check, it needs access to the internet.
+          # If the runner's network is restricted, speed check might fail.
+          # The -filter "speed > 0.1" will only work if speed check is performed by subconverter.
+
+          CONVERSION_API_ENDPOINT="http://localhost:25500/sub?${API_URL_PARAMS}&target=clashr&sc=true&fast_url=http%3A%2F%2Fspeed.cloudflare.com%2F__down%3Fbytes%3D10485760&tfo=true&udp=true&rename=true&filter=speed%3E0.1"
+          
+          echo "从 subconverter API 获取配置: ${CONVERSION_API_ENDPOINT}"
+
+          # 使用 curl 获取配置并保存
+          # -sS: 静默模式，但显示错误
+          # -L: 遵循重定向
+          curl -sSL -o "${OUTPUT_PATH}" "${CONVERSION_API_ENDPOINT}"
+          
+          # 停止并移除 subconverter 容器
+          docker stop subconverter_instance
 
           # 检查文件是否成功生成，如果文件不存在，则工作流失败
           if [ ! -f "$OUTPUT_PATH" ]; then
-            echo "错误: subs-check 未能生成文件 ${OUTPUT_PATH}。"
+            echo "错误: subconverter 未能生成文件 ${OUTPUT_PATH}。"
             exit 1
           fi
-          echo "Clash 配置已通过 subs-check 生成并保存到 ${OUTPUT_PATH}。"
+          echo "Clash 配置已通过 subconverter 生成并保存到 ${OUTPUT_PATH}。"
 
       # --- 解决非快进问题：在提交前拉取远程最新代码 ---
       - name: 拉取远程最新代码 (解决非快进问题)
-        if: success()
+        if: success() # 仅当所有前面的步骤都成功时才执行此步骤
         run: |
           echo "尝试拉取远程 main 分支的最新更改..."
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git pull --rebase origin main
-          if [ $? -ne 0 ]; then
+          if [ $? -ne 0 ]; then # 检查上一个 Git 命令的退出状态码，如果非零则表示失败
             echo "错误: git pull --rebase 失败。可能存在无法自动解决的冲突，请检查仓库历史。"
-            exit 1
+            exit 1 # 终止工作流并标记为失败
           fi
           echo "远程代码拉取并rebase成功。"
 
       # --- 提交并推送更新后的配置文件 ---
       - name: 提交并推送更新后的配置文件
-        if: success()
+        if: success() # 仅当所有前面的步骤都成功时才执行此步骤
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "更新 Clash 配置：从多订阅源获取节点并保存到 sc/beck-8.yaml"
+          # 提交信息，清晰地说明本次提交的目的和内容
+          commit_message: "更新 Clash 配置：从多订阅源获取节点并保存到 sc/subconverter.yaml"
+          # 指定要提交的文件模式。这里只提交新生成的 'sc/subconverter.yaml' 文件。
           file_pattern: "${OUTPUT_PATH}" 
-          branch: main
+          branch: main # 指定目标分支，工作流会将更改推送到这个分支
+          # 提交用户的名称和邮箱，这些信息会显示在 Git 提交记录中
           commit_user_name: github-actions[bot]
           commit_user_email: 41898282+github-actions[bot]@users.noreply.github.com
+          # 提交作者信息，你可以设置为你自己的 GitHub 用户名和邮箱
           commit_author: qjlxg <12179157+qjlxg@users.noreply.github.com>
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # 这是一个 GitHub 自动提供的令牌，用于认证 Git 操作。确保你的仓库设置中“Workflow permissions”为“Read and write”。
