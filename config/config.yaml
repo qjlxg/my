@@ -1,21 +1,37 @@
-source:
-  - name: custom_nodes
-    type: file
+# config.yaml (请将此文件放在您的仓库根目录下的 'config' 文件夹中)
+
+# 代理源配置
+sources:
+  - name: custom_nodes_from_url
+    type: url
     url: https://raw.githubusercontent.com/qjlxg/ss/refs/heads/master/list.meta.yml
-proxy:
-  - type: ss
-  - type: ssr
-  - type: vmess
-  - type: vless
-  - type: trojan
-  - type: hysteria2
+    # 如果源文件是订阅链接，Proxy-Go会自动解析
+    # 如果源文件是普通URL包含节点信息，它也能处理
+
+# 代理类型过滤 (Proxy-Go 会自动识别并测试这些类型)
+# 您不需要显式列出所有类型，Proxy-Go 会根据解析到的节点类型进行测试
+# proxy_types:
+#   - ss
+#   - ssr
+#   - vmess
+#   - vless
+#   - trojan
+#   - hysteria2
+
+# 检查配置
 check:
-  interval: 3600
-  timeout: 20
-  concurrency: 2
-  speedtest: true
-  speedtest_url: https://speed.cloudflare.com/__down?bytes=5000000
-  debug: true
+  interval: 3600 # 检查间隔，单位秒
+  timeout: 20    # 单个节点超时时间，单位秒
+  concurrency: 2 # 并发测试节点数量
+  speedtest:
+    enabled: true
+    url: https://speed.cloudflare.com/__down?bytes=5000000 # 速度测试URL
+    timeout: 15 # 速度测试超时时间
+    connections: 5 # 速度测试连接数
+    # Proxy-Go 的调试日志级别可以在启动命令中设置
+
+# 输出配置
 output:
-  path: /sc/NodeDownloadSpeedTest.yaml
-  format: yaml
+  path: /output/NodeDownloadSpeedTest.yaml # 容器内部的输出路径
+  format: yaml # 输出格式
+  # Proxy-Go 可以直接输出测试结果，您可以通过其API或文件获取
