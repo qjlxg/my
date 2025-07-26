@@ -41,15 +41,15 @@ jobs:
         with:
           go-version: '1.22' # 推荐使用较新的 Go 版本，例如 1.22 或更高
 
-      # --- 安装 starudream/clash-speedtest 工具 ---
-      - name: 安装 starudream/clash-speedtest 工具
+      # --- 安装 xiecang/speedtest-clash 工具 ---
+      - name: 安装 xiecang/speedtest-clash 工具
         run: |
-          echo "正在安装 starudream/clash-speedtest..."
+          echo "正在安装 xiecang/speedtest-clash..."
           # go install 会将二进制文件安装到 GOPATH/bin 目录下
-          go install github.com/starudream/clash-speedtest@latest || { echo "错误：安装 starudream/clash-speedtest 失败！"; exit 1; }
-          # 验证是否安装成功并查看帮助信息
-          clash-speedtest -h || { echo "错误：clash-speedtest 命令不可用！"; exit 1; }
-          echo "starudream/clash-speedtest 安装成功。"
+          go install github.com/xiecang/speedtest-clash@latest || { echo "错误：安装 xiecang/speedtest-clash 失败！"; exit 1; }
+          # 验证是否安装成功并查看帮助信息 (xiecang/speedtest-clash 的可执行文件名为 speedtest-clash)
+          speedtest-clash -h || { echo "错误：speedtest-clash 命令不可用！"; exit 1; }
+          echo "xiecang/speedtest-clash 安装成功。"
 
       # 步骤 5: 下载完整的 Clash 配置
       - name: 下载完整的 Clash 配置
@@ -113,21 +113,20 @@ jobs:
           cp clash.yaml sc/clash_${TIMESTAMP}.yaml
           echo "旧配置备份完成。"
 
-      # 步骤 10: 运行速度测试 - 阶段二：下载/上传速度测试
-      - name: 运行速度测试 - 阶段二：下载/上传速度测试
+      # 步骤 10: 运行速度测试
+      - name: 运行速度测试
         if: success() && steps.check_filtered_file.outputs.FILTERED_NODES_EMPTY == 'false'
         run: |
           echo "开始运行所有节点的完整速度测试..."
-          # --- 使用 starudream/clash-speedtest，并使用常见参数 ---
-          clash-speedtest \
+          # --- 使用 xiecang/speedtest-clash，并仅包含其支持的参数 ---
+          speedtest-clash \
             -c ./filtered_nodes.yaml \
             -output ./clash.yaml \
-            -download-size 5 \
+            -size 5242880 \
             -timeout 38s \
-            -concurrent 50 \
-            -max-latency 5000ms \
-            -min-download-speed 1
-            # 移除：-upload-size, -min-upload-speed, -rename (此处假设这些参数可能不支持)
+            -concurrent 50
+            # 注意：此工具不支持 -upload-size, -max-latency, -min-download-speed, -min-upload-speed, -rename 等参数
+            # -size 5242880 bytes = 5 MB
           # --- 结束 ---
           echo "全速测试完成，结果保存到 clash.yaml"
 
