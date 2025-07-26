@@ -37,7 +37,7 @@ jobs:
           # ghcr.io/beck-8/subs-check:latest 是官方 Docker 镜像
           # 后面的 "check ..." 是传递给容器内 subs-check 命令的参数
           docker run --rm \
-            -v "$(pwd)":/app/output \
+            -v "${{ github.workspace }}:/app/output" \ # 使用 GitHub Actions 内置的工作区路径变量
             ghcr.io/beck-8/subs-check:latest check \
             -t 30000 \ # 超时时间 30 秒 (30000 毫秒)
             -c 50 \ # 并发测试 50 个节点
