@@ -1,131 +1,45 @@
+```yaml
+name: Extract Nodes to YAML
 
-# 工作流名称
-name: Speed Tester Workflow
-
-# 触发条件
 on:
-  push:
-    branches:
-      - main  # 当推送代码到 main 分支时触发
-  pull_request:
-    branches:
-      - main  # 当提交 PR 到 main 分支时触发
+  schedule:
+    - cron: '0 0 * * *'  # 每天 UTC 时间 00:00 运行
+  workflow_dispatch:     # 支持手动触发
 
-# 工作流任务
 jobs:
-  test-nodes:
-    # 指定运行环境
+  extract-nodes:
     runs-on: ubuntu-latest
 
-    # 任务步骤
     steps:
-      # 检出代码
-      - name: 检出代码
-        uses: actions/checkout@v4
+    # 检出代码
+    - name: Checkout Repository
+      uses: actions/checkout@v4
 
-      # 设置 Python 环境
-      - name: 设置 Python 环境
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'  # 使用 Python 3.10
-          cache: 'pip'  # 缓存 pip 依赖以加速构建
+    # 设置 Python 环境
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
 
-      # 安装依赖
-      - name: 安装 Python 依赖
-        run: |
-          python -m pip install --upgrade pip
-          pip install requests PyYAML pysocks
+    # 安装依赖
+    - name: Install Dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install aiohttp pyyaml
 
-      # 下载并安装 Xray
-      - name: 下载并安装 Xray
-        id: download_xray
-        run: |
-          XRAY_VERSION="25.7.25"
-          ARCH=$(uname -m)
-          XRAY_FILE=""
-          if [ "$ARCH" = "x86_64" ]; then
-            XRAY_FILE="Xray-linux-64.zip"
-          elif [ "$ARCH" = "aarch64" ]; then
-            XRAY_FILE="Xray-linux-arm64-v8a.zip"
-          else
-            echo "不支持的架构: $ARCH"
-            exit 1
-          fi
-          
-          XRAY_URL="https://github.com/XTLS/Xray-core/releases/download/v${XRAY_VERSION}/${XRAY_FILE}"
-          echo "从 ${XRAY_URL} 下载 Xray"
-          curl -fSsL --retry 5 --retry-delay 10 -o xray.zip "${XRAY_URL}"
-          
-          if [ ! -s xray.zip ]; then
-            echo "Xray 下载失败: xray.zip 文件为空或不存在"
-            exit 1
-          fi
-          
-          if ! unzip -o xray.zip "xray" -d .; then
-            echo "解压 xray.zip 失败"
-            exit 1
-          fi
-          
-          chmod +x ./xray
-          echo "Xray 安装成功"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    # 运行提取脚本
+    - name: Run Extract Nodes Script
+      run: |
+        python extract_nodes_to_yaml.py
 
-      # 下载并安装 Hysteria2
-      - name: 下载并安装 Hysteria2
-        id: download_hysteria2
-        run: |
-          HY2_VERSION="2.6.2"
-          MACHINE_ARCH=$(uname -m)
-          if [ "$MACHINE_ARCH" = "x86_64" ]; then
-            HY2_FILE="hysteria-linux-amd64"
-          elif [ "$MACHINE_ARCH" = "aarch64" ]; then
-            HY2_FILE="hysteria-linux-arm64"
-          else
-            echo "不支持的架构: $MACHINE_ARCH"
-            exit 1
-          fi
-
-          HY2_URL="https://github.com/apernet/hysteria/releases/download/app/v${HY2_VERSION}/${HY2_FILE}"
-          echo "从 ${HY2_URL} 下载 Hysteria2"
-          curl -fSsL --retry 5 --retry-delay 10 -o hysteria2 "${HY2_URL}"
-          
-          if [ ! -s hysteria2 ]; then
-            echo "Hysteria2 下载失败: hysteria2 文件为空或不存在"
-            exit 1
-          fi
-
-          chmod +x ./hysteria2
-          echo "Hysteria2 安装成功"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      # 运行 speed_tester.py 脚本
-      - name: 运行速度测试脚本
-        run: |
-          python speed_tester.py
-        continue-on-error: true  # 如果脚本运行失败，继续执行后续步骤
-        env:
-          PYTHONUNBUFFERED: 1  # 确保实时输出日志
-
-      # 上传测试结果作为工件
-      - name: 上传测试结果
-        uses: actions/upload-artifact@v4
-        with:
-          name: speed-test-results
-          path: |
-            sc/NodeDownloadSpeedTest_results.txt
-            sc/NodeDownloadSpeedTest_results.yaml
-          retention-days: 7  # 保留 7 天
-
-      # 检查测试结果
-      - name: 检查测试结果
-        run: |
-          if [ -f sc/NodeDownloadSpeedTest_results.txt ] && [ -s sc/NodeDownloadSpeedTest_results.txt ]; then
-            echo "速度测试成功，输出文件不为空"
-            cat sc/NodeDownloadSpeedTest_results.txt
-          else
-            echo "速度测试失败或输出文件为空"
-            exit 1
-          fi
-
+    # 检查是否有变更并提交
+    - name: Commit and Push Changes
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add sc/*
+        git diff --staged --quiet || git commit -m "Update extracted nodes YAML files"
+        git push
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+```
