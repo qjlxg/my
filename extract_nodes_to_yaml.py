@@ -1,4 +1,4 @@
-```python
+
 import aiohttp
 import asyncio
 import base64
@@ -242,4 +242,4 @@ if __name__ == "__main__":
         asyncio.ensure_future(main())
     else:
         asyncio.run(main())
-```
+
