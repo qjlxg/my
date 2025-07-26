@@ -39,7 +39,7 @@ jobs:
           
           cat <<EOF > run_subs_check.sh
           #!/bin/bash
-          docker run --rm -v "${{ github.workspace }}:/app/output" "ghcr.io/beck-8/subs-check:latest" subs-check check -t 30000 -c 50 -o "/app/output/${OUTPUT_PATH}" -proxy-api-url "$SUBSCRIPTION_URL_META,$SUBSCRIPTION_URL_SS_TXT" -download-url "https://speed.cloudflare.com/__down?bytes=10485760" -upload-url "https://speed.cloudflare.com/__up" -stream-test "youtube,netflix" -rename "{{.Emoji}}{{.Country}} | {{.Speed | printf \\"%.2f\\"}}MB/s | {{.Remark}}" -filter "speed > 0.1" -sort "speed:desc"
+          docker run --rm -v "${{ github.workspace }}:/app/output" "ghcr.io/beck-8/subs-check:latest" /usr/local/bin/subs-check check -t 30000 -c 50 -o "/app/output/${OUTPUT_PATH}" -proxy-api-url "$SUBSCRIPTION_URL_META,$SUBSCRIPTION_URL_SS_TXT" -download-url "https://speed.cloudflare.com/__down?bytes=10485760" -upload-url "https://speed.cloudflare.com/__up" -stream-test "youtube,netflix" -rename "{{.Emoji}}{{.Country}} | {{.Speed | printf \\"%.2f\\"}}MB/s | {{.Remark}}" -filter "speed > 0.1" -sort "speed:desc"
           EOF
 
           chmod +x run_subs_check.sh
