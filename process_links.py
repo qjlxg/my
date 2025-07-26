@@ -68,7 +68,14 @@ def parse_vmess(data: str) -> Optional[Dict[str, Any]]:
             node['skip-cert-verify'] = bool(config.get('scy', False))
             if 'host' in config and config['host']: # vmess often uses host for SNI
                 node['sni'] = config['host']
-        
+            
+            # Vmess client-fingerprint (some clients use fp/fingerprint field for this)
+            # This is a common point of confusion. 'fp' often means browser fingerprint for Vmess/VLESS
+            if 'fp' in config and config['fp']:
+                node['client-fingerprint'] = config['fp']
+            elif 'fingerprint' in config and config['fingerprint']:
+                node['client-fingerprint'] = config['fingerprint']
+
         # Network settings
         network = config.get('net')
         if network:
@@ -112,8 +119,14 @@ def parse_trojan(data: str) -> Optional[Dict[str, Any]]:
         node['skip-cert-verify'] = (params.get('allowInsecure', ['0'])[0] == '1')
         if 'sni' in params:
             node['sni'] = params['sni'][0]
-        if 'fp' in params: # Fingerprint
-            node['fingerprint'] = params['fp'][0]
+        
+        # Trojan client-fingerprint (some clients use fp/fingerprint for this)
+        if 'fp' in params: # Fingerprint for browser
+            node['client-fingerprint'] = params['fp'][0]
+        # Do NOT use 'fingerprint' directly from query params for client-fingerprint, 
+        # as it might also refer to cert fingerprint in other contexts.
+        # This is where the error comes from. We map 'fp' to 'client-fingerprint'.
+        
         if 'alpn' in params:
             node['alpn'] = params['alpn'][0].split(',')
 
@@ -183,9 +196,19 @@ def parse_vless(data: str) -> Optional[Dict[str, Any]]:
             node['skip-cert-verify'] = (params.get('allowInsecure', ['0'])[0] == '1')
             if 'sni' in params:
                 node['sni'] = params['sni'][0]
-            if 'fp' in params:
-                node['fingerprint'] = params['fp'][0]
-        
+            
+            # VLESS client-fingerprint (some clients use fp/fingerprint field for this)
+            if 'fp' in params: # Fingerprint for browser
+                node['client-fingerprint'] = params['fp'][0]
+            # Here, if a 'fingerprint' query parameter is found, it means client-fingerprint.
+            # Otherwise, Clash expects 'fingerprint' to be for cert pinning.
+            # We explicitly map 'fp' from query to 'client-fingerprint'.
+            # If the original query had 'fingerprint=...' and it meant client-fingerprint, 
+            # this will correctly map it. If it was for cert pinning, it should be handled elsewhere
+            # or in a different parameter name.
+            elif 'fingerprint' in params: # Legacy 'fingerprint' param in URL for client-fingerprint
+                node['client-fingerprint'] = params['fingerprint'][0]
+
         # Network settings
         network = params.get('type', [''])[0]
         if network:
@@ -236,6 +259,10 @@ def parse_hysteria2(data: str) -> Optional[Dict[str, Any]]:
         if 'fastopen' in params:
             node['fast-open'] = (params.get('fastopen', ['0'])[0] == '1')
         
+        # Hysteria2 also has client-fingerprint, usually 'fingerprint' in params
+        if 'fingerprint' in params:
+            node['client-fingerprint'] = params['fingerprint'][0]
+
         return ensure_node_name(node, 'hysteria2')
     except Exception as e:
         print(f"Error parsing hysteria2 data '{data[:50]}...': {e}")
@@ -500,7 +527,7 @@ async def process_url(session: aiohttp.ClientSession, url: str):
         print(f"No content fetched from {url}, skipping parsing.")
         return
 
-    nodes = parse_content(content)
+    nodes = parse_content(content) # content是url获取到的内容
     
     output_filename = get_output_filename(url)
     output_filepath = os.path.join('sc', output_filename)
