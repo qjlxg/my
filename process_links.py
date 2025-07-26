@@ -52,23 +52,27 @@ def parse_vmess(data: str) -> Optional[Dict[str, Any]]:
         server = config.get('add')
         port = int(config.get('port', 0))
 
-        # 确保 uuid 字段即使缺失也能赋值为空字符串
         uuid = config.get('id', "")
-        # 确保 alterId 字段即使缺失也能赋值为 0
         alter_id = int(config.get('aid', 0))
         # 确保 cipher 字段即使缺失也能赋值为 'auto'
-        cipher = config.get('type', 'auto') # vmess type is usually cipher, if not found, default to auto
+        # Clash 中 vmess 的 type 字段通常用于指示加密方式，如果订阅中没有明确给出，则默认为 'auto'
+        cipher = config.get('type', 'auto') 
 
         node = {
             'name': config.get('ps', generate_node_name('vmess', server, port)),
             'type': 'vmess',
             'server': server,
             'port': port,
-            'uuid': uuid, # 现在保证是一个字符串
-            'alterId': alter_id, # 现在保证是一个整数
-            'cipher': cipher # 现在保证是一个字符串
+            'uuid': uuid,
+            'alterId': alter_id,
+            'cipher': cipher
         }
 
+        # 修复：处理 vmess 的 security 字段为空或不支持的情况
+        # Clash 通常通过 tls: true/false 来控制 TLS，security 字段通常指加密类型，
+        # 如果 security 为空字符串，Clash 会报错。这里直接不设置 security 字段，
+        # 让 Clash 采用默认或通过其他字段（如 tls）推断。
+        # 如果 config.get('tls') == 'tls'，通常意味着开启了 TLS
         if config.get('tls') == 'tls':
             node['tls'] = True
             node['skip-cert-verify'] = bool(config.get('scy', False))
@@ -183,7 +187,11 @@ def parse_vless(data: str) -> Optional[Dict[str, Any]]:
             'uuid': uuid # 现在保证是一个字符串
         }
 
-        if params.get('security', [''])[0] == 'tls':
+        # 修复：处理 vless 的 security 字段为空或不支持的情况
+        # 如果 params.get('security', [''])[0] 为空字符串，Clash 会报错。
+        # 只有当 security 明确为 'tls' 时才设置 tls: True
+        security_param = params.get('security', [''])[0]
+        if security_param == 'tls':
             node['tls'] = True
             node['skip-cert-verify'] = (params.get('allowInsecure', ['0'])[0] == '1')
             if 'sni' in params:
@@ -193,6 +201,9 @@ def parse_vless(data: str) -> Optional[Dict[str, Any]]:
                 node['client-fingerprint'] = params['fp'][0]
             elif 'fingerprint' in params:
                 node['client-fingerprint'] = params['fingerprint'][0]
+        elif security_param and security_param != 'none': # 如果 security 不是 tls 也不是 none，打印警告但不阻碍
+            print(f"Warning: Vless node '{name}' has unknown security type: '{security_param}'", file=sys.stderr)
+
 
         network = params.get('type', [''])[0]
         if network:
