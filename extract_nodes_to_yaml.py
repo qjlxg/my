@@ -1,3 +1,4 @@
+```python
 import aiohttp
 import asyncio
 import base64
@@ -5,6 +6,7 @@ import json
 import yaml
 import os
 import re
+import platform
 from urllib.parse import urlparse, unquote
 from typing import List, Dict, Any
 
@@ -132,12 +134,19 @@ def parse_node(line: str) -> List[Dict[str, Any]]:
                     nodes.append(node)
             break
     else:
-        # 尝试 Base64 解码
+        # 尝试几次 Base64 解码
         try:
-            decoded = base64.b64decode(line).decode('utf-8')
+            decoded = line
+
+            for _ in range(3):  # 尝试解码最多三次
+                try:
+                    decoded = base64.b64decode(decoded).decode('utf-8')
+                except:
+                    break
             for protocol in SUPPORTED_PROTOCOLS:
                 if decoded.startswith(f"{protocol}://"):
                     nodes.extend(parse_node(decoded))
+                    break
         except:
             pass
     return nodes
@@ -197,7 +206,7 @@ async def process_url(session: aiohttp.ClientSession, url: str):
     # 根据 URL 路径确定输出文件名
     parsed_url = urlparse(url)
     path = parsed_url.path
-    filename = 'nodes.yaml' if 'list_raw.txt' not in path else 'list_raw.yaml'
+    filename = 'list_raw.yaml' if 'list_raw.txt' in path else 'nodes.yaml'
     
     # 解析内容
     nodes = parse_content(content, url)
@@ -233,3 +242,4 @@ if __name__ == "__main__":
         asyncio.ensure_future(main())
     else:
         asyncio.run(main())
+```
