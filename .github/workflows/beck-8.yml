@@ -48,21 +48,26 @@ jobs:
             format: yaml
           EOF
 
+      # --- 新增的构建 Proxy-Go 镜像的步骤 ---
+      - name: Clone Proxy-Go repository and Build Docker image
+        run: |
+          git clone https://github.com/wangzhe0622/Proxy-Go.git proxy-go-src
+          cd proxy-go-src
+          # 使用 Dockerfile 构建镜像，并打上自定义标签
+          docker build -t my-proxy-go:latest .
+          cd .. # 回到工作目录
+      # ----------------------------------------
+
       - name: Run Proxy-Go for speed test
         run: |
           mkdir -p sc
           rm -f sc/* || true # 清理旧文件
-          # 运行 Proxy-Go 容器，挂载配置和输出目录
-          # Proxy-Go 的默认命令可能直接启动，或者需要指定 'run'
-          # 我们会把它放在 /config/config.yaml，并挂载到 /etc/proxy-go/config.yaml
+          # 运行我们刚刚构建的镜像
           docker run --rm --name proxy-go-tester \
             -v $(pwd)/config/config.yaml:/etc/proxy-go/config.yaml:ro \
             -v $(pwd)/sc:/output \
-            p3terx/proxy-go:latest    # **修改此处为 p3terx/proxy-go:latest**
+            my-proxy-go:latest # **使用我们自己构建的镜像标签**
 
-          # 注意：Proxy-Go 默认不是一个长时间运行的服务，它通常会执行完测试就退出。
-          # 因此，不需要之前的 `docker logs -f` 和 `until` 循环来等待。
-          # 容器退出码会指示成功或失败。
           EXIT_CODE=$(docker inspect -f '{{.State.ExitCode}}' proxy-go-tester)
           echo "Proxy-Go container exited with code: $EXIT_CODE"
           if [ "$EXIT_CODE" -ne 0 ]; then
