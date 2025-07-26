@@ -1,0 +1,953 @@
+port: 7890
+socks-port: 7891
+allow-lan: true
+mode: rule
+log-level: info
+external-controller: 127.0.0.1:9090
+proxies:
+- name: 🇸🇬 @Mahdi2000_m vless-SG```
+  type: vless
+  server: amazon-15.cristiano.name.ng
+  port: 443
+  uuid: 4c26ebc3-7784-46d8-b52a-7b0ccae6f4b4
+  tls: false
+  skip-cert-verify: false
+  network: tcp
+  udp: true
+  flow: chrome
+- name: vless-famous-d-80
+  type: vless
+  server: famous-danger.oneeat.co
+  port: 80
+  uuid: ddc27bd6-6efa-47cf-8bfc-acaf973ba6b3
+  tls: false
+  skip-cert-verify: false
+  network: tcp
+  udp: true
+- name: '@teymourlang'
+  type: vless
+  server: 104.16.53.11
+  port: 8443
+  uuid: 7c9e3c1d-a360-4429-9189-e45a98de7fde
+  tls: true
+  skip-cert-verify: false
+  network: ws
+  udp: true
+  ws-path: /
+  ws-headers:
+    Host: my.ski1plag.ir
+  flow: random
+  alpn:
+  - h2
+  - http/1.1
+- name: '@Teymourlang'
+  type: vless
+  server: www.speedtest.net
+  port: 2096
+  uuid: c819261a-ad50-4ded-b164-1eafed9885c2
+  tls: true
+  skip-cert-verify: false
+  network: ws
+  udp: true
+  ws-path: /mmdhmrws
+  ws-headers:
+    Host: 638868951946670036.amsterdam-prx-dnraaal.info
+- name: '@Teymourlang'
+  type: vless
+  server: www.speedtest.net
+  port: 443
+  uuid: 38046915-6d82-4d86-8510-b5bcc569d0ea
+  tls: true
+  skip-cert-verify: false
+  network: ws
+  udp: true
+  ws-path: /@Prime_Verse?ed=2560
+  ws-headers:
+    Host: MydigiKala.pAges.dEv
+- name: trojan-jp2.e4b5-443
+  type: trojan
+  server: jp2.e4b593af-e26c-4ff1-9b02-d699594d7bbb.02444020.the-best-airport.com
+  port: 443
+  password: fcfe033b-0003-4c58-9d96-c5132353a17a
+  tls: true
+  skip-cert-verify: false
+  udp: true
+- name: Channel:@BeFreeWithUs
+  type: vless
+  server: 151.101.3.8
+  port: 80
+  uuid: 616c06f7-7730-4001-8878-a7a2fc8d7faf
+  tls: false
+  skip-cert-verify: false
+  network: ws
+  udp: true
+  ws-path: /
+  ws-headers:
+    Host: befreewithus.net
+- name: ' Modern'
+  type: vless
+  server: wouldyoumarriemepleasefuckthesystem5.siasia.ir
+  port: 2053
+  uuid: ce62ee5e-e316-46af-b967-4588a5e8e66c
+  tls: true
+  skip-cert-verify: false
+  network: ws
+  udp: true
+  ws-path: /apiii
+  ws-headers:
+    Host: hheydudethisworldisshet.siasia.ir
+  flow: randomized
+  alpn:
+  - h3
+  - h2
+- name: Ws - @OhVpn-pfsg8b8e
+  type: vless
+  server: hajlab.ucdavis.edu
+  port: 80
+  uuid: 70faade8-9362-4c7d-bf45-36d83d6fea6e
+  tls: false
+  skip-cert-verify: false
+  network: ws
+  udp: true
+  ws-path: /@XvProxy----@XvProxy----@XvProxy----@XvProxy----@XvProxy----@XvProxy----@XvProxy----@XvProxy----@XvProxy----@XvProxy----@XvProxy----@XvProxy?ed=2048
+  ws-headers:
+    Host: joinxvproxybedeeeeee.ir
+- name: Ws - @OhVpn-kpqq8w97
+  type: vless
+  server: hajlab.ucdavis.edu
+  port: 80
+  uuid: 1fe30846-29da-473d-9959-17e02447638a
+  tls: false
+  skip-cert-verify: false
+  network: ws
+  udp: true
+  ws-path: /@XvProxy----@XvProxy----@XvProxy----@XvProxy----@XvProxy----@XvProxy----@XvProxy----@XvProxy----@XvProxy----@XvProxy----@XvProxy----@XvProxy?ed=2048
+  ws-headers:
+    Host: joinxvproxybedeeeeee.ir
+- name: Ws - @OhVpn-tw9mc0hs
+  type: vless
+  server: hajlab.ucdavis.edu
+  port: 80
+  uuid: 0f236af9-6605-4c0b-a106-4bef448af6e2
+  tls: false
+  skip-cert-verify: false
+  network: ws
+  udp: true
+  ws-path: /@XvProxy----@XvProxy----@XvProxy----@XvProxy----@XvProxy----@XvProxy----@XvProxy----@XvProxy----@XvProxy----@XvProxy----@XvProxy----@XvProxy?ed=2048
+  ws-headers:
+    Host: joinxvproxybedeeeeee.ir
+- name: '@XsV2ray-1qrusdxk'
+  type: vless
+  server: all.vipxali.cfd
+  port: 2083
+  uuid: 4f8e1251-d08e-4978-9ff0-ae911878fe53
+  tls: true
+  skip-cert-verify: false
+  network: grpc
+  udp: true
+  grpc-service-name: '@XsV2ray,@XsV2ray,@XsV2ray,@XsV2ray,@XsV2ray,@XsV2ray,@XsV2ray,@XsV2ray,@XsV2ray,@XsV2ray,@XsV2ray'
+  grpc-multi-mode: true
+  flow: safari
+  alpn:
+  - http/1.1
+  - h2
+- name: '@Filter_breaker_uhgk.vip-morteza.xyz'
+  type: vless
+  server: uhgk.vip-morteza.xyz
+  port: 433
+  uuid: a5f75cdd-d1dd-4767-99c4-ffebbe0d613e
+  tls: false
+  skip-cert-verify: false
+  network: tcp
+  udp: true
+  flow: safari
+- name: '@bimnetvpn'
+  type: vless
+  server: 172.67.11.138
+  port: 80
+  uuid: b55ec078-3b17-4ed1-a697-71f464cdcaaa
+  tls: false
+  skip-cert-verify: false
+  network: ws
+  udp: true
+  ws-path: /?ed=2560
+  ws-headers:
+    Host: kssepa.sabzipolobamahi.dpdns.org
+- name: Telegram@V2ray_Alpha&security=tls&encryption=none&host=hq1.NEWrEtR432as.inFo&type=ws&sni=hq1.NEWrEtR432as.inFo#@V2rayNG3
+  type: vless
+  server: 104.21.69.44
+  port: 2087
+  uuid: 48d34244-8fac-4fa4-b4fe-0931474f183d
+  tls: false
+  skip-cert-verify: false
+  network: tcp
+  udp: true
+- name: Free By Tharuwa
+  type: vless
+  server: free.tharuwa.cfd
+  port: 3333
+  uuid: 29058641-d1a3-4baa-a4c3-bb870384ef9a
+  tls: false
+  skip-cert-verify: false
+  network: ws
+  udp: true
+  ws-path: /Free By Tharuwa (0767597317)
+  ws-headers:
+    Host: m.zoom.us
+- name: Free By Tharuwa
+  type: vless
+  server: free.tharuwa.cfd
+  port: 80
+  uuid: 86dcd7df-13fd-46c5-9629-e8c9b805ff12
+  tls: false
+  skip-cert-verify: false
+  network: ws
+  udp: true
+  ws-path: /FREE By Tharuwa (0767597317)
+  ws-headers:
+    Host: m.zoom.us
+- name: Free By Tharuwa
+  type: vless
+  server: free.tharuwa.cfd
+  port: 80
+  uuid: 9b1e5c7f-1696-4aaf-91af-2c5638691762
+  tls: false
+  skip-cert-verify: false
+  network: ws
+  udp: true
+  ws-path: /Free By Tharuwa (0767597317)
+  ws-headers:
+    Host: zoom.us
+- name: Free By Tharuwa
+  type: vless
+  server: 152.42.238.214
+  port: 80
+  uuid: dc23d6df-4a97-4da7-81a1-f67a4bedc6d8
+  tls: false
+  skip-cert-verify: false
+  network: ws
+  udp: true
+  ws-path: /FREE By Tharuwa (0767597317)
+  ws-headers:
+    Host: zoom.us
+- name: Free Paid Server By Tharuwa
+  type: vless
+  server: 139.59.96.179
+  port: 19544
+  uuid: 4c550907-93b2-4dd1-81d6-6826bb0d3735
+  tls: false
+  skip-cert-verify: false
+  network: ws
+  udp: true
+  ws-path: /FREE By Tharuwa (0767597317)
+  ws-headers:
+    Host: zoom.us
+- name: Free By Tharuwa
+  type: vless
+  server: 104.248.151.5
+  port: 81
+  uuid: 2315ac02-c7fb-424d-80c5-1dceb1be0c53
+  tls: false
+  skip-cert-verify: false
+  network: ws
+  udp: true
+  ws-path: /FREE by Tharuwa (0767597317)
+  ws-headers:
+    Host: m.zoom.us
+- name: Free By Tharuwa (@z_z_z_zz_z)
+  type: vless
+  server: 143.198.206.10
+  port: 22099
+  uuid: 1ebc6b56-5f5b-41bb-aecd-67ea5e9ad3d0
+  tls: false
+  skip-cert-verify: false
+  network: ws
+  udp: true
+  ws-path: /FREE By Tharuwa (0767597317)
+  ws-headers:
+    Host: m.zoom.us
+- name: '@ConnectBemon | قطع شدی بیا بردار'
+  type: vless
+  server: 209.38.189.100
+  port: 17416
+  uuid: 2706427a-bf92-43b5-a001-37e31e4c4d56
+  tls: false
+  skip-cert-verify: false
+  network: grpc
+  udp: true
+  grpc-service-name: ''
+  grpc-multi-mode: true
+  flow: chrome
+- name: '@ConnectBemon | قطع شدی بیا بردار'
+  type: vless
+  server: 104.17.147.22
+  port: 8443
+  uuid: 89b3cbba-e6ac-485a-9481-976a0415eab9
+  tls: true
+  skip-cert-verify: false
+  network: ws
+  udp: true
+  ws-path: /Telegram@V2ray_Alpha=?ed=2560
+  ws-headers:
+    Host: UuhUHYygESDfgh.uYhJhGVgfCjgujhbUiLbVFdXDXM.XyZ
+  flow: randomized
+  alpn:
+  - http/1.1
+- name: '@ConnectBemon | قطع شدی بیا بردار'
+  type: vless
+  server: 104.17.147.22
+  port: 443
+  uuid: 3058e698-61fd-4d12-95bc-f1fe4c071713
+  tls: true
+  skip-cert-verify: false
+  network: ws
+  udp: true
+  ws-path: /Telegram@V2ray_Alpha
+  ws-headers:
+    Host: hozori.ir
+  flow: randomized
+  alpn:
+  - http/1.1
+- name: '@ConnectBemon | قطع شدی بیا بردار'
+  type: vless
+  server: power.teampluss.ir
+  port: 80
+  uuid: 3bebc077-0d92-4832-9ae4-c0820a673b9e
+  tls: false
+  skip-cert-verify: false
+  network: ws
+  udp: true
+  ws-path: /Pak91jqn-Mehskl.ir.shop.com?ed=2048
+  ws-headers:
+    Host: Zilor.ir
+- name: '@ConnectBemon | قطع شدی بیا بردار'
+  type: vless
+  server: mtn.ivy-net.ir
+  port: 8080
+  uuid: aca3817c-0608-4305-8c28-d172c3ff8fca
+  tls: false
+  skip-cert-verify: false
+  network: httpupgrade
+  udp: true
+- name: Telegram@V2ray_Alpha&security=tls&encryption=none&host=CiR346yL3b.DeRaKhT.iNfO&fp=chrome&type=ws&sni=CiR346yL3b.DeRaKhT.iNfO#Mtn-@V2ray_Raha-5
+  type: vless
+  server: 104.17.147.22
+  port: 8443
+  uuid: 9e769ce1-34be-4e3f-b0a6-823f30eb8f69
+  tls: false
+  skip-cert-verify: false
+  network: tcp
+  udp: true
+- name: '@WebShecan-26Mordad-Night'
+  type: vless
+  server: webshecan.webredirect.org
+  port: 2087
+  uuid: b7f8a470-e576-48ed-a5d5-d56d9605d307
+  tls: false
+  skip-cert-verify: false
+  network: tcp
+  udp: true
+  flow: chrome
+- name: '@WebShecan-27Mordad-1'
+  type: vless
+  server: webshecan.webredirect.org
+  port: 2087
+  uuid: 144bc4ad-3b59-4b9f-b8f6-00a810a4046a
+  tls: false
+  skip-cert-verify: false
+  network: tcp
+  udp: true
+  flow: chrome
+- name: '@WebShecan-27Mordad-Night'
+  type: vless
+  server: webshecan.webredirect.org
+  port: 2087
+  uuid: 915773aa-b54f-43b7-8206-456bb4dff914
+  tls: false
+  skip-cert-verify: false
+  network: tcp
+  udp: true
+  flow: chrome
+- name: '@WebShecan-28Mordad-1'
+  type: vless
+  server: webshecan.webredirect.org
+  port: 2087
+  uuid: 62889ef3-ff14-4931-b612-726ba602796c
+  tls: false
+  skip-cert-verify: false
+  network: tcp
+  udp: true
+  flow: chrome
+- name: '@WebShecan-28Mordad-Night'
+  type: vless
+  server: webshecan.webredirect.org
+  port: 2087
+  uuid: f6b91664-0903-4063-8e15-dba1bc9ee9a2
+  tls: false
+  skip-cert-verify: false
+  network: tcp
+  udp: true
+  flow: chrome
+- name: '@WebShecan-29Mordad-1'
+  type: vless
+  server: webshecan.webredirect.org
+  port: 2087
+  uuid: 8f646a01-2cc1-4270-ad43-f87e157e4d44
+  tls: false
+  skip-cert-verify: false
+  network: tcp
+  udp: true
+  flow: chrome
+- name: '@WebShecan-With❤️'
+  type: vless
+  server: frad.webshecan.cloud
+  port: 2083
+  uuid: a83b52bd-8a99-4df5-a4c9-c82c043c1f8d
+  tls: true
+  skip-cert-verify: false
+  network: grpc
+  udp: true
+  grpc-service-name: ''
+  grpc-multi-mode: true
+  alpn:
+  - h2
+  - http/1.1
+- name: vless-kryos.cl-50552
+  type: vless
+  server: kryos.cloudupdate.ir
+  port: 50552
+  uuid: 0698f2cb-bb1d-4a8d-959b-73628363b73b
+  tls: false
+  skip-cert-verify: false
+  network: tcp
+  udp: true
+- name: 🇺🇸《@V2RayTheKyo》 وصل شدی عضو شو
+  type: vless
+  server: 141.193.213.10
+  port: 80
+  uuid: fab7bf9c-ddb9-4563-8a04-fb01ce6c0fbf
+  tls: false
+  skip-cert-verify: false
+  network: ws
+  udp: true
+  ws-path: /Telegram@V2ray_Alpha
+  ws-headers:
+    Host: us.laoyoutiao.link
+- name: 🇩🇪 《@V2RayTheKyo》 وصل شدی عضو شو
+  type: hysteria2
+  server: '@JavidnamanIran-Javid-SHAH-KingRezaPahlavi@77.90.52.69'
+  port: 35000
+  password: ''
+  obfs: salamander
+  obfs-password: ''
+  tls: true
+  skip-cert-verify: false
+  udp: true
+  fast-open: false
+  sni: pichondan.com
+- name: 🇳🇱 《@V2RayTheKyo》 وصل شدی عضو شو
+  type: hysteria2
+  server: '@JavidnamanIran-Javid-SHAH-KingRezaPahlavi@206.71.158.40'
+  port: 35000
+  password: ''
+  obfs: salamander
+  obfs-password: ''
+  tls: true
+  skip-cert-verify: false
+  udp: true
+  fast-open: false
+  sni: pichondan.com
+- name: 🇬🇧 《@V2RayTheKyo》 وصل شدی عضو شو
+  type: vless
+  server: 25.129.197.77
+  port: 8880
+  uuid: 40c708ca-42e4-4224-a12d-1dbd7ef1e0b7
+  tls: false
+  skip-cert-verify: false
+  network: ws
+  udp: true
+  ws-path: /TelegramU0001F1E8U0001F1F3 @WangCai2 /?ed
+  ws-headers:
+    Host: free.cfdns.online
+- name: 🇳🇱 《@V2RayTheKyo》 وصل شدی عضو شو
+  type: hysteria2
+  server: 4VDmo53kWX@185.219.81.33
+  port: 18865
+  password: ''
+  obfs: salamander
+  obfs-password: ''
+  tls: true
+  skip-cert-verify: true
+  udp: true
+  fast-open: false
+- name: 🇯🇵JP-152.69.197.74-4218
+  type: vmess
+  server: 152.69.197.74
+  port: 12345
+  uuid: b8a6bf58-485a-4046-b386-b3661bf65eff
+  alterId: 0
+  cipher: auto
+  tls: false
+  skip-cert-verify: false
+  network: ws
+  udp: true
+  ws-path: /bb
+  ws-headers: {}
+- name: 🇺🇸 美国CloudFlare公司CDN节点 4
+  type: vmess
+  server: docs.digitalocean.com
+  port: 443
+  uuid: d8d3482e-6d58-4e86-b870-e7fbe893d8b9
+  alterId: 0
+  cipher: auto
+  tls: true
+  skip-cert-verify: false
+  network: ws
+  udp: true
+  ws-path: /
+  ws-headers:
+    Host: dIGIkAlA.ONlINeviSioNsTore.sITE
+- name: ss-host.pho-49072
+  type: ss
+  server: host.phonygilson.icu
+  port: 49072
+  cipher: chacha20-ietf-poly1305
+  password: 25WsDeXTUDXAZTEQ7TeHt9D4vkaHR6VbfkFRmutDiCJk6NQoeguUGciCX8JZiKUqiJm8JrJZzqYmDd194BVcnnuJu5rtvwoe
+  udp: true
+- name: '@V2ray_Alpha+2'
+  type: vless
+  server: 104.31.16.65
+  port: 443
+  uuid: 5d8569a9-a8cb-4c5e-9ea9-cc40de873a35
+  tls: true
+  skip-cert-verify: false
+  network: ws
+  udp: true
+  ws-path: Path/Telegram@V2ray_alpha/?ed=2048
+  ws-headers:
+    Host: FIltEr-1tg.pagEs.DeV
+- name: '@V2ray_Alpha+3'
+  type: vless
+  server: zula.ir
+  port: 443
+  uuid: b9ad895b-12ac-40fc-a5ac-a5b2a1285001
+  tls: true
+  skip-cert-verify: false
+  network: ws
+  udp: true
+  ws-path: Path/Telegram@V2ray_alpha/?ed=2048
+  ws-headers:
+    Host: 3k.pureboy.eu.org
+  flow: chrome
+  alpn:
+  - h2
+  - http/1.1
+- name: '@V2ray_Alpha+4'
+  type: vless
+  server: www.speedtest.net
+  port: 2087
+  uuid: d70ed168-7831-41cf-d3df-73fa1288b5c7
+  tls: true
+  skip-cert-verify: false
+  network: grpc
+  udp: true
+  grpc-service-name: ''
+  grpc-multi-mode: true
+  flow: chrome
+  alpn:
+  - h2
+  - http/1.1
+- name: '@V2ray_Alpha+5'
+  type: vless
+  server: www.speedtest.net
+  port: 2053
+  uuid: 75a6d62e-a371-41c8-ab53-8c6e6e8201fb
+  tls: true
+  skip-cert-verify: false
+  network: grpc
+  udp: true
+  grpc-service-name: ''
+  grpc-multi-mode: true
+- name: '@V2ray_Alpha+7'
+  type: vless
+  server: visa.com
+  port: 443
+  uuid: d3a12e79-ef42-4268-b367-42eeb3494e60
+  tls: true
+  skip-cert-verify: false
+  network: ws
+  udp: true
+  ws-path: Path/Telegram@V2ray_alpha/?ed=2048
+  ws-headers:
+    Host: Hagh.PaGes.DEv
+  flow: chrome
+  alpn:
+  - h2
+  - http/1.1
+- name: '@V2ray_Alpha 8'
+  type: vmess
+  server: www.speedtest.net
+  port: 443
+  uuid: 4040838c-f0a2-4380-81f9-9b255f44043a
+  alterId: 0
+  cipher: auto
+  tls: true
+  skip-cert-verify: false
+  network: grpc
+  udp: true
+  grpc-service-name: ''
+  grpc-multi-mode: false
+- name: '@V2ray_Alpha 10'
+  type: vmess
+  server: zula.ir
+  port: 2096
+  uuid: 98b879fc-ed38-4537-f02f-e88e4892d48c
+  alterId: 0
+  cipher: auto
+  tls: true
+  skip-cert-verify: false
+  network: ws
+  udp: true
+  ws-path: /liu
+  ws-headers:
+    Host: eu4.nlist.eu.org
+- name: '@V2ray_Alpha+11'
+  type: vless
+  server: www.speedtest.net
+  port: 2087
+  uuid: 5b01a1f5-b246-4d00-beb4-a8a9a07a4ab9
+  tls: true
+  skip-cert-verify: false
+  network: grpc
+  udp: true
+  grpc-service-name: ''
+  grpc-multi-mode: true
+- name: '@V2ray_Alpha 12'
+  type: vmess
+  server: cloud.kinononva.top
+  port: 443
+  uuid: 4040838c-f0a2-4380-81f9-9b255f44043a
+  alterId: 0
+  cipher: auto
+  tls: true
+  skip-cert-verify: false
+  network: grpc
+  udp: true
+  grpc-service-name: ''
+  grpc-multi-mode: false
+- name: '@V2ray_Alpha 13'
+  type: vmess
+  server: www.speedtest.net
+  port: 2087
+  uuid: 1a066ded-15cf-47c5-99b8-da006adf55d4
+  alterId: 0
+  cipher: auto
+  tls: true
+  skip-cert-verify: false
+  network: grpc
+  udp: true
+  grpc-service-name: string
+  grpc-multi-mode: false
+- name: '@V2ray_Alpha+2'
+  type: vless
+  server: 172.66.47.201
+  port: 443
+  uuid: 989c4f14-a0fb-4375-ba5d-082fb7167b70
+  tls: true
+  skip-cert-verify: false
+  network: ws
+  udp: true
+  ws-path: Path/Telegram@V2ray_alpha/?ed=2048
+  ws-headers:
+    Host: azaDNeTbYfT65433GhGfR5677JGfR557774THyyt8766wWqW346678uUjj.PAges.dEv
+  flow: randomized
+  alpn:
+  - h2
+  - http/1.1
+- name: '@V2ray_Alpha+5'
+  type: vless
+  server: monardas.aurorainiceland.com
+  port: 443
+  uuid: ce526092-81c1-42be-8354-88e58946c1f3
+  tls: true
+  skip-cert-verify: false
+  network: ws
+  udp: true
+  ws-path: /nimws
+  ws-headers:
+    Host: monardas.aurorainiceland.com
+  flow: firefox
+  alpn:
+  - h2
+  - http/1.1
+- name: 🇺🇲+@V2ray_Alpha+2
+  type: vless
+  server: upload.ir
+  port: 2087
+  uuid: 2ca42987-551b-4494-a854-da2d9178f4cd
+  tls: true
+  skip-cert-verify: false
+  network: grpc
+  udp: true
+  grpc-service-name: ''
+  grpc-multi-mode: true
+  flow: chrome
+  alpn:
+  - h2
+  - http/1.1
+- name: 🇺🇲+@V2ray_Alpha+8
+  type: vless
+  server: www.visa.com
+  port: 2087
+  uuid: 2ca42987-551b-4494-a854-da2d9178f4cd
+  tls: true
+  skip-cert-verify: false
+  network: grpc
+  udp: true
+  grpc-service-name: ''
+  grpc-multi-mode: true
+  flow: chrome
+  alpn:
+  - h2
+- name: 🇺🇲+@V2ray_Alpha+9
+  type: vless
+  server: lol.ps
+  port: 2087
+  uuid: 2ca42987-551b-4494-a854-da2d9178f4cd
+  tls: true
+  skip-cert-verify: false
+  network: grpc
+  udp: true
+  grpc-service-name: ''
+  grpc-multi-mode: true
+  flow: chrome
+  alpn:
+  - h2
+  - http/1.1
+- name: 🇺🇲+@V2ray_Alpha+12
+  type: vless
+  server: ipt.ai-app-list.buzz
+  port: 2087
+  uuid: 2ca42987-551b-4494-a854-da2d9178f4cd
+  tls: true
+  skip-cert-verify: false
+  network: grpc
+  udp: true
+  grpc-service-name: ''
+  grpc-multi-mode: true
+  flow: chrome
+  alpn:
+  - h2
+- name: '@V2ray_Alpha+8'
+  type: vless
+  server: zula.ir
+  port: 443
+  uuid: d672ec4f-afba-4f61-af09-eec872f97e99
+  tls: true
+  skip-cert-verify: false
+  network: ws
+  udp: true
+  ws-path: Path/Telegram@V2ray_Alpha/?ed=2048
+  ws-headers:
+    Host: test39.pages.dev
+  flow: chrome
+  alpn:
+  - h2
+  - http/1.1
+- name: '@V2ray_Alpha 9'
+  type: vmess
+  server: 104.21.227.37
+  port: 80
+  uuid: 7022982f-da4c-48c9-c660-b2315abdcf7e
+  alterId: 0
+  cipher: auto
+  tls: false
+  skip-cert-verify: false
+  network: ws
+  udp: true
+  ws-path: /
+  ws-headers:
+    Host: a.prapt1.ir
+- name: ?ed=2560&security=none&encryption=none&host=vngsupply.ip-ddns.com&type=ws#♾️𝗝𝗼𝗶𝗻➠@V2Ray_hiddify10♾️       🆓️137<---
+  type: vless
+  server: 45.131.5.134
+  port: 8880
+  uuid: e9979910-79d1-4621-a93c-b2a579c44ba7
+  tls: false
+  skip-cert-verify: false
+  network: tcp
+  udp: true
+- name: ⚡@V2Graphy_12
+  type: vless
+  server: 151.101.3.8
+  port: 80
+  uuid: 263535f3-e631-442f-b25f-1f3f1db2b8e7
+  tls: false
+  skip-cert-verify: false
+  network: xhttp
+  udp: true
+- name: '@V2Graphy ⚡'
+  type: vless
+  server: all2.golnar-clod.ir
+  port: 8880
+  uuid: 862873ea-4ea7-4207-b8d3-8f3c440f0afc
+  tls: false
+  skip-cert-verify: false
+  network: httpupgrade
+  udp: true
+- name: 🇹🇼 TW 台湾 4
+  type: vmess
+  server: 7cc02ab9-3478-1733-ea94-2b45d8e115a0.bugtik.ltd
+  port: 80
+  uuid: 46cfcfe1-e450-459d-a3ab-9406011ab3eb
+  alterId: 0
+  cipher: auto
+  tls: false
+  skip-cert-verify: false
+  network: ws
+  udp: true
+  ws-path: /
+  ws-headers:
+    Host: tms.dingtalk.com
+- name: 🇹🇼 TW 台湾 5
+  type: vmess
+  server: 207c13fb-83b6-2021-766b-6c95e56a4a33.bugtik.ltd
+  port: 80
+  uuid: 46cfcfe1-e450-459d-a3ab-9406011ab3eb
+  alterId: 0
+  cipher: auto
+  tls: false
+  skip-cert-verify: false
+  network: ws
+  udp: true
+  ws-path: /
+  ws-headers:
+    Host: tms.dingtalk.com
+- name: 🇸🇬_SG_新加坡_7
+  type: vmess
+  server: 128.199.243.157
+  port: 8080
+  uuid: bdd22841-c4d2-4aa8-acf2-95aa9125f159
+  alterId: 0
+  cipher: auto
+  tls: true
+  skip-cert-verify: false
+  network: ws
+  udp: true
+  ws-path: /
+  ws-headers: {}
+- name: 🇨🇳_CN_中国_13
+  type: vmess
+  server: tencent.damaoooo.com
+  port: 11452
+  uuid: 82f2a51f-488c-47b0-b223-d17f49d8660d
+  alterId: 64
+  cipher: auto
+  tls: false
+  skip-cert-verify: false
+  network: tcp
+  udp: true
+- name: 🇨🇳_CN_中国_14
+  type: vmess
+  server: data-hk-v1.usabooks.com.cn
+  port: 20206
+  uuid: b1478e24-4916-3abe-8f17-15931012ecbe
+  alterId: 0
+  cipher: auto
+  tls: false
+  skip-cert-verify: false
+  network: ws
+  udp: true
+  ws-path: /debian
+  ws-headers:
+    Host: data-hk-v1.usabooks.com.cn
+- name: 🇨🇳_CN_中国_15
+  type: trojan
+  server: df.xiguajiasu.xyz
+  port: 46002
+  password: 4ea1d07c-41c2-42b5-954d-414fee051856
+  tls: true
+  skip-cert-verify: false
+  udp: true
+proxy-groups:
+- name: Proxy
+  type: select
+  proxies:
+  - DIRECT
+  - 🇸🇬 @Mahdi2000_m vless-SG```
+  - vless-famous-d-80
+  - '@teymourlang'
+  - '@Teymourlang'
+  - '@Teymourlang'
+  - trojan-jp2.e4b5-443
+  - Channel:@BeFreeWithUs
+  - ' Modern'
+  - Ws - @OhVpn-pfsg8b8e
+  - Ws - @OhVpn-kpqq8w97
+  - Ws - @OhVpn-tw9mc0hs
+  - '@XsV2ray-1qrusdxk'
+  - '@Filter_breaker_uhgk.vip-morteza.xyz'
+  - '@bimnetvpn'
+  - Telegram@V2ray_Alpha&security=tls&encryption=none&host=hq1.NEWrEtR432as.inFo&type=ws&sni=hq1.NEWrEtR432as.inFo#@V2rayNG3
+  - Free By Tharuwa
+  - Free By Tharuwa
+  - Free By Tharuwa
+  - Free By Tharuwa
+  - Free Paid Server By Tharuwa
+  - Free By Tharuwa
+  - Free By Tharuwa (@z_z_z_zz_z)
+  - '@ConnectBemon | قطع شدی بیا بردار'
+  - '@ConnectBemon | قطع شدی بیا بردار'
+  - '@ConnectBemon | قطع شدی بیا بردار'
+  - '@ConnectBemon | قطع شدی بیا بردار'
+  - '@ConnectBemon | قطع شدی بیا بردار'
+  - Telegram@V2ray_Alpha&security=tls&encryption=none&host=CiR346yL3b.DeRaKhT.iNfO&fp=chrome&type=ws&sni=CiR346yL3b.DeRaKhT.iNfO#Mtn-@V2ray_Raha-5
+  - '@WebShecan-26Mordad-Night'
+  - '@WebShecan-27Mordad-1'
+  - '@WebShecan-27Mordad-Night'
+  - '@WebShecan-28Mordad-1'
+  - '@WebShecan-28Mordad-Night'
+  - '@WebShecan-29Mordad-1'
+  - '@WebShecan-With❤️'
+  - vless-kryos.cl-50552
+  - 🇺🇸《@V2RayTheKyo》 وصل شدی عضو شو
+  - 🇩🇪 《@V2RayTheKyo》 وصل شدی عضو شو
+  - 🇳🇱 《@V2RayTheKyo》 وصل شدی عضو شو
+  - 🇬🇧 《@V2RayTheKyo》 وصل شدی عضو شو
+  - 🇳🇱 《@V2RayTheKyo》 وصل شدی عضو شو
+  - 🇯🇵JP-152.69.197.74-4218
+  - 🇺🇸 美国CloudFlare公司CDN节点 4
+  - ss-host.pho-49072
+  - '@V2ray_Alpha+2'
+  - '@V2ray_Alpha+3'
+  - '@V2ray_Alpha+4'
+  - '@V2ray_Alpha+5'
+  - '@V2ray_Alpha+7'
+  - '@V2ray_Alpha 8'
+  - '@V2ray_Alpha 10'
+  - '@V2ray_Alpha+11'
+  - '@V2ray_Alpha 12'
+  - '@V2ray_Alpha 13'
+  - '@V2ray_Alpha+2'
+  - '@V2ray_Alpha+5'
+  - 🇺🇲+@V2ray_Alpha+2
+  - 🇺🇲+@V2ray_Alpha+8
+  - 🇺🇲+@V2ray_Alpha+9
+  - 🇺🇲+@V2ray_Alpha+12
+  - '@V2ray_Alpha+8'
+  - '@V2ray_Alpha 9'
+  - ?ed=2560&security=none&encryption=none&host=vngsupply.ip-ddns.com&type=ws#♾️𝗝𝗼𝗶𝗻➠@V2Ray_hiddify10♾️       🆓️137<---
+  - ⚡@V2Graphy_12
+  - '@V2Graphy ⚡'
+  - 🇹🇼 TW 台湾 4
+  - 🇹🇼 TW 台湾 5
+  - 🇸🇬_SG_新加坡_7
+  - 🇨🇳_CN_中国_13
+  - 🇨🇳_CN_中国_14
+  - 🇨🇳_CN_中国_15
+- name: Direct
+  type: select
+  proxies:
+  - DIRECT
+rules:
+- MATCH,Proxy
