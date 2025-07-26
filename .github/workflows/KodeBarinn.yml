@@ -77,8 +77,11 @@ jobs:
 
       - name: ⬇️ 下载 Mihomo 核心二进制文件
         run: |
+          # 获取缓存命中状态
+          CACHE_HIT="${{ steps.cache-mihomo.outputs.cache-hit }}"
+          
           # 检查缓存是否命中。如果命中，表示 Mihomo 核心已恢复，跳过下载
-          if [ "${{ steps.cache-mihomo.outputs.cache-hit }}" = "true" ]; then
+          if [ "$CACHE_HIT" = "true" ]; then
             echo "Mihomo 核心已从缓存中恢复，跳过下载。"
             # 确保恢复的二进制文件有执行权限
             if [ -f "/usr/local/bin/mihomo" ]; then
