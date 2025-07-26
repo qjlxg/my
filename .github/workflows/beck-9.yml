@@ -1,4 +1,4 @@
-```yaml
+
 # 工作流名称
 name: Speed Tester Workflow
 
@@ -128,4 +128,4 @@ jobs:
             echo "速度测试失败或输出文件为空"
             exit 1
           fi
-```
+
