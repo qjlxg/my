@@ -16,10 +16,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout THIS repository
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }} # 用于克隆您自己的仓库
 
       - name: Set up Docker
         uses: docker/setup-buildx-action@v3
@@ -48,25 +48,31 @@ jobs:
             format: yaml
           EOF
 
-      # --- 新增的构建 Proxy-Go 镜像的步骤 ---
-      - name: Clone Proxy-Go repository and Build Docker image
+      # --- 使用 actions/checkout 克隆 Proxy-Go 仓库 ---
+      - name: Clone Proxy-Go repository
+        uses: actions/checkout@v4
+        with:
+          repository: wangzhe0622/Proxy-Go # 指定要克隆的仓库
+          path: proxy-go-src             # 克隆到 proxy-go-src 目录
+          # 对于公共仓库，通常不需要 token，但如果网络问题，可以尝试提供
+          # token: ${{ secrets.GITHUB_TOKEN }} # 如果仍然失败，可以取消注释尝试
+                                              # 但这通常只用于私有仓库
+
+      - name: Build Proxy-Go Docker image
         run: |
-          git clone https://github.com/wangzhe0622/Proxy-Go.git proxy-go-src
           cd proxy-go-src
-          # 使用 Dockerfile 构建镜像，并打上自定义标签
           docker build -t my-proxy-go:latest .
           cd .. # 回到工作目录
-      # ----------------------------------------
+      # --------------------------------------------------
 
       - name: Run Proxy-Go for speed test
         run: |
           mkdir -p sc
           rm -f sc/* || true # 清理旧文件
-          # 运行我们刚刚构建的镜像
           docker run --rm --name proxy-go-tester \
             -v $(pwd)/config/config.yaml:/etc/proxy-go/config.yaml:ro \
             -v $(pwd)/sc:/output \
-            my-proxy-go:latest # **使用我们自己构建的镜像标签**
+            my-proxy-go:latest
 
           EXIT_CODE=$(docker inspect -f '{{.State.ExitCode}}' proxy-go-tester)
           echo "Proxy-Go container exited with code: $EXIT_CODE"
