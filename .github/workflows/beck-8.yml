@@ -54,12 +54,11 @@ jobs:
           rm -f sc/* || true # 清理旧文件
           # 运行 Proxy-Go 容器，挂载配置和输出目录
           # Proxy-Go 的默认命令可能直接启动，或者需要指定 'run'
-          # 这里假设它默认读取 /etc/proxy-go/config.yaml 或者通过 -c 参数指定
           # 我们会把它放在 /config/config.yaml，并挂载到 /etc/proxy-go/config.yaml
           docker run --rm --name proxy-go-tester \
             -v $(pwd)/config/config.yaml:/etc/proxy-go/config.yaml:ro \
             -v $(pwd)/sc:/output \
-            wangzhe0622/proxy-go:latest # 使用 Proxy-Go 的官方 Docker 镜像
+            p3terx/proxy-go:latest    # **修改此处为 p3terx/proxy-go:latest**
 
           # 注意：Proxy-Go 默认不是一个长时间运行的服务，它通常会执行完测试就退出。
           # 因此，不需要之前的 `docker logs -f` 和 `until` 循环来等待。
