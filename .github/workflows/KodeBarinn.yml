@@ -1,9 +1,9 @@
 name: Mihomo Node Speed Test
 
 on:
-  workflow_dispatch: # 只允许手动触发此工作流
+  workflow_dispatch:
   schedule:
-    - cron: '0 */6 * * *' # 可选：每 6 小时定时运行一次（UTC时间）
+    - cron: '0 */6 * * *'
 
 jobs:
   test-and-filter:
@@ -21,23 +21,78 @@ jobs:
           profile: minimal
           override: true
 
+      - name: ♻️ 缓存 Rust 依赖和编译结果
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            mihomo-speedtest-rs/target # 缓存编译后的目标文件
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }} # 使用 Cargo.lock 文件作为缓存键
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
       - name: 📦 安装 mihomo-speedtest-rs 工具
         run: |
           echo "正在从 GitHub 仓库编译并安装 mihomo-speedtest-rs..."
-          git clone https://github.com/KodeBarinn/mihomo-speedtest-rs.git
+          # 如果缓存未命中，则克隆仓库；如果缓存命中，项目可能已经存在
+          if [ ! -d "mihomo-speedtest-rs" ]; then
+            git clone https://github.com/KodeBarinn/mihomo-speedtest-rs.git
+          else
+            echo "mihomo-speedtest-rs 仓库已存在，跳过克隆。"
+          fi
+          
           cd mihomo-speedtest-rs
+          # 检查是否有新的提交，如果有，尝试拉取更新
+          # 注意：此步仅在已克隆仓库存在且未被删除时有效
+          # 如果您的 .github/workflows/ 目录与 mihomo-speedtest-rs 仓库是同一个，
+          # 且您直接编辑该文件，那么它会被 checkout 覆盖
+          # 实际应用中，通常会使用单独的 step 来处理源码的更新或确保 fresh clone
+          # 对于这个场景，直接依赖缓存和 build --release 即可
+          
           cargo build --release # 编译发布版本，性能更优
+          
+          # 确保目标二进制文件存在
+          if [ ! -f "target/release/mihomo-speedtest" ]; then
+            echo "错误：mihomo-speedtest 二进制文件未成功编译！"
+            exit 1
+          fi
+
           # 将编译好的二进制文件移动到 /usr/local/bin，使其可在 PATH 中直接调用
           sudo mv target/release/mihomo-speedtest /usr/local/bin/mihomo-speedtest
           echo "mihomo-speedtest-rs 工具已成功安装到 /usr/local/bin/mihomo-speedtest。"
 
+      - name: ♻️ 缓存 Mihomo 核心二进制文件
+        id: cache-mihomo
+        uses: actions/cache@v4
+        with:
+          path: /usr/local/bin/mihomo # Mihomo 核心二进制文件的路径
+          key: ${{ runner.os }}-mihomo-${{ steps.download_mihomo_version.outputs.version }} # 使用系统和 Mihomo 版本号作为缓存键
+
       - name: ⬇️ 下载 Mihomo 核心二进制文件
-        id: download_mihomo
+        id: download_mihomo_version # 此步骤用于获取 Mihomo 版本并设置输出
         run: |
           echo "正在检测 Mihomo 最新稳定版本..."
           MIHOMO_VERSION=$(curl -s "https://api.github.com/repos/MetaCubeX/mihomo/releases/latest" | grep -Po '"tag_name": "\K[^"]*"' | head -n 1)
+          echo "MIHOMO_VERSION=${MIHOMO_VERSION}" >> $GITHUB_OUTPUT # 将版本号设置为输出，供缓存步骤使用
           echo "检测到 Mihomo 最新版本: ${MIHOMO_VERSION}"
           
+          # 检查缓存是否命中，如果命中则跳过下载
+          if [[ "${{ steps.cache-mihomo.outputs.cache-hit }}" == "true" ]]; then
+            echo "Mihomo 核心已从缓存中恢复，跳过下载。"
+            # 确保恢复的二进制文件有执行权限
+            if [ -f "/usr/local/bin/mihomo" ]; then
+              chmod +x /usr/local/bin/mihomo
+              echo "已确保 /usr/local/bin/mihomo 具有执行权限。"
+            else
+              echo "错误：缓存中未找到 Mihomo 核心文件，尝试重新下载。"
+              # 如果缓存命中但文件缺失，则继续执行下载逻辑
+              # (通常缓存会确保文件存在，但以防万一)
+            fi
+            exit 0 # 缓存命中，退出此步骤
+          fi
+          
+          echo "Mihomo 核心未在缓存中找到，正在下载..."
           MIHOMO_URL="https://github.com/MetaCubeX/mihomo/releases/download/${MIHOMO_VERSION}/mihomo-linux-amd64-${MIHOMO_VERSION}.gz"
           echo "正在从 ${MIHOMO_URL} 下载 Mihomo 核心..."
           
