@@ -34,7 +34,7 @@ jobs:
       - name: Download and Install Xray
         id: download_xray # 添加 ID 以便后续判断是否成功
         run: |
-          XRAY_VERSION="25.7.25" # **已更新为 Xray-core v25.7.25**
+          XRAY_VERSION="25.7.25" # **Xray-core 版本，保持不变**
           ARCH=$(uname -m)
           XRAY_FILE="" # 初始化文件名变量
 
@@ -75,11 +75,11 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # 使用 GitHub Token 提高下载稳定性
 
       # --- 下载并安装 Hysteria2 ---
-      # 这个步骤保持不变，因为它已经能够正确下载 Hysteria2
+      # **这里是主要修改的地方：更新 HY2_VERSION**
       - name: Download and Install Hysteria2
         id: download_hysteria2
         run: |
-          HY2_VERSION="2.1.0" # Hysteria2 版本
+          HY2_VERSION="2.6.2" # **已更新为 Hysteria2 最新版本 app/v2.6.2**
           MACHINE_ARCH=$(uname -m)
           if [ "$MACHINE_ARCH" = "x86_64" ]; then
             HY2_FILE="hysteria-linux-amd64"
@@ -90,7 +90,7 @@ jobs:
             exit 1
           fi
 
-          HY2_URL="https://github.com/apernet/hysteria/releases/download/v${HY2_VERSION}/${HY2_FILE}"
+          HY2_URL="https://github.com/apernet/hysteria/releases/download/app/v${HY2_VERSION}/${HY2_FILE}" # **注意这里的 URL 路径变化**
           echo "Downloading Hysteria2 from: ${HY2_URL}"
           
           curl -fSsL --retry 5 --retry-delay 10 -o hysteria2 "${HY2_URL}"
@@ -127,4 +127,4 @@ jobs:
           git commit -m "Update node speed test results" || echo "No changes to commit" # 如果没有文件更改，则不执行 commit
           git push origin main # 推送到 main 分支
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # 使用 GITHUB_TOKEN 进行认证
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
