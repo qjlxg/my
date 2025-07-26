@@ -36,7 +36,7 @@ jobs:
 
           echo "使用 subs-check 处理订阅并测速、排序..."
           
-          # **核心改动**：将 docker run 命令写入一个临时脚本文件 (run_subs_check.sh)
+          # 核心改动：将 docker run 命令写入一个临时脚本文件 (run_subs_check.sh)
           # 使用 'cat <<EOF > run_subs_check.sh' 语法，可以方便地写入多行内容到文件
           cat <<EOF > run_subs_check.sh
           #!/bin/bash
@@ -45,7 +45,7 @@ jobs:
           # Docker run 命令，参数分行书写，更易读
           docker run --rm \\
             -v "${{ github.workspace }}:/app/output" \\
-            "ghcr.io/beck-8/subs-check:latest" check \\
+            "ghcr.io/beck-8/subs-check:latest" subs-check check \\ # <-- 关键修正：将 'check' 改为 'subs-check check'
             -t 30000 \\
             -c 50 \\
             -o "/app/output/${OUTPUT_PATH}" \\
@@ -53,7 +53,7 @@ jobs:
             -download-url "https://speed.cloudflare.com/__down?bytes=10485760" \\
             -upload-url "https://speed.cloudflare.com/__up" \\
             -stream-test "youtube,netflix" \\
-            -rename "{{.Emoji}}{{.Country}} | {{.Speed | printf \\"%.2f\\"}}MB/s | {{.Remark}}" \\ # 注意：这里的双引号需要用反斜杠转义
+            -rename "{{.Emoji}}{{.Country}} | {{.Speed | printf \\"%.2f\\"}}MB/s | {{.Remark}}" \\
             -filter "speed > 0.1" \\
             -sort "speed:desc"
           EOF
@@ -66,46 +66,34 @@ jobs:
           # 检查文件是否成功生成，如果文件不存在，则工作流失败
           if [ ! -f "$OUTPUT_PATH" ]; then
             echo "错误: subs-check 未能生成文件 ${OUTPUT_PATH}。"
-            exit 1 # 终止工作流并标记为失败
+            exit 1
           fi
           echo "Clash 配置已通过 subs-check 生成并保存到 ${OUTPUT_PATH}。"
 
       # --- 解决非快进问题：在提交前拉取远程最新代码 ---
-      # 这一步非常重要，它确保在提交新的更改之前，你的本地仓库 (在 Actions 运行环境中)
-      # 是基于远程仓库的最新状态。这可以避免因远程有新提交而导致的“非快进” (non-fast-forward) 错误。
       - name: 拉取远程最新代码 (解决非快进问题)
-        if: success() # 仅当所有前面的步骤都成功时才执行此步骤
+        if: success()
         run: |
           echo "尝试拉取远程 main 分支的最新更改..."
-          # 配置 Git 用户名和邮箱，以便后续的提交操作能正确归属
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          # 使用 git pull --rebase 命令将远程的最新更改合并到本地，
-          # 这样你的本地更改会“重新应用”在最新的远程提交之上，避免产生额外的合并提交。
           git pull --rebase origin main
-          if [ $? -ne 0 ]; then # 检查上一个 Git 命令的退出状态码，如果非零则表示失败
+          if [ $? -ne 0 ]; then
             echo "错误: git pull --rebase 失败。可能存在无法自动解决的冲突，请检查仓库历史。"
-            exit 1 # 终止工作流并标记为失败
+            exit 1
           fi
           echo "远程代码拉取并rebase成功。"
 
       # --- 提交并推送更新后的配置文件 ---
-      # 使用 stefanzweifel/git-auto-commit-action 动作来自动完成 Git 提交和推送操作。
-      # 这是 GitHub Actions 中自动提交更改的推荐方式。
       - name: 提交并推送更新后的配置文件
-        if: success() # 仅当所有前面的步骤都成功时才执行此步骤
+        if: success()
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          # 提交信息，清晰地说明本次提交的目的和内容
           commit_message: "更新 Clash 配置：从多订阅源获取节点并保存到 sc/beck-8.yaml"
-          # 指定要提交的文件模式。这里只提交新生成的 'sc/beck-8.yaml' 文件。
-          # 如果你以后有其他文件需要自动提交，可以在这里添加，例如 "sc/" 提交 sc 目录下所有文件
           file_pattern: "${OUTPUT_PATH}" 
-          branch: main # 指定目标分支，工作流会将更改推送到这个分支
-          # 提交用户的名称和邮箱，这些信息会显示在 Git 提交记录中
+          branch: main
           commit_user_name: github-actions[bot]
           commit_user_email: 41898282+github-actions[bot]@users.noreply.github.com
-          # 提交作者信息，你可以设置为你自己的 GitHub 用户名和邮箱
           commit_author: qjlxg <12179157+qjlxg@users.noreply.github.com>
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # 这是一个 GitHub 自动提供的令牌，用于认证 Git 操作。确保你的仓库设置中“Workflow permissions”为“Read and write”。
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
