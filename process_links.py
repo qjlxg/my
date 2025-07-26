@@ -258,6 +258,7 @@ def parse_plain_text(content):
 async def fetch_and_parse(session, url):
     print(f"Fetching from {url}")
     try:
+        # 核心修正：添加 await 关键字
         async with session.get(url, timeout=30) as response:
             response.raise_for_status()
             content = await response.text()
