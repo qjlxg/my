@@ -16,10 +16,10 @@ jobs:
         uses: actions/checkout@v4 # 使用 actions/checkout@v4 动作来完成此操作
 
       # --- 使用 Docker 镜像运行 beck-8/subs-check ---
-      # 这是核心步骤，它会利用 Docker 来运行 subs-check 工具，以确保环境一致性和稳定性。
-      # 这样就无需手动下载、解压 subs-check 的二进制文件，也避免了权限问题。
+      # 这个核心步骤将复杂的 Docker 命令写入一个临时脚本，然后执行它。
+      # 这样可以最大程度地避免 YAML 解析和 Shell 语法问题。
       - name: 使用 subs-check 处理多个订阅并保存
-        shell: bash # **关键修正**：强制使用 Bash shell 来执行此步骤的脚本，避免 'syntax error'
+        shell: bash # 强制使用 Bash shell 来执行此步骤的脚本
         run: |
           # 定义你的第一个订阅链接 (Clash Meta 格式)
           SUBSCRIPTION_URL_META="https://raw.githubusercontent.com/qjlxg/ss/refs/heads/master/list.meta.yml"
@@ -36,25 +36,32 @@ jobs:
 
           echo "使用 subs-check 处理订阅并测速、排序..."
           
-          # **关键修正**：将所有 Docker run 命令的参数放在一行，并确保镜像名称加了双引号。
-          # 这样可以最大限度地避免 Shell 解析错误和 Docker 格式引用问题。
-          # --rm：容器运行结束后自动删除，保持环境整洁。
-          # -v "${{ github.workspace }}:/app/output"：这是 Docker 卷挂载，
-          #     将 GitHub Actions 的工作目录 (你的仓库根目录) 挂载到 Docker 容器内的 /app/output 目录。
-          #     这样 subs-check 在容器内生成的 clash.yaml 就会实际输出到你仓库的指定路径。
-          # "ghcr.io/beck-8/subs-check:latest"：指定要使用的 subs-check Docker 镜像。
-          # 后面的 'check' 和其他参数都是传递给容器内 subs-check 命令的实际参数。
-          docker run --rm -v "${{ github.workspace }}:/app/output" "ghcr.io/beck-8/subs-check:latest" check \
-            -t 30000 \ # 设置每个节点的测试超时时间为 30 秒 (30000 毫秒)。如果节点响应慢，可以适当增加。
-            -c 50 \ # 设置并发测试的节点数量为 50，提高测试效率。
-            -o "/app/output/${OUTPUT_PATH}" \ # **输出文件路径**：指定 subs-check 将结果保存到容器内挂载的路径，即 'sc/beck-8.yaml'
-            -proxy-api-url "$SUBSCRIPTION_URL_META,$SUBSCRIPTION_URL_SS_TXT" \ # **多个订阅源**：传入两个订阅链接，用逗号分隔，subs-check 会自动合并处理
-            -download-url "https://speed.cloudflare.com/__down?bytes=10485760" \ # 设置测试下载文件的大小为 10MB (10 * 1024 * 1024 字节)。之前 70MB 可能太大导致超时，10MB 相对稳定。
-            -upload-url "https://speed.cloudflare.com/__up" \ # 上传测试的 URL
-            -stream-test "youtube,netflix" \ # 可选：测试节点是否能解锁 YouTube 和 Netflix 等流媒体服务
-            -rename "{{.Emoji}}{{.Country}} | {{.Speed | printf \"%.2f\"}}MB/s | {{.Remark}}" \ # 自定义节点命名格式，包含国旗、国家、速度（保留两位小数，单位MB/s）和原始备注
-            -filter "speed > 0.1" \ # 过滤条件：只保留下载速度大于 0.1 MB/s 的节点，剔除慢速或无效节点
-            -sort "speed:desc" # **关键功能**：按照下载速度降序排列节点，最快的排在前面
+          # **核心改动**：将 docker run 命令写入一个临时脚本文件 (run_subs_check.sh)
+          # 使用 'cat <<EOF > run_subs_check.sh' 语法，可以方便地写入多行内容到文件
+          cat <<EOF > run_subs_check.sh
+          #!/bin/bash
+          # 确保脚本使用 bash 执行
+          
+          # Docker run 命令，参数分行书写，更易读
+          docker run --rm \\
+            -v "${{ github.workspace }}:/app/output" \\
+            "ghcr.io/beck-8/subs-check:latest" check \\
+            -t 30000 \\
+            -c 50 \\
+            -o "/app/output/${OUTPUT_PATH}" \\
+            -proxy-api-url "$SUBSCRIPTION_URL_META,$SUBSCRIPTION_URL_SS_TXT" \\
+            -download-url "https://speed.cloudflare.com/__down?bytes=10485760" \\
+            -upload-url "https://speed.cloudflare.com/__up" \\
+            -stream-test "youtube,netflix" \\
+            -rename "{{.Emoji}}{{.Country}} | {{.Speed | printf \\"%.2f\\"}}MB/s | {{.Remark}}" \\ # 注意：这里的双引号需要用反斜杠转义
+            -filter "speed > 0.1" \\
+            -sort "speed:desc"
+          EOF
+
+          # 赋予临时脚本执行权限
+          chmod +x run_subs_check.sh
+          # 执行临时脚本
+          ./run_subs_check.sh
 
           # 检查文件是否成功生成，如果文件不存在，则工作流失败
           if [ ! -f "$OUTPUT_PATH" ]; then
@@ -92,7 +99,7 @@ jobs:
           # 提交信息，清晰地说明本次提交的目的和内容
           commit_message: "更新 Clash 配置：从多订阅源获取节点并保存到 sc/beck-8.yaml"
           # 指定要提交的文件模式。这里只提交新生成的 'sc/beck-8.yaml' 文件。
-          # 如果你以后有其他文件需要自动提交，可以在这里添加，例如 "clash.yaml sc/"
+          # 如果你以后有其他文件需要自动提交，可以在这里添加，例如 "sc/" 提交 sc 目录下所有文件
           file_pattern: "${OUTPUT_PATH}" 
           branch: main # 指定目标分支，工作流会将更改推送到这个分支
           # 提交用户的名称和邮箱，这些信息会显示在 Git 提交记录中
