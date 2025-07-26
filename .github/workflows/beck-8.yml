@@ -1,0 +1,93 @@
+# 工作流名称
+name: 订阅检查与节点更新
+
+on:
+  workflow_dispatch: # 允许手动触发
+  schedule:
+    - cron: '0 */6 * * *' # 每 6 小时运行一次
+
+jobs:
+  update-clash-config:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出仓库
+        uses: actions/checkout@v4
+
+      # --- 使用 Docker 镜像运行 subs-check ---
+      - name: 使用 subs-check 处理多个订阅并保存
+        run: |
+          # 定义第一个订阅链接 (Clash Meta 格式)
+          SUBSCRIPTION_URL_META="https://raw.githubusercontent.com/qjlxg/ss/refs/heads/master/list.meta.yml"
+          # 定义第二个订阅链接 (SS 明文或 Base64 格式，假设 subs-check 能直接解析)
+          SUBSCRIPTION_URL_SS_TXT="https://raw.githubusercontent.com/qjlxg/aggregator/refs/heads/main/ss.txt"
+          
+          # 定义输出目录和文件名
+          OUTPUT_DIR="sc"
+          OUTPUT_FILENAME="beck-8.yaml"
+          OUTPUT_PATH="${OUTPUT_DIR}/${OUTPUT_FILENAME}"
+
+          echo "创建输出目录 ${OUTPUT_DIR}..."
+          mkdir -p "$OUTPUT_DIR"
+
+          echo "使用 subs-check 处理订阅并测速、排序..."
+          
+          # 使用 docker run 命令执行 subs-check 的 check 功能
+          # -v $(pwd):/app/output 挂载当前仓库目录到容器的 /app/output，以便 subs-check 将文件输出到这里
+          # ghcr.io/beck-8/subs-check:latest 是官方 Docker 镜像
+          # 后面的 "check ..." 是传递给容器内 subs-check 命令的参数
+          docker run --rm \
+            -v "$(pwd)":/app/output \
+            ghcr.io/beck-8/subs-check:latest check \
+            -t 30000 \ # 超时时间 30 秒 (30000 毫秒)
+            -c 50 \ # 并发测试 50 个节点
+            -o "/app/output/${OUTPUT_PATH}" \ # 输出路径必须是容器内挂载的路径，并包含目录和文件名
+            -proxy-api-url "$SUBSCRIPTION_URL_META,$SUBSCRIPTION_URL_SS_TXT" \ # 传入多个订阅链接，用逗号分隔
+            -download-url "https://speed.cloudflare.com/__down?bytes=10485760" \ # 测试 10MB 文件
+            -upload-url "https://speed.cloudflare.com/__up" \
+            -stream-test "youtube,netflix" \ # 测试 YouTube 和 Netflix 解锁 (可选)
+            -rename "{{.Emoji}}{{.Country}} | {{.Speed | printf \"%.2f\"}}MB/s | {{.Remark}}" \ # 重命名节点
+            -filter "speed > 0.1" \ # 过滤掉下载速度低于 0.1 MB/s 的节点
+            -sort "speed:desc" # 按照下载速度降序排列
+          
+          # 检查文件是否成功生成
+          if [ ! -f "$OUTPUT_PATH" ]; then
+            echo "错误: subs-check 未能生成文件 ${OUTPUT_PATH}。"
+            exit 1
+          fi
+          echo "Clash 配置已通过 subs-check 生成并保存到 ${OUTPUT_PATH}。"
+
+      # --- 步骤：备份旧的 Clash 配置 (此处不需要对beck-8进行备份，如果你想备份，请调整) ---
+      # 注意：此步骤默认是备份 clash.yaml，如果你想备份 sc/beck-8.yaml 的历史版本，需要单独配置。
+      # 目前这个工作流直接覆盖 sc/beck-8.yaml，不保留历史备份。
+      # 如果需要，你可以取消注释并修改此备份步骤，使其针对 sc/beck-8.yaml 进行备份。
+
+      # --- 拉取远程最新代码 (解决非快进问题) ---
+      - name: 拉取远程最新代码 (解决非快进问题)
+        if: success()
+        run: |
+          echo "尝试拉取远程 main 分支的最新更改..."
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git pull --rebase origin main
+          if [ $? -ne 0 ]; then
+            echo "错误: git pull --rebase 失败。可能存在无法自动解决的冲突，请检查仓库历史。"
+            exit 1
+          fi
+          echo "远程代码拉取并rebase成功。"
+
+      # --- 提交并推送更新后的配置文件 ---
+      - name: 提交并推送更新后的配置文件
+        if: success()
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          # 提交信息，明确更新了哪些文件
+          commit_message: "更新 Clash 配置：从多订阅源获取节点并保存到 sc/beck-8.yaml"
+          # 指定要提交的文件模式，包括新的 sc/beck-8.yaml
+          file_pattern: "${OUTPUT_PATH}" # 只提交新生成的文件
+          # 如果你的仓库还有其他需要提交的文件，可以改为 file_pattern: "sc/" 或 "clash.yaml sc/"
+          branch: main
+          commit_user_name: github-actions[bot]
+          commit_user_email: 41898282+github-actions[bot]@users.noreply.github.com
+          commit_author: qjlxg <12179157+qjlxg@users.noreply.github.com>
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
