@@ -148,8 +148,8 @@ jobs:
             --upload-size 1 \
             --timeout 60s \
             --max-concurrent 100 \
-            --filter "sg|jp|kr|us|ca|de|fr|uk|nl" \
-            --block "cn|china|中国|大陆|北京|上海" \
+           # --filter "sg|jp|kr|us|ca|de|fr|uk|nl" \
+           # --block "cn|china|中国|大陆|北京|上海" \
             --output ./output/KodeBarinn.yaml \
             --verbose || { echo "错误：mihomo-speedtest-rs 测试失败！"; exit 1; }
           
