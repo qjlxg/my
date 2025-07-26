@@ -23,9 +23,13 @@ jobs:
 
       - name: 📦 安装 mihomo-speedtest-rs 工具
         run: |
-          echo "正在安装 mihomo-speedtest-rs，这是一个基于 Rust 的高性能代理测试工具..."
-          cargo install mihomo-speedtest-rs
-          echo "mihomo-speedtest-rs 工具已成功安装。"
+          echo "正在从 GitHub 仓库编译并安装 mihomo-speedtest-rs..."
+          git clone https://github.com/KodeBarinn/mihomo-speedtest-rs.git
+          cd mihomo-speedtest-rs
+          cargo build --release # 编译发布版本，性能更优
+          # 将编译好的二进制文件移动到 /usr/local/bin，使其可在 PATH 中直接调用
+          sudo mv target/release/mihomo-speedtest /usr/local/bin/mihomo-speedtest
+          echo "mihomo-speedtest-rs 工具已成功安装到 /usr/local/bin/mihomo-speedtest。"
 
       - name: ⬇️ 下载 Mihomo 核心二进制文件
         id: download_mihomo
