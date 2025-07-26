@@ -1,4 +1,4 @@
-```yaml
+
 name: Extract Nodes to YAML
 
 on:
@@ -42,4 +42,4 @@ jobs:
         git push
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-```
+
