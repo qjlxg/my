@@ -5,7 +5,7 @@ name: Clash Speed Test (xiecang)
 on:
   workflow_dispatch: # 手动触发
   schedule:
-    - cron: '0 */4 * * *' # 每4小时运行一次，避免与原脚本冲突，可以根据需要调整
+    - cron: '0 */4 * * *' # 每4小时运行一次，可以根据需要调整
 
 jobs:
   speed-test-xiecang:
@@ -25,24 +25,39 @@ jobs:
 
       - name: 下载并赋予 xiecang/speedtest-clash 执行权限
         run: |
-          TOOL_NAME="xiecang-speedtest" # 新工具的文件名
-          TOOL_URL="https://github.com/xiecang/speedtest-clash/releases/latest/download/clash-speedtest_linux_amd64" # 根据实际情况，可能需要调整为最新版本链接
+          TOOL_ARCHIVE_NAME="speedtest-clash_Linux_x86_64.tar.gz" # 完整的压缩包名称
+          TOOL_NAME="clash-speedtest" # 压缩包解压后，可执行文件的通用名称
+          # 根据您提供的Release信息，这是v0.2.4版本的完整下载链接
+          TOOL_URL="https://github.com/xiecang/speedtest-clash/releases/download/v0.2.4/$TOOL_ARCHIVE_NAME" 
 
-          echo "尝试下载并赋予 '$TOOL_NAME' 执行权限..."
-          curl -S -L --retry 5 --retry-delay 5 --connect-timeout 10 --max-time 60 --output "$TOOL_NAME" "$TOOL_URL"
+          echo "尝试下载 '$TOOL_ARCHIVE_NAME'..."
+          curl -S -L --retry 5 --retry-delay 5 --connect-timeout 10 --max-time 60 --output "$TOOL_ARCHIVE_NAME" "$TOOL_URL"
           if [ $? -ne 0 ]; then
-            echo "错误: curl 命令执行失败，无法下载 '$TOOL_NAME' 文件。"
+            echo "错误: curl 命令执行失败，无法下载 '$TOOL_ARCHIVE_NAME' 文件。"
             exit 1
           fi
-          if [ ! -f "$TOOL_NAME" ]; then
-            echo "错误: '$TOOL_NAME' 文件不存在。下载可能失败。"
+          if [ ! -f "$TOOL_ARCHIVE_NAME" ]; then
+            echo "错误: '$TOOL_ARCHIVE_NAME' 文件不存在。下载可能失败。"
             exit 1
           fi
-          if [ ! -s "$TOOL_NAME" ]; then
-            echo "错误: '$TOOL_NAME' 文件为空。下载可能失败。"
+          if [ ! -s "$TOOL_ARCHIVE_NAME" ]; then
+            echo "错误: '$TOOL_ARCHIVE_NAME' 文件为空。下载可能失败。"
             exit 1
           fi
+          echo "'$TOOL_ARCHIVE_NAME' 下载成功，大小: $(du -h "$TOOL_ARCHIVE_NAME" | awk '{print $1}')"
+
+          echo "解压 '$TOOL_ARCHIVE_NAME'..."
+          tar -xzf "$TOOL_ARCHIVE_NAME" # 解压 .tar.gz 文件
           
+          # 检查解压后的可执行文件是否存在。xiecang/speedtest-clash 解压后通常是 "clash-speedtest"
+          if [ ! -f "./$TOOL_NAME" ]; then
+            echo "错误: 解压后未找到 '$TOOL_NAME' 文件。请检查压缩包内容。"
+            # 常见情况：可执行文件在解压后的一个子目录里，例如：
+            # 如果解压后是 speedtest-clash_Linux_x86_64/clash-speedtest
+            # 则需要添加一行：mv speedtest-clash_Linux_x86_64/$TOOL_NAME ./$TOOL_NAME
+            exit 1
+          fi
+
           FILE_TYPE_INFO=$(file "./$TOOL_NAME")
           echo "'$TOOL_NAME' 文件类型信息: $FILE_TYPE_INFO"
           if ! echo "$FILE_TYPE_INFO" | grep -q "ELF 64-bit LSB executable"; then
@@ -60,13 +75,17 @@ jobs:
           echo "尝试从 $CONFIG_URL 下载完整的 Clash 配置文件..."
           curl -S -L -v --retry 5 --retry-delay 5 --connect-timeout 10 --max-time 60 --output "$OUTPUT_FILE" "$CONFIG_URL"
           if [ $? -ne 0 ]; then
-            echo "错误: curl 命令执行失败，无法下载文件。"<br>            exit 1
+            echo "错误: curl 命令执行失败，无法下载文件。"
+            exit 1
           fi
           if [ ! -f "$OUTPUT_FILE" ]; then
-            echo "错误: $OUTPUT_FILE 文件不存在。"<br>            exit 1
+            echo "错误: $OUTPUT_FILE 文件不存在。"
+            exit 1
           fi
           if [ ! -s "$OUTPUT_FILE" ]; then
-            echo "错误: $OUTPUT_FILE 文件为空。"<br>            head -n 20 "$OUTPUT_FILE" || true<br>            exit 1
+            echo "错误: $OUTPUT_FILE 文件为空。"
+            head -n 20 "$OUTPUT_FILE" || true
+            exit 1
           fi
           echo "$OUTPUT_FILE 文件下载成功，大小: $(du -h "$OUTPUT_FILE" | awk '{print $1}')"
 
@@ -77,15 +96,20 @@ jobs:
         id: check_filtered_file
         run: |
           if [ ! -s "filtered_nodes.yaml" ]; then
-            echo "警告: 'filtered_nodes.yaml' 文件为空或无有效内容。可能没有节点符合过滤条件。"<br>            echo "FILTERED_NODES_EMPTY=true" >> $GITHUB_OUTPUT <br>            head -n 20 filtered_nodes.yaml || true<br>            exit 0
+            echo "警告: 'filtered_nodes.yaml' 文件为空或无有效内容。可能没有节点符合过滤条件。"
+            echo "FILTERED_NODES_EMPTY=true" >> $GITHUB_OUTPUT 
+            head -n 20 filtered_nodes.yaml || true
+            exit 0
           fi
-          echo "filtered_nodes.yaml 文件大小: $(du -h filtered_nodes.yaml | awk '{print $1}')"<br>          echo "FILTERED_NODES_EMPTY=false" >> $GITHUB_OUTPUT
+          echo "filtered_nodes.yaml 文件大小: $(du -h filtered_nodes.yaml | awk '{print $1}')"
+          echo "FILTERED_NODES_EMPTY=false" >> $GITHUB_OUTPUT
 
       - name: 备份旧的 xiecang.yaml 配置
         if: steps.check_filtered_file.outputs.FILTERED_NODES_EMPTY == 'false'
         run: |
           if [ ! -f "xiecang.yaml" ]; then
-            echo "警告: 'xiecang.yaml' 文件不存在，跳过备份旧配置。"<br>            exit 0
+            echo "警告: 'xiecang.yaml' 文件不存在，跳过备份旧配置。"
+            exit 0
           fi
           mkdir -p sc_xiecang # 为 xiecang 脚本单独创建备份目录
           TIMESTAMP=$(date +%Y%m%d_%H%M%S)
@@ -99,7 +123,7 @@ jobs:
         run: |
           echo "开始运行所有节点的完整速度测试 (使用 xiecang/speedtest-clash)..."
           # !!! 请注意，这里的参数是 xiecang/speedtest-clash 专用的 !!!
-          ./xiecang-speedtest \
+          ./clash-speedtest \
             -c ./filtered_nodes.yaml \
             -output ./xiecang.yaml \
             -size 20971520 \   # 测试下载 20MB 数据 (20 * 1024 * 1024 字节)
@@ -110,7 +134,7 @@ jobs:
           echo "xiecang/speedtest-clash 全速测试完成，结果保存到 xiecang.yaml"
 
       - name: 验证生成的 xiecang.yaml 文件并计数节点
-        id: count_nodes_xiecang # New step ID
+        id: count_nodes_xiecang
         if: success() && steps.check_filtered_file.outputs.FILTERED_NODES_EMPTY == 'false' && steps.run_speedtest_xiecang.outcome == 'success'
         run: |
           if [ -f "xiecang.yaml" ]; then
@@ -120,13 +144,13 @@ jobs:
             echo "----------------------------------------"
             NODE_COUNT=$(grep -c 'name:' xiecang.yaml) # 仍然通过 'name:' 计数
             echo "检测到 ${NODE_COUNT} 个代理节点。"
-            echo "NODE_COUNT=${NODE_COUNT}" >> $GITHUB_OUTPUT # Export node count as output
+            echo "NODE_COUNT=${NODE_COUNT}" >> $GITHUB_OUTPUT
             if [ "${NODE_COUNT}" -eq 0 ]; then
               echo "警告: 'xiecang.yaml' 文件中没有检测到代理节点。可能所有节点都未通过速度测试后的过滤。"
             fi
           else
             echo "错误: 未生成 'xiecang.yaml'。速度测试可能失败或没有通过过滤的节点。"
-            echo "NODE_COUNT=0" >> $GITHUB_OUTPUT # Set count to 0 if file not found
+            echo "NODE_COUNT=0" >> $GITHUB_OUTPUT
             exit 1
           fi
 
