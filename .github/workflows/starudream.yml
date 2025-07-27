@@ -1,0 +1,200 @@
+name: Clash Speed Test and Sort with starudream/clash-speedtest
+
+on:
+  workflow_dispatch: # Allows manual triggering from the GitHub Actions UI
+  schedule:
+    - cron: '0 */4 * * *' # Runs every 4 hours (e.g., 00:00, 04:00, 08:00, etc. UTC). Adjust if needed.
+
+jobs:
+  speed-test:
+    runs-on: ubuntu-latest # Specifies the runner environment (Ubuntu Linux)
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4 # Checks out your repository code
+
+      # --- START: Download Clash Core (Mihomo) ---
+      - name: Download Clash Core (Mihomo)
+        id: download_clash_core
+        run: |
+          MIHOMO_VERSION="1.19.11" # Check https://github.com/MetaCubeX/mihomo/releases for latest stable version if needed
+          ARCHIVE_NAME="mihomo-linux-amd64-v${MIHOMO_VERSION}.gz"
+          MIHOMO_URL="https://github.com/MetaCubeX/mihomo/releases/download/v${MIHOMO_VERSION}/${ARCHIVE_NAME}"
+          EXECUTABLE_SOURCE_NAME="mihomo-linux-amd64-v${MIHOMO_VERSION}"
+          EXECUTABLE_NAME="mihomo"
+
+          echo "Downloading Mihomo Core ${ARCHIVE_NAME} from ${MIHOMO_URL}..."
+          curl -S -L --retry 5 --retry-delay 5 --connect-timeout 10 --max-time 60 --output "$ARCHIVE_NAME" "$MIHOMO_URL" || { echo "Mihomo download failed"; exit 1; }
+          
+          echo "Decompressing ${ARCHIVE_NAME}..."
+          gzip -d "$ARCHIVE_NAME" || { echo "Mihomo decompression failed"; exit 1; }
+          
+          if [ -f "./${EXECUTABLE_SOURCE_NAME}" ]; then
+            echo "Renaming '${EXECUTABLE_SOURCE_NAME}' to '${EXECUTABLE_NAME}'..."
+            mv "./${EXECUTABLE_SOURCE_NAME}" "./${EXECUTABLE_NAME}" || { echo "Mihomo rename failed"; exit 1; }
+          else
+            echo "Error: Original Mihomo executable '${EXECUTABLE_SOURCE_NAME}' not found after decompression."
+            exit 1
+          fi
+          
+          chmod +x "./${EXECUTABLE_NAME}" || { echo "Mihomo chmod failed"; exit 1; }
+          echo "Mihomo Core downloaded and prepared."
+
+      - name: Download Full Clash Configuration (Your Node Source)
+        run: |
+          CONFIG_URL="https://raw.githubusercontent.com/qjlxg/vt/refs/heads/main/clash_config.yaml" # Your main config/subscription URL
+          OUTPUT_FILE="clash_config.yaml"
+          echo "Downloading Clash configuration from $CONFIG_URL..."
+          curl -S -L --retry 5 --retry-delay 5 --connect-timeout 10 --max-time 60 --output "$OUTPUT_FILE" "$CONFIG_URL" || { echo "Config download failed"; exit 1; }
+          echo "$OUTPUT_FILE downloaded."
+          if [ ! -s "$OUTPUT_FILE" ]; then
+            echo "Error: Downloaded config file is empty or missing. Check the URL and content."
+            exit 1
+          fi
+          echo "Downloaded config content (first 20 lines):"
+          head -n 20 "$OUTPUT_FILE" || true # Show content for debugging
+
+      - name: Prepare Mihomo Startup Configuration
+        run: |
+          MIHOMO_SECRET="your_secret_token_here" # *** IMPORTANT: REPLACE WITH YOUR ACTUAL SECURE KEY ***
+          cat > mihomo_startup_config.yaml <<EOF
+          port: 7890
+          socks-port: 7891
+          allow-lan: false
+          mode: rule
+          log-level: info
+          external-controller: 127.0.0.1:9090
+          secret: ${MIHOMO_SECRET}
+          EOF
+
+          # Append the content of the downloaded clash_config.yaml to the startup config.
+          # This creates a single, complete configuration file for Mihomo.
+          cat clash_config.yaml >> mihomo_startup_config.yaml
+          
+          echo "mihomo_startup_config.yaml generated:"
+          cat mihomo_startup_config.yaml
+
+
+      - name: Start Clash Core (Mihomo)
+        id: start_clash_core
+        run: |
+          echo "Starting Mihomo Core in background..."
+          ./mihomo -d . -f mihomo_startup_config.yaml &
+          MIHOMO_PID=$!
+          echo "Mihomo Core started, PID: $MIHOMO_PID"
+          sleep 20 # Giving Mihomo ample time to fully initialize and load proxies
+
+          # Verify Mihomo is listening on the external controller port
+          if ! netstat -tuln | grep -q "127.0.0.1:9090"; then
+            echo "Error: Mihomo Core did not start on port 9090. Check Mihomo logs above for details."
+            kill $MIHOMO_PID || true
+            exit 1
+          fi
+          echo "Mihomo Core successfully started and listening on 9090."
+          echo "MIHOMO_PID=$MIHOMO_PID" >> $GITHUB_OUTPUT
+
+      # --- Download and Run starudream/clash-speedtest ---
+      - name: Download clash-speedtest Tool
+        id: download_speedtest_tool
+        run: |
+          SPEEDTEST_VERSION="3.0.1" # Confirmed from starudream/clash-speedtest v3.0.1 release
+          TOOL_ARCHIVE="clash-speedtest_v${SPEEDTEST_VERSION}_linux_amd64.tar.gz" # Confirmed for Linux AMD64
+          TOOL_URL="https://github.com/starudream/clash-speedtest/releases/download/v${SPEEDTEST_VERSION}/${TOOL_ARCHIVE}"
+          
+          echo "Downloading clash-speedtest tool from ${TOOL_URL}..."
+          curl -S -L --retry 5 --retry-delay 5 --connect-timeout 10 --max-time 60 --output "$TOOL_ARCHIVE" "$TOOL_URL" || { echo "clash-speedtest download failed"; exit 1; }
+          
+          echo "Extracting ${TOOL_ARCHIVE}..."
+          tar -xzf "$TOOL_ARCHIVE" || { echo "clash-speedtest extraction failed"; exit 1; }
+          
+          if [ -f "./clash-speedtest" ]; then
+            mv clash-speedtest clash-speedtest-tool # Rename to a distinct name
+            chmod +x clash-speedtest-tool || { echo "clash-speedtest chmod failed"; exit 1; }
+            echo "clash-speedtest tool downloaded and prepared."
+          else
+            echo "Error: clash-speedtest executable not found after extraction. Expected 'clash-speedtest'."
+            exit 1
+          fi
+
+      - name: Run clash-speedtest and Generate Sorted Config
+        id: run_speedtest
+        if: success() && steps.start_clash_core.outcome == 'success'
+        run: |
+          MIHOMO_SECRET="your_secret_token_here" # *** IMPORTANT: REPLACE WITH YOUR ACTUAL SECURE KEY ***
+          echo "Running clash-speedtest tool..."
+          
+          ./clash-speedtest-tool \
+            --clash-addr "http://127.0.0.1:9090" \
+            --clash-secret "${MIHOMO_SECRET}" \
+            --output "starudream_sorted.yaml" \
+            --download "cloudflare" \
+            --timeout 5s \
+            --threads 5 \
+            --size 20 \
+            --includes ".*" \
+            --excludes "无效|过期|失效|超时" # Example: Exclude common problematic keywords. Adjust as needed.
+          
+          echo "Speed test completed. Output saved to starudream_sorted.yaml"
+          
+          if [ ! -s "starudream_sorted.yaml" ]; then
+            echo "Error: starudream_sorted.yaml is empty or was not generated correctly by clash-speedtest. Check previous step logs."
+            exit 1
+          fi
+          echo "Generated starudream_sorted.yaml (first 50 lines):"
+          head -n 50 starudream_sorted.yaml || true
+
+
+      # --- Commit and Push Sorted Clash Config ---
+      - name: Validate Generated starudream_sorted.yaml and Count Nodes
+        id: count_nodes_api
+        if: success() && steps.run_speedtest.outcome == 'success'
+        run: |
+          if [ -f "starudream_sorted.yaml" ]; then
+            echo "'starudream_sorted.yaml' generated, size: $(du -h starudream_sorted.yaml | awk '{print $1}')"
+            NODE_COUNT=$(grep -c 'name:' starudream_sorted.yaml || true)
+            echo "Detected ${NODE_COUNT} proxy nodes."
+            echo "NODE_COUNT=${NODE_COUNT}" >> $GITHUB_OUTPUT
+            if [ "${NODE_COUNT}" -eq 0 ]; then
+              echo "Warning: No proxy nodes detected in 'starudream_sorted.yaml'. All nodes might have failed speed tests or filtering."
+            fi
+          else
+            echo "Error: 'starudream_sorted.yaml' was not found. Speed test likely failed."
+            echo "NODE_COUNT=0" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+      - name: Backup Old Clash Config (API)
+        if: success() && steps.count_nodes_api.outputs.NODE_COUNT > 0
+        run: |
+          mkdir -p sc_api # Creates a directory for backups
+          TIMESTAMP=$(date +%Y%m%d_%H%M%S) # Generates a timestamp for the backup file
+          echo "Backing up old starudream_sorted.yaml to sc_api/starudream_${TIMESTAMP}.yaml..."
+          cp starudream_sorted.yaml sc_api/starudream_${TIMESTAMP}.yaml # Copies the file
+          echo "Old config backup complete."
+
+      - name: Commit and Push Sorted Clash Config (API)
+        if: success() && steps.count_nodes_api.outputs.NODE_COUNT > 0
+        uses: stefanzweifel/git-auto-commit-action@v5 # Action to automatically commit changes
+        with:
+          commit_message: "Update Clash Config (starudream Speed Test): Nodes sorted by latency and speed"
+          file_pattern: "starudream_sorted.yaml sc_api/" # Specifies which files to commit (new config and backup dir)
+          branch: main # The branch to commit to
+          commit_user_name: github-actions[bot] # Commit user name
+          commit_user_email: 41898282+github-actions[bot]@users.noreply.github.com # Commit user email
+          commit_author: qjlxg <12179157+qjlxg@users.noreply.github.com> # Custom author for clarity
+          repository: . # The current repository
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Uses the default GITHUB_TOKEN for authentication
+      
+      - name: Stop Clash Core (Mihomo)
+        if: always() && steps.start_clash_core.outcome == 'success' && steps.start_clash_core.outputs.MIHOMO_PID
+        run: |
+          echo "Stopping Mihomo Core (PID: ${{ steps.start_clash_core.outputs.MIHOMO_PID }})..."
+          kill ${{ steps.start_clash_core.outputs.MIHOMO_PID }} || true
+          sleep 2 # Give it some time to shut down
+          if ps -p ${{ steps.start_clash_core.outputs.MIHOMO_PID }} > /dev/null; then
+            echo "Mihomo Core did not stop gracefully, attempting to force kill."
+            kill -9 ${{ steps.start_clash_core.outputs.MIHOMO_PID }} || true
+          else
+            echo "Mihomo Core stopped successfully."
+          fi
