@@ -27,10 +27,12 @@ jobs:
         id: download_clash_core
         run: |
           # 推荐使用 Mihomo 作为 Clash Core
-          MIHOMO_VERSION="1.19.11" # 您之前提供的版本
-          ARCHIVE_NAME="mihomo-linux-amd64-v${MIHOMO_VERSION}.gz" # Mihomo 的文件通常是 .gz 压缩
+          # 访问 https://github.com/MetaCubeX/mihomo/releases 确认最新版本
+          MIHOMO_VERSION="1.19.11" # 您可以根据需要更新到最新版本
+          ARCHIVE_NAME="mihomo-linux-amd64-v${MIHOMO_VERSION}.gz"
           MIHOMO_URL="https://github.com/MetaCubeX/mihomo/releases/download/v${MIHOMO_VERSION}/${ARCHIVE_NAME}"
-          EXECUTABLE_NAME="mihomo" # 解压后的可执行文件名称
+          EXECUTABLE_SOURCE_NAME="mihomo-linux-amd64-v${MIHOMO_VERSION}" # 解压后的原始文件名称
+          EXECUTABLE_NAME="mihomo" # 我们希望最终的可执行文件名称
 
           echo "尝试下载 Mihomo Core ${ARCHIVE_NAME}..."
           curl -S -L --retry 5 --retry-delay 5 --connect-timeout 10 --max-time 60 --output "$ARCHIVE_NAME" "$MIHOMO_URL"
@@ -49,7 +51,16 @@ jobs:
           echo "Mihomo Core 下载成功，大小: $(du -h "$ARCHIVE_NAME" | awk '{print $1}')"
 
           echo "解压 ${ARCHIVE_NAME}..."
-          gzip -d "$ARCHIVE_NAME" # 解压 .gz 文件，解压后会得到 mihomo 可执行文件
+          gzip -d "$ARCHIVE_NAME" # 解压 .gz 文件，会生成 EXECUTABLE_SOURCE_NAME
+
+          # 重命名解压后的文件
+          if [ -f "./${EXECUTABLE_SOURCE_NAME}" ]; then
+            echo "将 '${EXECUTABLE_SOURCE_NAME}' 重命名为 '${EXECUTABLE_NAME}'..."
+            mv "./${EXECUTABLE_SOURCE_NAME}" "./${EXECUTABLE_NAME}"
+          else
+            echo "错误: 解压后未找到原始可执行文件 '${EXECUTABLE_SOURCE_NAME}'。"
+            exit 1
+          fi
 
           FILE_TYPE_INFO=$(file "./${EXECUTABLE_NAME}")
           echo "${EXECUTABLE_NAME} 文件类型信息: ${FILE_TYPE_INFO}"
@@ -103,6 +114,8 @@ jobs:
           # 创建一个简化的 Clash 配置来启动 Mihomo，只包含 proxy-providers
           # 确保 external-controller 和 secret 开启
           echo "正在生成 Mihomo 启动配置..."
+          # Mihomo 会自动加载当前目录下的 proxies.yaml 或 provider 文件
+          # 我们这里使用 proxy-providers 来加载 filtered_nodes.yaml
           cat > mihomo_config.yaml <<EOF
           # 最小化配置，用于启动 Mihomo
           port: 7890
@@ -111,15 +124,23 @@ jobs:
           mode: rule
           log-level: info
           external-controller: 127.0.0.1:9090
-          secret: your_secret_token_here # 设置一个秘钥，Python脚本将使用它
+          secret: your_secret_token_here # 设置一个秘钥，Python脚本将使用它，请替换为您的实际密钥
+
+          proxy-providers:
+            filtered-proxies:
+              type: file
+              path: filtered_nodes.yaml # 引用过滤后的节点文件
+              interval: 3600 # 1小时更新一次，此处不重要，因为我们手动测速
+              health-check:
+                enable: false # 禁用健康检查，避免干扰
           
-          # 引入过滤后的节点作为 proxy-providers
-          # 注意：Mihomo的配置中，proxy-providers是独立的顶级键
-          # 为了简化，我们将直接在 proxies 下面引用这些节点
           proxies:
+            - {name: "Proxy Group", type: select, proxies: [{{ range .filtered-proxies.proxies }}{{ .name | quote }}, {{ end }}]} # 使用 proxy-providers 提供的节点
+          
+          # 规则部分（可选，此处不重要，因为主要目的是测速）
+          rules:
+            - 'MATCH,Proxy Group'
           EOF
-          # 将 filtered_nodes.yaml 的内容追加到 proxies: 下
-          sed 's/^/- /' filtered_nodes.yaml >> mihomo_config.yaml
           
           echo "mihomo_config.yaml 生成完毕:"
           cat mihomo_config.yaml
@@ -161,9 +182,9 @@ jobs:
             --timeout 5000 \
             --concurrent 10 \
             --max-latency 3000 \
-            --min-download 0.5 \
-            --min-upload 0.1 \
-            --sort download \
+            --min-download 0.0 \ # 保持为0，因为目前不支持下载测速
+            --min-upload 0.0 \   # 保持为0，因为目前不支持上传测速
+            --sort latency \     # 目前只支持延迟排序
             --rename # 告诉脚本是否重命名节点
 
       - name: 验证生成的 clash_api_sorted.yaml 文件并计数节点
@@ -183,54 +204,4 @@ jobs:
             fi
           else
             echo "错误: 未生成 'clash_api_sorted.yaml'。API 速度测试可能失败或没有通过过滤的节点。"
-            echo "NODE_COUNT=0" >> $GITHUB_OUTPUT
-            exit 1
-          fi
-      
-      - name: 备份旧的 Clash 配置 (API)
-        if: success() && steps.check_filtered_file.outputs.FILTERED_NODES_EMPTY == 'false' && steps.count_nodes_api.outputs.NODE_COUNT > 0
-        run: |
-          # 输出文件名为 clash_api_sorted.yaml
-          if [ ! -f "clash_api_sorted.yaml" ]; then
-            echo "警告: 'clash_api_sorted.yaml' 文件不存在，跳过备份旧配置。"
-            exit 0
-          fi
-          mkdir -p sc_api # 为此脚本单独创建备份目录
-          TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-          echo "正在备份旧的 clash_api_sorted.yaml 到 sc_api/clash_api_${TIMESTAMP}.yaml..."
-          cp clash_api_sorted.yaml sc_api/clash_api_${TIMESTAMP}.yaml
-          echo "旧配置备份完成。"
-
-      - name: 提交并推送排序后的 Clash 配置 (API)
-        if: success() && steps.check_filtered_file.outputs.FILTERED_NODES_EMPTY == 'false' && steps.count_nodes_api.outputs.NODE_COUNT > 0
-        uses: stefanzweifel/git-auto-commit-action@v5
-        with:
-          commit_message: "更新 Clash 配置 (API Speed Test)：节点已按速度排序并备份旧配置"
-          file_pattern: "clash_api_sorted.yaml sc_api/" # 同时提交新的配置文件和其备份
-          branch: main
-          commit_user_name: github-actions[bot]
-          commit_user_email: 41898282+github-actions[bot]@users.noreply.github.com
-          commit_author: qjlxg <12179157+qjlxg@users.noreply.github.com>
-          repository: .
-          skip_dirty_check: false
-          skip_fetch: false
-          skip_checkout: false
-          disable_globbing: false
-          create_branch: false
-          create_git_tag_only: false
-          internal_git_binary: git
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      
-      - name: 停止 Clash Core (Mihomo)
-        if: always() && steps.start_clash_core.outcome == 'success' && steps.start_clash_core.outputs.MIHOMO_PID
-        run: |
-          echo "停止 Mihomo Core (PID: ${{ steps.start_clash_core.outputs.MIHOMO_PID }})..."
-          kill ${{ steps.start_clash_core.outputs.MIHOMO_PID }} || true
-          sleep 2
-          if ps -p ${{ steps.start_clash_core.outputs.MIHOMO_PID }} > /dev/null; then
-            echo "Mihomo Core 未能正常停止，尝试强制杀死。"
-            kill -9 ${{ steps.start_clash_core.outputs.MIHOMO_PID }} || true
-          else
-            echo "Mihomo Core 已成功停止。"
-          fi
+            echo "NODE_COUNT=0"
