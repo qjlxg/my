@@ -14,11 +14,9 @@ LAST_UPDATE_FILE = os.path.join(OUTPUT_DIR, "last_update.txt") # 记录上次更
 
 # IPTV 节目源列表 (从 GitHub 原始链接下载的 M3U/M3U8 文件)
 github_m3u_urls = [
-    "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/cn.m3u", # 示例：中国频道
-    "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/us.m3u", # 示例：美国频道
     "https://raw.githubusercontent.com/qjlxg/vt/refs/heads/main/iptv_list.txt",
     "https://raw.githubusercontent.com/qjlxg/vt/refs/heads/main/list.txt"
-    # 您可以在这里添加更多有效的 IPTV 源
+ 
 ]
 
 # 用于存储下载的原始 M3U 内容的目录
