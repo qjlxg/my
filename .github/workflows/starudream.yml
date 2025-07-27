@@ -79,6 +79,8 @@ jobs:
           echo "Available proxies:"
           curl -s "http://127.0.0.1:9090/proxies" | jq '.proxies | keys'
           echo "Mihomo Core started with $PROXY_COUNT proxies."
+          echo "Mihomo logs (first 50 lines):"
+          head -n 50 mihomo.log || true
           echo "MIHOMO_PID=$MIHOMO_PID" >> $GITHUB_OUTPUT
 
       - name: Download clash-speedtest Tool
@@ -101,14 +103,15 @@ jobs:
         run: |
           MIHOMO_SECRET=""
           echo "Running clash-speedtest tool..."
-          ./clash-speedtest-tool \
+          timeout 300 ./clash-speedtest-tool \
             --clash-addr "http://127.0.0.1:9090" \
             --clash-secret "${MIHOMO_SECRET}" \
             --output "starudream_sorted.yaml" \
             --download "speedtest" \
             --threads 2 \
             --size 10 \
-            -y > speedtest.log 2>&1
+            --excludes "Hysteria2" \
+            -y 2>&1 | tee speedtest.log
           echo "Speed test completed. Logs:"
           cat speedtest.log
           if [ ! -s "starudream_sorted.yaml" ]; then
