@@ -1,0 +1,168 @@
+# 工作流名称
+name: Clash Meta Speed Test
+
+# 触发工作流的事件
+on:
+  workflow_dispatch: # 手动触发
+  schedule:
+    - cron: '0 */4 * * *' # 每4小时运行一次，可以根据需要调整
+
+jobs:
+  speed-test-meta:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出仓库
+        uses: actions/checkout@v4
+
+      - name: 设置 Python 环境
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: 安装 Python 依赖
+        run: |
+          pip install PyYAML
+
+      - name: 下载 Clash.Meta.Speedtest 工具并赋予执行权限
+        run: |
+          TOOL_NAME="clash-meta-speedtest"
+          # *** 修正下载链接：使用 v1.0.0 版本，因为它直接提供了 Linux AMD64 可执行文件 ***
+          TOOL_URL="https://github.com/MetaCubeX/Clash.Meta.Speedtest/releases/download/v1.0.0/clash-meta-speedtest-linux-amd64"
+
+          echo "尝试下载 '$TOOL_NAME'..."
+          curl -S -L --retry 5 --retry-delay 5 --connect-timeout 10 --max-time 60 --output "$TOOL_NAME" "$TOOL_URL"
+          if [ $? -ne 0 ]; then
+            echo "错误: curl 命令执行失败，无法下载 '$TOOL_NAME' 文件。"
+            exit 1
+          fi
+          if [ ! -f "$TOOL_NAME" ]; then
+            echo "错误: '$TOOL_NAME' 文件不存在。下载可能失败。"
+            exit 1
+          fi
+          if [ ! -s "$TOOL_NAME" ]; then
+            echo "错误: '$TOOL_NAME' 文件为空。下载可能失败。"
+            exit 1
+          fi
+          echo "'$TOOL_NAME' 下载成功，大小: $(du -h "$TOOL_NAME" | awk '{print $1}')"
+
+          FILE_TYPE_INFO=$(file "./$TOOL_NAME")
+          echo "'$TOOL_NAME' 文件类型信息: $FILE_TYPE_INFO"
+          if ! echo "$FILE_TYPE_INFO" | grep -q "ELF 64-bit LSB executable"; then
+              echo "错误: '$TOOL_NAME' 文件不是预期的 Linux AMD64 可执行文件。请检查文件是否损坏或上传了错误版本。"
+              exit 1
+          fi
+          chmod +x "./$TOOL_NAME"
+          echo "'$TOOL_NAME' 权限已设置并验证为可执行文件。"
+
+      - name: 下载完整的 Clash 配置
+        id: download_config
+        run: |
+          CONFIG_URL="https://raw.githubusercontent.com/qjlxg/vt/refs/heads/main/clash_config.yaml"
+          OUTPUT_FILE="clash_config.yaml"
+          echo "尝试从 $CONFIG_URL 下载完整的 Clash 配置文件..."
+          curl -S -L -v --retry 5 --retry-delay 5 --connect-timeout 10 --max-time 60 --output "$OUTPUT_FILE" "$CONFIG_URL"
+          if [ $? -ne 0 ]; then
+            echo "错误: curl 命令执行失败，无法下载文件。"
+            exit 1
+          fi
+          if [ ! -f "$OUTPUT_FILE" ]; then
+            echo "错误: $OUTPUT_FILE 文件不存在。"
+            exit 1
+          fi
+          if [ ! -s "$OUTPUT_FILE" ]; then
+            echo "错误: $OUTPUT_FILE 文件为空。"
+            head -n 20 "$OUTPUT_FILE" || true
+            exit 1
+          fi
+          echo "$OUTPUT_FILE 文件下载成功，大小: $(du -h "$OUTPUT_FILE" | awk '{print $1}')"
+
+      - name: 过滤节点 (使用 Python 脚本)
+        run: python filter_clash_nodes.py
+      
+      - name: 验证过滤后的文件
+        id: check_filtered_file
+        run: |
+          if [ ! -s "filtered_nodes.yaml" ]; then
+            echo "警告: 'filtered_nodes.yaml' 文件为空或无有效内容。可能没有节点符合过滤条件。"
+            echo "FILTERED_NODES_EMPTY=true" >> $GITHUB_OUTPUT 
+            head -n 20 filtered_nodes.yaml || true
+            exit 0
+          fi
+          echo "filtered_nodes.yaml 文件大小: $(du -h filtered_nodes.yaml | awk '{print $1}')"
+          echo "FILTERED_NODES_EMPTY=false" >> $GITHUB_OUTPUT
+
+      - name: 备份旧的 Clash 配置 (Meta Speedtest)
+        if: steps.check_filtered_file.outputs.FILTERED_NODES_EMPTY == 'false'
+        run: |
+          if [ ! -f "clash_meta_sorted.yaml" ]; then
+            echo "警告: 'clash_meta_sorted.yaml' 文件不存在，跳过备份旧配置。"
+            exit 0
+          fi
+          mkdir -p sc_meta # 为 Clash.Meta.Speedtest 脚本单独创建备份目录
+          TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+          echo "正在备份旧的 clash_meta_sorted.yaml 到 sc_meta/clash_meta_${TIMESTAMP}.yaml..."
+          cp clash_meta_sorted.yaml sc_meta/clash_meta_${TIMESTAMP}.yaml
+          echo "旧配置备份完成。"
+
+      - name: 运行 Clash.Meta.Speedtest 速度测试
+        id: run_speedtest_meta
+        if: success() && steps.check_filtered_file.outputs.FILTERED_NODES_EMPTY == 'false'
+        run: |
+          echo "开始运行所有节点的完整速度测试 (使用 Clash.Meta.Speedtest)..."
+          # !!! Clash.Meta.Speedtest 的参数与之前的工具不同 !!!
+          ./clash-meta-speedtest \
+            -t 10 \ # 测试线程数 (并发数)，可根据服务器性能调整
+            -n 20 \ # 每个节点测速数据包数量
+            -s 15 \ # 每个数据包大小 (MB)，例如 15MB
+            -timeout 3000 \ # 延迟测试超时 (毫秒)
+            -d 5 \ # 下载测速时长 (秒)
+            -u 5 \ # 上传测速时长 (秒)
+            -sort dwn \ # 按照下载速度排序 (dwn: download, up: upload, lat: latency)
+            -l 2000 \ # 过滤延迟大于 2000ms 的节点
+            -min-d 5 \ # 过滤下载速度低于 5 MB/s 的节点 (兆字节/秒)
+            -m filtered_nodes.yaml \ # 输入文件
+            -o clash_meta_sorted.yaml # 输出文件
+           
+          echo "Clash.Meta.Speedtest 全速测试完成，结果保存到 clash_meta_sorted.yaml"
+
+      - name: 验证生成的 clash_meta_sorted.yaml 文件并计数节点
+        id: count_nodes_meta
+        if: success() && steps.check_filtered_file.outputs.FILTERED_NODES_EMPTY == 'false' && steps.run_speedtest_meta.outcome == 'success'
+        run: |
+          if [ -f "clash_meta_sorted.yaml" ]; then
+            echo "'clash_meta_sorted.yaml' 文件已生成，大小: $(du -h clash_meta_sorted.yaml | awk '{print $1}')"
+            echo "--- clash_meta_sorted.yaml 文件内容 (前50行) ---"
+            head -n 50 clash_meta_sorted.yaml || true
+            echo "----------------------------------------"
+            NODE_COUNT=$(grep -c 'name:' clash_meta_sorted.yaml) # 仍然通过 'name:' 计数
+            echo "检测到 ${NODE_COUNT} 个代理节点。"
+            echo "NODE_COUNT=${NODE_COUNT}" >> $GITHUB_OUTPUT
+            if [ "${NODE_COUNT}" -eq 0 ]; then
+              echo "警告: 'clash_meta_sorted.yaml' 文件中没有检测到代理节点。可能所有节点都未通过速度测试后的过滤。"
+            fi
+          else
+            echo "错误: 未生成 'clash_meta_sorted.yaml'。速度测试可能失败或没有通过过滤的节点。"
+            echo "NODE_COUNT=0" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+      - name: 提交并推送排序后的 Clash Meta 配置
+        if: success() && steps.check_filtered_file.outputs.FILTERED_NODES_EMPTY == 'false' && steps.count_nodes_meta.outputs.NODE_COUNT > 0
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "更新 Clash 配置 (Meta Speedtest)：节点已按速度排序并备份旧配置"
+          file_pattern: "clash_meta_sorted.yaml sc_meta/" # 同时提交新的配置文件和其备份
+          branch: main
+          commit_user_name: github-actions[bot]
+          commit_user_email: 41898282+github-actions[bot]@users.noreply.github.com
+          commit_author: qjlxg <12179157+qjlxg@users.noreply.github.com>
+          repository: .
+          skip_dirty_check: false
+          skip_fetch: false
+          skip_checkout: false
+          disable_globbing: false
+          create_branch: false
+          create_git_tag_only: false
+          internal_git_binary: git
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
