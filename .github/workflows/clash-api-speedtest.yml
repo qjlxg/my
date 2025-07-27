@@ -5,7 +5,7 @@ name: Clash API Speed Test and Sort
 on:
   workflow_dispatch: # Allows manual triggering from the GitHub Actions UI
   schedule:
-    - cron: '0 */4 * * *' # Runs every 04:00 and 08:00 (UTC), etc. Adjust this to your needs.
+    - cron: '0 */4 * * *' # Runs every 4 hours (e.g., 00:00, 04:00, 08:00, etc. UTC). Adjust if needed.
 
 jobs:
   api-speed-test:
@@ -22,8 +22,7 @@ jobs:
 
       - name: Install Python Dependencies
         run: |
-         
-          pip install PyYAML requests aiohttp # 安装必要的 Python 库，包括 aiohttp
+          pip install PyYAML requests aiohttp # Installs necessary Python libraries, including aiohttp
 
       - name: Download Clash Core (Mihomo)
         id: download_clash_core # Assigns an ID for referencing outputs
@@ -138,8 +137,9 @@ jobs:
               health-check:
                 enable: false # Disable health checks to prevent interference during speedtest
           
-          # 移除了 'proxies' 和 'rules' 部分，因为 Mihomo 会通过 proxy-providers 加载代理
-          # 并且我们的 Python 脚本会直接通过 Mihomo API 获取代理列表进行测速
+          # We've removed the 'proxies' and 'rules' sections that previously used Go template syntax.
+          # Mihomo will load proxies from 'filtered_nodes.yaml' via the 'proxy-providers' section.
+          # The Python speed test script will then query Mihomo for the loaded proxies via its API.
           EOF
           
           echo "mihomo_config.yaml generated:"
@@ -175,6 +175,7 @@ jobs:
         run: |
           echo "Starting Python script for API speed test and sorting..."
           # Pass Clash API parameters to the Python script
+          # Removed inline comments to prevent Bash argument parsing errors.
           python clash_api_speedtest.py \
             --clash-url "http://127.0.0.1:9090" \
             --clash-secret "your_secret_token_here" \
@@ -183,10 +184,10 @@ jobs:
             --timeout 5000 \
             --concurrent 10 \
             --max-latency 3000 \
-            --min-download 0.0 \ # Current script version does not support actual download/upload speed tests.
-            --min-upload 0.0 \   # These parameters are placeholders and will not filter based on speed.
-            --sort latency \     # Sorting is primarily by latency.
-            --rename # Adds speed info to node names
+            --min-download 0.0 \
+            --min-upload 0.0 \
+            --sort latency \
+            --rename
 
       - name: Validate Generated clash_api_sorted.yaml and Count Nodes
         id: count_nodes_api
