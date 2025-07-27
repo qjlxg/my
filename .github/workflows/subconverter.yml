@@ -1,4 +1,4 @@
-name: Automated Proxy Management (with SubConv & Mihomo)
+name: Automated Proxy Management (with nekoray/subconverter & Mihomo)
 
 on:
   workflow_dispatch: # 允许手动触发
@@ -26,31 +26,32 @@ jobs:
       - name: Create data directory
         run: mkdir -p data
 
-      - name: Download SubConv v2.1.3 Binary
+      - name: Download nekoray/subconverter Binary
+        # 从 nekoray/subconverter 的 Release 页面下载最新版本
+        # 访问 https://github.com/nekoray/subconverter/releases 确认版本号
         run: |
-          SUB_CONV_VERSION="v2.1.3"
-          curl -L "https://github.com/SubConv/SubConv/releases/download/${SUB_CONV_VERSION}/subconv-ubuntu-latest-x64.zip" -o subconv.zip
-          unzip subconv.zip
-          # *** 关键修改：将 'subconv' 替换为 'api' ***
-          chmod +x api # 授予执行权限给 'api' 文件
+          SUB_CONVERTER_VERSION="v0.7.1" # 请务必检查 nekoray/subconverter 的最新版本号
+          curl -L "https://github.com/nekoray/subconverter/releases/download/${SUB_CONVERTER_VERSION}/subconverter-linux64.tar.gz" -o subconverter.tar.gz
+          tar -xzf subconverter.tar.gz
+          chmod +x subconverter # 授予执行权限给 'subconverter' 文件
 
       - name: Download Mihomo (Clash Meta) Core for Speed Testing
+        # 访问 https://github.com/MetaCubeX/mihomo/releases 获取最新版本
         run: |
-          # 请务必检查 mihomo Release 页面获取最新版本号
-          MIHOMO_VERSION="v1.18.2" 
+          MIHOMO_VERSION="v1.18.2" # 请务必检查 mihomo Release 页面获取最新版本号
           curl -L "https://github.com/MetaCubeX/mihomo/releases/download/${MIHOMO_VERSION}/mihomo-linux-amd64-${MIHOMO_VERSION}.gz" -o mihomo.gz
           gzip -d mihomo.gz
           chmod +x mihomo # 授予执行权限
 
-      - name: Convert and Deduplicate with SubConv
-        # *** 关键修改：将 './subconv' 替换为 './api' ***
+      - name: Convert and Deduplicate with nekoray/subconverter
+        # 使用 nekoray/subconverter 命令行进行转换和去重
+        # target=clash: 输出为 Clash 格式
+        # url=: 多个订阅链接用 | 符号分隔
+        # scv=true: 跳过证书验证 (部分订阅需要)
+        # dedup=true: 启用去重 (如果有此参数，可确保去重)
         run: |
-          ./api convert \
-            -u "https://raw.githubusercontent.com/qjlxg/vt/refs/heads/main/clash.yaml" \
-            -u "https://raw.githubusercontent.com/qjlxg/my/refs/heads/main/sc/OP404OP.yaml" \
-            -o clash \
-            --dedup \
-            --output converted_clash.yaml
+          ./subconverter -g "https://sub.example.com/sub?target=clash&url=https://raw.githubusercontent.com/qjlxg/vt/refs/heads/main/clash.yaml|https://raw.githubusercontent.com/qjlxg/my/refs/heads/main/sc/OP404OP.yaml&scv=true&dedup=true" > converted_clash.yaml
+          # 注意：subconverter 通常不需要指定 output 文件名，直接重定向输出即可
 
       - name: Perform Speed Test with Mihomo Core
         run: |
