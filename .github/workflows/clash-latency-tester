@@ -1,5 +1,5 @@
 # 工作流名称
-name: Clash Meta Speed Test
+name: Clash Latency Tester
 
 # 触发工作流的事件
 on:
@@ -8,7 +8,7 @@ on:
     - cron: '0 */4 * * *' # 每4小时运行一次，可以根据需要调整
 
 jobs:
-  speed-test-meta:
+  speed-test-latency:
     runs-on: ubuntu-latest
     steps:
       - name: 检出仓库
@@ -23,11 +23,13 @@ jobs:
         run: |
           pip install PyYAML
 
-      - name: 下载 Clash.Meta.Speedtest 工具并赋予执行权限
+      - name: 下载 clash-latency-tester 工具并赋予执行权限
         run: |
-          TOOL_NAME="clash-meta-speedtest"
-          # *** 修正下载链接：使用 v1.0.0 版本，因为它直接提供了 Linux AMD64 可执行文件 ***
-          TOOL_URL="https://github.com/MetaCubeX/Clash.Meta.Speedtest/releases/download/v1.0.0/clash-meta-speedtest-linux-amd64"
+          TOOL_NAME="clash-latency-tester"
+          # 从 TheNewPublic/clash-latency-tester 的 GitHub Release 下载 Linux AMD64 版本
+          # 这里使用 v1.0.0 作为示例。请访问其Release页面查看最新版本并更新此URL，例如v1.0.1
+          # Release页面: https://github.com/TheNewPublic/clash-latency-tester/releases
+          TOOL_URL="https://github.com/TheNewPublic/clash-latency-tester/releases/download/v1.0.0/clash-latency-tester_Linux_x86_64"
 
           echo "尝试下载 '$TOOL_NAME'..."
           curl -S -L --retry 5 --retry-delay 5 --connect-timeout 10 --max-time 60 --output "$TOOL_NAME" "$TOOL_URL"
@@ -91,67 +93,70 @@ jobs:
           echo "filtered_nodes.yaml 文件大小: $(du -h filtered_nodes.yaml | awk '{print $1}')"
           echo "FILTERED_NODES_EMPTY=false" >> $GITHUB_OUTPUT
 
-      - name: 备份旧的 Clash 配置 (Meta Speedtest)
+      - name: 备份旧的 Clash 配置 (Latency Tester)
         if: steps.check_filtered_file.outputs.FILTERED_NODES_EMPTY == 'false'
         run: |
-          if [ ! -f "clash_meta_sorted.yaml" ]; then
-            echo "警告: 'clash_meta_sorted.yaml' 文件不存在，跳过备份旧配置。"
+          # 输出文件名为 clash_latency_sorted.yaml
+          if [ ! -f "clash_latency_sorted.yaml" ]; then
+            echo "警告: 'clash_latency_sorted.yaml' 文件不存在，跳过备份旧配置。"
             exit 0
           fi
-          mkdir -p sc_meta # 为 Clash.Meta.Speedtest 脚本单独创建备份目录
+          mkdir -p sc_latency # 为 Latency Tester 脚本单独创建备份目录
           TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-          echo "正在备份旧的 clash_meta_sorted.yaml 到 sc_meta/clash_meta_${TIMESTAMP}.yaml..."
-          cp clash_meta_sorted.yaml sc_meta/clash_meta_${TIMESTAMP}.yaml
+          echo "正在备份旧的 clash_latency_sorted.yaml 到 sc_latency/clash_latency_${TIMESTAMP}.yaml..."
+          cp clash_latency_sorted.yaml sc_latency/clash_latency_${TIMESTAMP}.yaml
           echo "旧配置备份完成。"
 
-      - name: 运行 Clash.Meta.Speedtest 速度测试
-        id: run_speedtest_meta
+      - name: 运行 clash-latency-tester 速度测试
+        id: run_speedtest_latency
         if: success() && steps.check_filtered_file.outputs.FILTERED_NODES_EMPTY == 'false'
         run: |
-          echo "开始运行所有节点的完整速度测试 (使用 Clash.Meta.Speedtest)..."
-          # !!! Clash.Meta.Speedtest 的参数与之前的工具不同 !!!
-          ./clash-meta-speedtest \
-            -t 10 \ # 测试线程数 (并发数)，可根据服务器性能调整
-            -n 20 \ # 每个节点测速数据包数量
-            -s 15 \ # 每个数据包大小 (MB)，例如 15MB
-            -timeout 3000 \ # 延迟测试超时 (毫秒)
-            -d 5 \ # 下载测速时长 (秒)
-            -u 5 \ # 上传测速时长 (秒)
-            -sort dwn \ # 按照下载速度排序 (dwn: download, up: upload, lat: latency)
-            -l 2000 \ # 过滤延迟大于 2000ms 的节点
-            -min-d 5 \ # 过滤下载速度低于 5 MB/s 的节点 (兆字节/秒)
-            -m filtered_nodes.yaml \ # 输入文件
-            -o clash_meta_sorted.yaml # 输出文件
+          echo "开始运行所有节点的延迟和速度测试 (使用 clash-latency-tester)..."
+          # !!! clash-latency-tester 的参数与之前的工具不同 !!!
+          ./clash-latency-tester \
+            --input ./filtered_nodes.yaml \
+            --output ./clash_latency_sorted.yaml \
+            --timeout 5 \           # 延迟测试超时 (秒)
+            --concurrency 10 \      # 并发测试数量
+            --test-url "http://www.google.com/generate_204" \ # 用于延迟测试的URL
+            --test-download-url "http://speedtest.tele2.net/100MB.zip" \ # 用于下载速度测试的URL，使用100MB文件
+            --test-upload-url "https://speed.cloudflare.com/__up?bytes=10000000" \ # 用于上传速度测试的URL，上传10MB
+            --ping-count 3 \        # 每个节点 ping 次数
+            --max-latency 1000 \    # 过滤延迟高于 1000ms 的节点
+            --min-download 5 \      # 过滤下载速度低于 5 MB/s 的节点 (兆字节/秒)
+            --min-upload 1 \        # 过滤上传速度低于 1 MB/s 的节点 (兆字节/秒)
+            --sort latency \        # 按照延迟排序 (latency, download, upload)
+            --rename                # 重命名节点
            
-          echo "Clash.Meta.Speedtest 全速测试完成，结果保存到 clash_meta_sorted.yaml"
+          echo "clash-latency-tester 延迟和速度测试完成，结果保存到 clash_latency_sorted.yaml"
 
-      - name: 验证生成的 clash_meta_sorted.yaml 文件并计数节点
-        id: count_nodes_meta
-        if: success() && steps.check_filtered_file.outputs.FILTERED_NODES_EMPTY == 'false' && steps.run_speedtest_meta.outcome == 'success'
+      - name: 验证生成的 clash_latency_sorted.yaml 文件并计数节点
+        id: count_nodes_latency
+        if: success() && steps.check_filtered_file.outputs.FILTERED_NODES_EMPTY == 'false' && steps.run_speedtest_latency.outcome == 'success'
         run: |
-          if [ -f "clash_meta_sorted.yaml" ]; then
-            echo "'clash_meta_sorted.yaml' 文件已生成，大小: $(du -h clash_meta_sorted.yaml | awk '{print $1}')"
-            echo "--- clash_meta_sorted.yaml 文件内容 (前50行) ---"
-            head -n 50 clash_meta_sorted.yaml || true
+          if [ -f "clash_latency_sorted.yaml" ]; then
+            echo "'clash_latency_sorted.yaml' 文件已生成，大小: $(du -h clash_latency_sorted.yaml | awk '{print $1}')"
+            echo "--- clash_latency_sorted.yaml 文件内容 (前50行) ---"
+            head -n 50 clash_latency_sorted.yaml || true
             echo "----------------------------------------"
-            NODE_COUNT=$(grep -c 'name:' clash_meta_sorted.yaml) # 仍然通过 'name:' 计数
+            NODE_COUNT=$(grep -c 'name:' clash_latency_sorted.yaml) # 仍然通过 'name:' 计数
             echo "检测到 ${NODE_COUNT} 个代理节点。"
             echo "NODE_COUNT=${NODE_COUNT}" >> $GITHUB_OUTPUT
             if [ "${NODE_COUNT}" -eq 0 ]; then
-              echo "警告: 'clash_meta_sorted.yaml' 文件中没有检测到代理节点。可能所有节点都未通过速度测试后的过滤。"
+              echo "警告: 'clash_latency_sorted.yaml' 文件中没有检测到代理节点。可能所有节点都未通过速度测试后的过滤。"
             fi
           else
-            echo "错误: 未生成 'clash_meta_sorted.yaml'。速度测试可能失败或没有通过过滤的节点。"
+            echo "错误: 未生成 'clash_latency_sorted.yaml'。速度测试可能失败或没有通过过滤的节点。"
             echo "NODE_COUNT=0" >> $GITHUB_OUTPUT
             exit 1
           fi
 
-      - name: 提交并推送排序后的 Clash Meta 配置
-        if: success() && steps.check_filtered_file.outputs.FILTERED_NODES_EMPTY == 'false' && steps.count_nodes_meta.outputs.NODE_COUNT > 0
+      - name: 提交并推送排序后的 Clash 配置 (Latency Tester)
+        if: success() && steps.check_filtered_file.outputs.FILTERED_NODES_EMPTY == 'false' && steps.count_nodes_latency.outputs.NODE_COUNT > 0
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "更新 Clash 配置 (Meta Speedtest)：节点已按速度排序并备份旧配置"
-          file_pattern: "clash_meta_sorted.yaml sc_meta/" # 同时提交新的配置文件和其备份
+          commit_message: "更新 Clash 配置 (Latency Tester)：节点已按速度排序并备份旧配置"
+          file_pattern: "clash_latency_sorted.yaml sc_latency/" # 同时提交新的配置文件和其备份
           branch: main
           commit_user_name: github-actions[bot]
           commit_user_email: 41898282+github-actions[bot]@users.noreply.github.com
