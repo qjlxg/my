@@ -1,23 +1,23 @@
 name: Clash Speed Test and Sort with starudream/clash-speedtest
 
 on:
-  workflow_dispatch: # Allows manual triggering from the GitHub Actions UI
+  workflow_dispatch: # 允许手动从 GitHub Actions UI 触发
   schedule:
-    - cron: '0 */4 * * *' # Runs every 4 hours (e.g., 00:00, 04:00, 08:00, etc. UTC). Adjust if needed.
+    - cron: '0 */4 * * *' # 每 4 小时运行一次 (例如 UTC 时间 00:00, 04:00, 08:00 等)。可根据需要调整。
 
 jobs:
   speed-test:
-    runs-on: ubuntu-latest # Specifies the runner environment (Ubuntu Linux)
+    runs-on: ubuntu-latest # 指定运行环境为 Ubuntu Linux
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4 # Checks out your repository code
+        uses: actions/checkout@v4 # 检出你的代码仓库
 
-      # --- START: Download Clash Core (Mihomo) ---
+      # --- START: 下载 Clash Core (Mihomo) ---
       - name: Download Clash Core (Mihomo)
         id: download_clash_core
         run: |
-          MIHOMO_VERSION="1.19.11" # Check https://github.com/MetaCubeX/mihomo/releases for latest stable version if needed
+          MIHOMO_VERSION="1.19.11" # 检查 https://github.com/MetaCubeX/mihomo/releases 获取最新稳定版本 (如果需要)
           ARCHIVE_NAME="mihomo-linux-amd64-v${MIHOMO_VERSION}.gz"
           MIHOMO_URL="https://github.com/MetaCubeX/mihomo/releases/download/v${MIHOMO_VERSION}/${ARCHIVE_NAME}"
           EXECUTABLE_SOURCE_NAME="mihomo-linux-amd64-v${MIHOMO_VERSION}"
@@ -42,7 +42,7 @@ jobs:
 
       - name: Download Full Clash Configuration (Your Node Source)
         run: |
-          CONFIG_URL="https://raw.githubusercontent.com/qjlxg/vt/refs/heads/main/clash_config.yaml" # Your main config/subscription URL
+          CONFIG_URL="https://raw.githubusercontent.com/qjlxg/vt/refs/heads/main/clash_config.yaml" # 你的主配置/订阅 URL
           OUTPUT_FILE="clash_config.yaml"
           echo "Downloading Clash configuration from $CONFIG_URL..."
           curl -S -L --retry 5 --retry-delay 5 --connect-timeout 10 --max-time 60 --output "$OUTPUT_FILE" "$CONFIG_URL" || { echo "Config download failed"; exit 1; }
@@ -52,11 +52,13 @@ jobs:
             exit 1
           fi
           echo "Downloaded config content (first 20 lines):"
-          head -n 20 "$OUTPUT_FILE" || true # Show content for debugging
+          head -n 20 "$OUTPUT_FILE" || true # 显示前 20 行内容用于调试
 
       - name: Prepare Mihomo Startup Configuration
         run: |
-          MIHOMO_SECRET="your_secret_token_here" # *** IMPORTANT: REPLACE WITH YOUR ACTUAL SECURE KEY ***
+          # 暂时使用空密钥。后续运行正常后，强烈建议设置一个强密钥并使用 GitHub Secrets。
+          MIHOMO_SECRET="" # 留空表示无认证，或者如果你知道默认值可以填入，例如 "0"
+          
           cat > mihomo_startup_config.yaml <<EOF
           port: 7890
           socks-port: 7891
@@ -64,12 +66,16 @@ jobs:
           mode: rule
           log-level: info
           external-controller: 127.0.0.1:9090
-          secret: ${MIHOMO_SECRET}
+          secret: ${MIHOMO_SECRET} # 使用空密钥
+          
+          proxy-providers:
+            my-nodes:
+              type: file
+              path: clash_config.yaml
+              interval: 300
+              health-check:
+                enable: false
           EOF
-
-          # Append the content of the downloaded clash_config.yaml to the startup config.
-          # This creates a single, complete configuration file for Mihomo.
-          cat clash_config.yaml >> mihomo_startup_config.yaml
           
           echo "mihomo_startup_config.yaml generated:"
           cat mihomo_startup_config.yaml
@@ -82,9 +88,8 @@ jobs:
           ./mihomo -d . -f mihomo_startup_config.yaml &
           MIHOMO_PID=$!
           echo "Mihomo Core started, PID: $MIHOMO_PID"
-          sleep 20 # Giving Mihomo ample time to fully initialize and load proxies
+          sleep 20 # 给 Mihomo 充足的时间来完全初始化并加载代理
 
-          # Verify Mihomo is listening on the external controller port
           if ! netstat -tuln | grep -q "127.0.0.1:9090"; then
             echo "Error: Mihomo Core did not start on port 9090. Check Mihomo logs above for details."
             kill $MIHOMO_PID || true
@@ -93,12 +98,12 @@ jobs:
           echo "Mihomo Core successfully started and listening on 9090."
           echo "MIHOMO_PID=$MIHOMO_PID" >> $GITHUB_OUTPUT
 
-      # --- Download and Run starudream/clash-speedtest ---
+      # --- 下载并运行 starudream/clash-speedtest ---
       - name: Download clash-speedtest Tool
         id: download_speedtest_tool
         run: |
-          SPEEDTEST_VERSION="3.0.1" # Confirmed from starudream/clash-speedtest v3.0.1 release
-          TOOL_ARCHIVE="clash-speedtest_v${SPEEDTEST_VERSION}_linux_amd64.tar.gz" # Confirmed for Linux AMD64
+          SPEEDTEST_VERSION="3.0.1"
+          TOOL_ARCHIVE="clash-speedtest_v${SPEEDTEST_VERSION}_linux_amd64.tar.gz"
           TOOL_URL="https://github.com/starudream/clash-speedtest/releases/download/v${SPEEDTEST_VERSION}/${TOOL_ARCHIVE}"
           
           echo "Downloading clash-speedtest tool from ${TOOL_URL}..."
@@ -108,7 +113,7 @@ jobs:
           tar -xzf "$TOOL_ARCHIVE" || { echo "clash-speedtest extraction failed"; exit 1; }
           
           if [ -f "./clash-speedtest" ]; then
-            mv clash-speedtest clash-speedtest-tool # Rename to a distinct name
+            mv clash-speedtest clash-speedtest-tool
             chmod +x clash-speedtest-tool || { echo "clash-speedtest chmod failed"; exit 1; }
             echo "clash-speedtest tool downloaded and prepared."
           else
@@ -120,7 +125,8 @@ jobs:
         id: run_speedtest
         if: success() && steps.start_clash_core.outcome == 'success'
         run: |
-          MIHOMO_SECRET="your_secret_token_here" # *** IMPORTANT: REPLACE WITH YOUR ACTUAL SECURE KEY ***
+          # 暂时使用空密钥。后续运行正常后，强烈建议设置一个强密钥并使用 GitHub Secrets。
+          MIHOMO_SECRET="" # 留空表示无认证，或者如果你知道默认值可以填入，例如 "0"
           echo "Running clash-speedtest tool..."
           
           ./clash-speedtest-tool \
@@ -132,7 +138,7 @@ jobs:
             --threads 5 \
             --size 20 \
             --includes ".*" \
-            --excludes "无效|过期|失效|超时" # Example: Exclude common problematic keywords. Adjust as needed.
+            --excludes "无效|过期|失效|超时"
           
           echo "Speed test completed. Output saved to starudream_sorted.yaml"
           
@@ -144,7 +150,7 @@ jobs:
           head -n 50 starudream_sorted.yaml || true
 
 
-      # --- Commit and Push Sorted Clash Config ---
+      # --- 提交并推送排序后的 Clash 配置 ---
       - name: Validate Generated starudream_sorted.yaml and Count Nodes
         id: count_nodes_api
         if: success() && steps.run_speedtest.outcome == 'success'
@@ -166,32 +172,32 @@ jobs:
       - name: Backup Old Clash Config (API)
         if: success() && steps.count_nodes_api.outputs.NODE_COUNT > 0
         run: |
-          mkdir -p sc_api # Creates a directory for backups
-          TIMESTAMP=$(date +%Y%m%d_%H%M%S) # Generates a timestamp for the backup file
+          mkdir -p sc_api
+          TIMESTAMP=$(date +%Y%m%d_%H%M%S)
           echo "Backing up old starudream_sorted.yaml to sc_api/starudream_${TIMESTAMP}.yaml..."
-          cp starudream_sorted.yaml sc_api/starudream_${TIMESTAMP}.yaml # Copies the file
+          cp starudream_sorted.yaml sc_api/starudream_${TIMESTAMP}.yaml
           echo "Old config backup complete."
 
       - name: Commit and Push Sorted Clash Config (API)
         if: success() && steps.count_nodes_api.outputs.NODE_COUNT > 0
-        uses: stefanzweifel/git-auto-commit-action@v5 # Action to automatically commit changes
+        uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "Update Clash Config (starudream Speed Test): Nodes sorted by latency and speed"
-          file_pattern: "starudream_sorted.yaml sc_api/" # Specifies which files to commit (new config and backup dir)
-          branch: main # The branch to commit to
-          commit_user_name: github-actions[bot] # Commit user name
-          commit_user_email: 41898282+github-actions[bot]@users.noreply.github.com # Commit user email
-          commit_author: qjlxg <12179157+qjlxg@users.noreply.github.com> # Custom author for clarity
-          repository: . # The current repository
+          file_pattern: "starudream_sorted.yaml sc_api/"
+          branch: main
+          commit_user_name: github-actions[bot]
+          commit_user_email: 41898282+github-actions[bot]@users.noreply.github.com
+          commit_author: qjlxg <12179157+qjlxg@users.noreply.github.com>
+          repository: .
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Uses the default GITHUB_TOKEN for authentication
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       
       - name: Stop Clash Core (Mihomo)
         if: always() && steps.start_clash_core.outcome == 'success' && steps.start_clash_core.outputs.MIHOMO_PID
         run: |
           echo "Stopping Mihomo Core (PID: ${{ steps.start_clash_core.outputs.MIHOMO_PID }})..."
           kill ${{ steps.start_clash_core.outputs.MIHOMO_PID }} || true
-          sleep 2 # Give it some time to shut down
+          sleep 2
           if ps -p ${{ steps.start_clash_core.outputs.MIHOMO_PID }} > /dev/null; then
             echo "Mihomo Core did not stop gracefully, attempting to force kill."
             kill -9 ${{ steps.start_clash_core.outputs.MIHOMO_PID }} || true
