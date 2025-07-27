@@ -50,7 +50,7 @@ jobs:
         run: |
           if [ ! -s "filtered_nodes.yaml" ]; then
             echo "警告: 'filtered_nodes.yaml' 文件为空或无有效内容。可能没有节点符合过滤条件。"
-            echo "FILTERED_NODES_EMPTY=true" >> $GITHUB_OUTPUT
+            echo "FILTERED_NODES_EMPTY=true" >> $GITHUB_OUTPUT 
             head -n 20 filtered_nodes.yaml || true
             exit 0
           fi
@@ -95,7 +95,7 @@ jobs:
         run: |
           mkdir -p sc
           echo "开始使用 OP404OP/clash-speedtest 运行高级速度和解锁测试..."
-          # !!! 关键修改：将 -min-download-speed 改为 -min-speed !!!
+          # !!! 关键修改：移除 -min-upload-speed 参数 !!!
           ./clash-speedtest-op404op \
             -c ./filtered_nodes.yaml \
             -output sc/OP404OP.yaml \
@@ -104,8 +104,7 @@ jobs:
             -timeout 38s \
             -concurrent 50 \
             -max-latency 5000ms \
-            -min-speed 1 \  # <-- 这里已修改
-            -min-upload-speed 0 \
+            -min-speed 1 \
             -unlock \
             -risk \
             -rename
