@@ -1,52 +1,73 @@
 import os
 import requests
+from urllib.parse import urlparse
 import re
-import subprocess
-import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime, timedelta
+import pytz # 用于处理时区，确保定时任务时间准确
 
-# --- 配置参数 ---
-# 存放临时下载的原始M3U文件的目录。所有临时文件都放到 'sc' 目录下，避免路径问题。
-DOWNLOAD_DIR = "sc/temp_iptv_sources" 
-# 合并后的M3U文件路径，也放到 'sc' 目录下。
-MERGED_M3U_FILE = "sc/temp_merged_iptv.m3u"
-# 最终输出的有效IPTV节目源文件
-FINAL_OUTPUT_FILE = "sc/iptv_list.txt"
-# ffprobe 测试流的超时时间 (秒) - 根据网络和服务器性能调整，避免长时间等待
-# 默认值设置为 8 秒，这是尝试连接和探测流的最大时间。
-FFPROBE_TIMEOUT = 8 
-# 最大并发测试流的数量，根据您的网络和CPU资源调整。GitHub Actions 虚拟机通常有足够的核心。
-MAX_WORKERS = 15 # 稍微增加并发数，利用GitHub Actions的资源
+# --- 配置 ---
+# GitHub 仓库信息 (替换为你的仓库信息)
+GITHUB_REPO_OWNER = "你的GitHub用户名" # 例如: "你的GitHub用户名"
+GITHUB_REPO_NAME = "你的仓库名称"   # 例如: "IPTV_Auto_Update"
+GITHUB_BRANCH = "main"             # 你的主分支名称，通常是 'main' 或 'master'
+
+# 输出文件路径
+OUTPUT_DIR = "output"
+FINAL_M3U_FILE = os.path.join(OUTPUT_DIR, "merged_live.m3u")
+TESTED_M3U_FILE = os.path.join(OUTPUT_DIR, "tested_live.m3u")
+LAST_UPDATE_FILE = os.path.join(OUTPUT_DIR, "last_update.txt") # 记录上次更新时间的文件
+
+# IPTV 节目源列表 (从 GitHub 原始链接下载的 M3U/M3U8 文件)
+github_m3u_urls = [
+    "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/cn.m3u", # 示例：中国频道
+    "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/us.m3u", # 示例：美国频道
+    # 加入新的来源
+    "https://raw.githubusercontent.com/qjlxg/vt/refs/heads/main/iptv_list.txt",
+    "https://raw.githubusercontent.com/qjlxg/vt/refs/heads/main/list.txt"
+    # 暂时移除 fanmingming/live，因为它目前显示 404，您可以自行查找并替换为有效的链接
+    # "https://raw.githubusercontent.com/fanmingming/live/main/live.m3u"
+    # 更多示例：
+    # "https://raw.githubusercontent.com/Blackeaglez/IPTV/main/All.m3u",
+    # "https://raw.githubusercontent.com/free-iptv/free-iptv-live/master/channels.m3u"
+    # 建议您定期检查这些URL是否仍然有效，因为免费源可能经常变动。
+]
+
+# 用于存储下载的原始 M3U 内容的目录
+RAW_M3U_DIR = os.path.join(OUTPUT_DIR, "raw_m3u")
+
+# 错误日志文件
+ERROR_LOG_FILE = "error_log.txt"
 
 # --- 辅助函数 ---
-def ensure_directory_exists(path):
-    """确保目录存在，如果不存在则创建"""
-    os.makedirs(path, exist_ok=True)
-    print(f"确保目录 '{path}' 存在。")
 
-def download_m3u_file(url, output_path):
-    """
-    下载M3U/M3U8文件。
-    可以使用requests库实现，并添加错误处理和超时。
-    """
+def log_error(message):
+    """记录错误信息到日志文件"""
+    with open(ERROR_LOG_FILE, "a", encoding="utf-8") as f:
+        f.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - {message}\n")
+    print(f"错误: {message}")
+
+def download_m3u(url, save_path):
+    """下载 M3U/M3U8 文件"""
+    print(f"正在下载: {url}")
     try:
-        print(f"正在下载: {url} 到 {output_path}...")
-        response = requests.get(url, timeout=15)
-        response.raise_for_status()  # 检查HTTP错误
-        with open(output_path, 'wb') as f:
-            f.write(response.content)
-        print(f"下载成功: {os.path.basename(output_path)}")
-        return True
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status() # 检查HTTP错误
+        content = response.text
+        with open(save_path, "w", encoding="utf-8") as f:
+            f.write(content)
+        print(f"下载成功并保存到: {save_path}")
+        return content
     except requests.exceptions.RequestException as e:
-        print(f"下载失败 {url}: {e}")
-        return False
-    except Exception as e:
-        print(f"处理下载时发生未知错误 {url}: {e}")
-        return False
+        log_error(f"下载失败 {url}: {e}")
+        return None
 
 def parse_m3u_content(content):
     """
     解析M3U/M3U8内容，提取EXTINF和URL对。
+    也尝试解析 "频道名称,URL" 格式的行。
     返回一个列表，每个元素是一个元组 (extinf_line, url_line)。
     """
     lines = content.splitlines()
@@ -54,6 +75,9 @@ def parse_m3u_content(content):
     current_extinf = ""
     for line in lines:
         line = line.strip()
+        if not line: # 跳过空行
+            continue
+
         if line.startswith("#EXTINF"):
             current_extinf = line
         elif line.startswith("http"):
@@ -61,186 +85,142 @@ def parse_m3u_content(content):
                 streams.append((current_extinf, line))
                 current_extinf = ""  # 重置，避免一个EXTINF对应多个URL
             else:
-                # 某些M3U文件可能只有URL没有EXTINF，也加上
-                streams.append(("", line)) 
+                # 如果前面没有EXTINF，但有URL，将其作为单独的流处理
+                streams.append(("", line))
+        else:
+            # 尝试解析 "频道名称,URL" 格式
+            # 注意: 这种格式的行不应以 #EXTINF 或 http 开头
+            parts = line.split(',', 1) # 只分割一次，避免频道名称中包含逗号的问题
+            if len(parts) == 2 and parts[1].strip().startswith("http"):
+                channel_name = parts[0].strip()
+                url = parts[1].strip()
+                # 将其转换为标准的 #EXTINF 格式，以便后续处理
+                # -1 表示未知时长，您可以添加更多属性如 group-title="自定义"
+                synthetic_extinf = f"#EXTINF:-1,{channel_name}"
+                streams.append((synthetic_extinf, url))
+                current_extinf = "" # 重置，避免影响下一行
+            # else:
+                # 如果需要调试，可以取消下面这行的注释，查看无法识别的行
+                # print(f"DEBUG: 无法识别的行格式: {line[:100]}...")
     return streams
 
-def merge_m3u_files_and_deduplicate(input_dir, output_file):
-    """
-    合并指定目录下的所有M3U文件，并进行去重。
-    这里实现了简单的行去重，更高级的去重可以参考 hmlendea/iptv-playlist-aggregator 的逻辑。
-    """
-    print(f"\n--- 步骤 2: 合并并去重M3U文件 ---")
-    merged_streams_set = set() # 用set来去重
+def merge_and_deduplicate_streams(all_streams):
+    """合并并去重节目流，优先保留原始 EXTINF 信息，按 URL 去重"""
+    seen_urls = set()
+    unique_streams = []
     
-    # 确保输出文件的父目录存在
-    ensure_directory_exists(os.path.dirname(output_file))
+    # 使用字典来存储每个 URL 对应的 EXTINF 行，以便保留第一个遇到的 EXTINF 信息
+    url_to_extinf = {}
 
-    # 检查输入目录是否存在且不为空
-    if not os.path.exists(input_dir) or not os.listdir(input_dir):
-        print(f"警告: 输入目录 '{input_dir}' 不存在或为空，跳过合并。")
-        return []
+    for extinf, url in all_streams:
+        if url not in seen_urls:
+            seen_urls.add(url)
+            # 如果是空EXTINF，尝试从URL中提取频道名作为EXTINF的title
+            if not extinf:
+                # 尝试从URL路径中提取名称，或者使用一个通用名称
+                parsed_url = urlparse(url)
+                path_segments = [s for s in parsed_url.path.split('/') if s]
+                if path_segments:
+                    # 取最后一个路径段作为名称，去除文件扩展名
+                    name_from_url = os.path.splitext(path_segments[-1])[0]
+                    extinf = f"#EXTINF:-1,{name_from_url}"
+                else:
+                    extinf = "#EXTINF:-1,未知频道"
+            
+            # 存储或更新URL对应的EXTINF
+            # 这里是去重逻辑的核心：如果URL重复，我们只保留第一次遇到的EXTINF
+            # 如果你想保留最后遇到的，可以调换顺序
+            if url not in url_to_extinf:
+                url_to_extinf[url] = extinf
+            
+            # unique_streams.append((extinf, url)) # 如果不去重，直接添加
 
-    with open(output_file, 'w', encoding='utf-8') as outfile:
-        outfile.write("#EXTM3U\n") # M3U 文件的开头
+    # 从字典中生成最终的唯一节目流列表
+    for url, extinf in url_to_extinf.items():
+        unique_streams.append((extinf, url))
 
-        for filename in os.listdir(input_dir):
-            if filename.endswith(".m3u") or filename.endswith(".m3u8"):
-                filepath = os.path.join(input_dir, filename)
-                try:
-                    with open(filepath, 'r', encoding='utf-8', errors='ignore') as infile:
-                        content = infile.read()
-                        parsed_streams = parse_m3u_content(content)
-                        for extinf, url in parsed_streams:
-                            # 简单的组合去重，更智能的去重可能需要解析extinf中的channel name
-                            stream_key = f"{extinf}|{url}" 
-                            if stream_key not in merged_streams_set:
-                                merged_streams_set.add(stream_key)
-                                if extinf:
-                                    outfile.write(extinf + "\n")
-                                outfile.write(url + "\n")
-                except Exception as e:
-                    print(f"读取或解析文件 {filepath} 时发生错误: {e}")
-    
-    print(f"合并后的文件已保存到: {output_file}")
-    # 将 merged_streams_set 转换回 (extinf, url) 元组列表以便后续测试
-    streams_to_return = []
-    for key in merged_streams_set:
-        parts = key.split('|', 1)
-        if len(parts) == 2:
-            streams_to_return.append((parts[0], parts[1]))
-        else:
-            streams_to_return.append(("", parts[0]))
-    return streams_to_return
+    return unique_streams
 
-
-def check_stream_availability(stream_tuple):
-    """
-    使用ffprobe检查IPTV流的可用性。
-    返回 (原始的extinf行, 原始的url行, 是否可用布尔值)
-    """
-    extinf, url = stream_tuple
+def check_stream_status(url, timeout=5):
+    """检查 IPTV 流是否可达 (不下载完整流)"""
     try:
-        # -v quiet: 静默模式
-        # -timeout: 设置连接超时时间 (微秒)
-        # -probesize: 探测数据大小 (字节)
-        # -select_streams v: 只选择视频流进行探测
-        # -show_entries stream=codec_name: 打印视频流的编解码器名称（如果成功探测到）
-        # -of default=noprint_wrappers=1:nokey=1: 简化输出格式
-        cmd = [
-            'ffprobe', '-v', 'quiet', 
-            '-timeout', str(FFPROBE_TIMEOUT * 1_000_000), 
-            '-probesize', '1000000', 
-            '-select_streams', 'v', 
-            '-show_entries', 'stream=codec_name', 
-            '-of', 'default=noprint_wrappers=1:nokey=1', 
-            url
-        ]
-        
-        # 整体运行超时，比 ffprobe 探测超时略长，给进程启动和关闭留点时间
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=FFPROBE_TIMEOUT + 2) 
-        
-        # 如果ffprobe返回码为0且标准错误中没有明显错误信息，通常认为流可用
-        if result.returncode == 0 and "error" not in result.stderr.lower():
-            return extinf, url, True
+        # 只发送 HEAD 请求，获取响应头，不下载内容
+        response = requests.head(url, timeout=timeout, allow_redirects=True)
+        # 检查状态码，2xx 表示成功，3xx 表示重定向 (allow_redirects=True 会跟随)
+        if 200 <= response.status_code < 400:
+            return True
         else:
-            # 可以根据需要打印 ffprobe 的详细错误输出用于调试
-            # print(f"DEBUG: ffprobe failed for {url}: RC={result.returncode}, Stderr={result.stderr.strip()}")
-            return extinf, url, False
-    except FileNotFoundError:
-        # 这个错误通常在工作流启动时就发现，但为了健壮性，这里也处理一下
-        print("\n错误: ffprobe 未找到。请确保已安装 FFmpeg 并将其添加到 PATH 中。跳过流测试。")
-        return extinf, url, False
-    except subprocess.TimeoutExpired:
-        # print(f"DEBUG: ffprobe timeout for {url}")
-        return extinf, url, False
-    except Exception as e:
-        print(f"\n测试 {url} 时发生未知错误: {e}")
-        return extinf, url, False
+            print(f"URL {url} 返回状态码 {response.status_code}")
+            return False
+    except requests.exceptions.RequestException as e:
+        # print(f"URL {url} 无法访问: {e}")
+        return False
 
-# --- 主逻辑 ---
+def generate_m3u_file(streams, output_file_path, header_comment=""):
+    """生成 M3U 文件"""
+    os.makedirs(os.path.dirname(output_file_path), exist_ok=True)
+    with open(output_file_path, "w", encoding="utf-8") as f:
+        f.write("#EXTM3U\n")
+        if header_comment:
+            f.write(f"# {header_comment}\n")
+        for extinf, url in streams:
+            f.write(f"{extinf}\n")
+            f.write(f"{url}\n")
+    print(f"M3U 文件已生成: {output_file_path}")
+
+def update_last_update_time():
+    """更新上次更新时间文件"""
+    jst = pytz.timezone('Asia/Tokyo')
+    now = datetime.now(jst)
+    with open(LAST_UPDATE_FILE, "w", encoding="utf-8") as f:
+        # 写入 UTC 时间和 JST 时间
+        f.write(f"Last updated (UTC): {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}\n")
+        f.write(f"Last updated (JST): {now.strftime('%Y-%m-%d %H:%M:%S JST')}\n")
+    print(f"更新时间已记录到 {LAST_UPDATE_FILE}")
+
 def main():
-    print("--- 欢迎使用IPTV节目源自动化处理工具 ---")
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    os.makedirs(RAW_M3U_DIR, exist_ok=True)
+    
+    all_downloaded_streams = []
 
-    # --- 步骤 1: 自动获取/下载原始IPTV节目源 ---
+    # --- 步骤 1: 获取/下载原始IPTV节目源 ---
     print("\n--- 步骤 1: 获取/下载原始IPTV节目源 ---")
-    ensure_directory_exists(DOWNLOAD_DIR)
-    
-    # 策略 A: 从知名的GitHub仓库获取M3U列表
-    # 这些仓库通常会定期更新免费的IPTV列表，您可以直接下载其raw文件。
-    # 您可以在这里添加或移除您希望获取的M3U URL
-    github_m3u_urls = [
-      
-        "https://raw.githubusercontent.com/qjlxg/vt/refs/heads/main/iptv_list.txt",
-        "https://raw.githubusercontent.com/qjlxg/vt/refs/heads/main/list.txt"
-    ]
-    
-    downloaded_files_count = 0
     for i, url in enumerate(github_m3u_urls):
-        output_file_path = os.path.join(DOWNLOAD_DIR, f"github_list_{i}.m3u")
-        if download_m3u_file(url, output_file_path):
-            downloaded_files_count += 1
-        time.sleep(1) # 礼貌性延迟，避免请求过快被服务器拒绝
+        file_name = f"raw_source_{i+1}_{urlparse(url).netloc.replace('.', '_')}.m3u"
+        save_path = os.path.join(RAW_M3U_DIR, file_name)
+        content = download_m3u(url, save_path)
+        if content:
+            all_downloaded_streams.extend(parse_m3u_content(content))
 
-    print(f"已下载 {downloaded_files_count} 个原始M3U文件到 '{DOWNLOAD_DIR}'。")
+    # --- 步骤 2: 合并和去重 ---
+    print("\n--- 步骤 2: 合并和去重节目源 ---")
+    merged_unique_streams = merge_and_deduplicate_streams(all_downloaded_streams)
+    print(f"合并去重后，共得到 {len(merged_unique_streams)} 个唯一节目源。")
 
-    # --- 步骤 2: 合并并去重M3U文件 ---
-    streams_to_test = merge_m3u_files_and_deduplicate(DOWNLOAD_DIR, MERGED_M3U_FILE)
-    
-    if not streams_to_test:
-        print("没有可供测试的流，程序终止。")
-        return
+    # --- 步骤 3: 生成合并后的M3U文件 (未测试) ---
+    print("\n--- 步骤 3: 生成合并后的M3U文件 (未测试) ---")
+    generate_m3u_file(merged_unique_streams, FINAL_M3U_FILE,
+                      header_comment=f"合并所有来源，未测试可用性。生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S JST')}")
 
-    # --- 步骤 3 & 4: 测试节目源可用性并输出有效节目源 ---
-    print(f"\n--- 步骤 3 & 4: 测试 {len(streams_to_test)} 个节目源并保存有效流 ---")
-    ensure_directory_exists(os.path.dirname(FINAL_OUTPUT_FILE))
-    
-    valid_streams = []
-    checked_count = 0
+    # --- 步骤 4: 检查节目源可用性并生成测试通过的M3U文件 ---
+    print("\n--- 步骤 4: 检查节目源可用性并生成测试通过的M3U文件 ---")
+    tested_streams = []
+    total_streams = len(merged_unique_streams)
+    for i, (extinf, url) in enumerate(merged_unique_streams):
+        print(f"[{i+1}/{total_streams}] 正在测试 {extinf.split(',')[-1].strip()} - {url[:50]}...", end='\r')
+        if check_stream_status(url):
+            tested_streams.append((extinf, url))
+    print(f"\n测试完成。发现 {len(tested_streams)} 个可用节目源。")
 
-    # 使用线程池并发测试，提高效率
-    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-        # 提交所有测试任务
-        future_to_stream = {executor.submit(check_stream_availability, stream): stream for stream in streams_to_test}
+    generate_m3u_file(tested_streams, TESTED_M3U_FILE,
+                      header_comment=f"测试通过的可用节目源。生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S JST')}")
 
-        for future in as_completed(future_to_stream):
-            original_stream_tuple = future_to_stream[future]
-            try:
-                extinf, url, is_available = future.result()
-                checked_count += 1
-                
-                status = "可用" if is_available else "不可用"
-                # 清除当前行并打印更新的状态，使用 '\r' 实现进度条效果
-                print(f"\r[{checked_count}/{len(streams_to_test)}] {status}: {url[:70]}...", end='') 
-                
-                if is_available:
-                    valid_streams.append(f"{extinf}\n{url}")
-            except Exception as exc:
-                checked_count += 1
-                print(f"\r[{checked_count}/{len(streams_to_test)}] 错误: {original_stream_tuple[1][:70]}... 生成异常: {exc}", end='')
+    # --- 步骤 5: 更新上次更新时间 ---
+    print("\n--- 步骤 5: 更新上次更新时间 ---")
+    update_last_update_time()
 
-    # 打印最终完成信息，确保新行
-    print(f"\n\n所有节目源测试完成。")
-
-    with open(FINAL_OUTPUT_FILE, 'w', encoding='utf-8') as f:
-        f.write("#EXTM3U\n") # M3U 文件的开头
-        for stream_entry in valid_streams:
-            f.write(stream_entry + "\n")
-    
-    print(f"共发现 {len(valid_streams)} 个可用流，已保存到: '{FINAL_OUTPUT_FILE}'")
-
-    # --- 清理临时文件 (可选) ---
-    print(f"\n--- 清理临时文件 ---")
-    try:
-        if os.path.exists(DOWNLOAD_DIR):
-            import shutil
-            shutil.rmtree(DOWNLOAD_DIR)
-            print(f"已删除临时下载目录: '{DOWNLOAD_DIR}'")
-        if os.path.exists(MERGED_M3U_FILE):
-            os.remove(MERGED_M3U_FILE)
-            print(f"已删除临时合并文件: '{MERGED_M3U_FILE}'")
-    except Exception as e:
-        print(f"清理临时文件时发生错误: {e}")
+    print("\n所有操作完成！")
 
 if __name__ == "__main__":
     main()
