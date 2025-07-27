@@ -153,14 +153,18 @@ jobs:
         if: success() && steps.check_filtered_file.outputs.FILTERED_NODES_EMPTY == 'false'
         run: |
           echo "开始运行所有节点的完整速度测试 (使用 xiecang/speedtest-clash)..."
-          # !!! 请注意，这里的参数是 xiecang/speedtest-clash 专用的 !!!
+          # !!! 根据最新日志，使用此工具实际支持的参数 !!!
           ./clash-speedtest \
             -c ./filtered_nodes.yaml \
             -output ./xiecang.yaml \
-            -size 20971520 \   # 测试下载 20MB 数据 (20 * 1024 * 1024 字节)
-            -timeout 90s \     # 超时设置为 90 秒
-            -concurrent 15 \   # 15 个并发测试
-            -sort b            # 按带宽（下载速度）排序
+            -download-size 20971520 \ # 下载测试 20MB 数据 (20 * 1024 * 1024 字节)
+            -upload-size 5242880 \   # 上传测试 5MB 数据 (5 * 1024 * 1024 字节)
+            -timeout 90s \           # 超时设置为 90 秒
+            -concurrent 15 \         # 15 个并发测试
+            -min-download-speed 16 \ # 过滤下载速度低于 16 MB/s (兆字节/秒) 的节点
+            -min-upload-speed 2 \    # 过滤上传速度低于 2 MB/s (兆字节/秒) 的节点
+            -max-latency 5000ms \    # 过滤延迟高于 5000 毫秒的节点
+            -rename                  # 重命名节点为 IP 地理位置和速度
            
           echo "xiecang/speedtest-clash 全速测试完成，结果保存到 xiecang.yaml"
 
