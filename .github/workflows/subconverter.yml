@@ -1,0 +1,177 @@
+name: Automated Proxy Management
+
+on:
+  workflow_dispatch: # 允许手动触发
+  schedule:
+    - cron: '0 */6 * * *' # 每6小时运行一次
+
+jobs:
+  process_proxies:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # 授予写入权限，以便推送结果文件
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js (for script processing)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '16'
+
+      - name: Install YAML parsing dependencies
+        run: npm install js-yaml
+
+      - name: Create data directory
+        run: mkdir -p data
+
+      - name: Download subconverter
+        # 下载预编译的 subconverter 二进制文件
+        run: |
+          SUB_VERSION="v0.7.0" # 检查 subconverter Release 页面获取最新版本
+          curl -L "https://github.com/tindyjo/subconverter/releases/download/${SUB_VERSION}/subconverter-linux64.tar.gz" -o subconverter.tar.gz
+          tar -xzf subconverter.tar.gz
+          chmod +x subconverter
+
+      - name: Download Clash Core (for speed testing)
+        # 下载 Clash premium 内核，用于测速。请注意授权问题。
+        # 这里仅为示例，实际使用请确保符合 Clash Premium 的使用条款。
+        # 也可以使用开源的 Clash Meta 或 Clash.For.Windows 的内核。
+        run: |
+          CLASH_VERSION="v2023.08.17.01" # 检查 Clash Premium 的 Release 页面获取最新版本
+          curl -L "https://github.com/Dreamacro/clash/releases/download/${CLASH_VERSION}/clash-linux-amd64-${CLASH_VERSION}.gz" -o clash.gz
+          gzip -d clash.gz
+          chmod +x clash
+
+      - name: Prepare combined subscription URL for subconverter
+        # 将多个订阅链接合并，Subconverter 可以一次性处理
+        # 替换为你的实际订阅链接
+        run: |
+          echo "https://raw.githubusercontent.com/qjlxg/vt/refs/heads/main/clash.yaml" > sub_urls.txt
+          echo "https://raw.githubusercontent.com/qjlxg/my/refs/heads/main/sc/OP404OP.yaml" >> sub_urls.txt
+          # 如果有更多订阅，继续添加
+          
+          # 将所有订阅链接组合成一个URL参数，用 | 分隔
+          # subconverter 支持 `url=url1|url2|url3` 这种方式合并多个订阅
+          COMBINED_SUB_URL=$(cat sub_urls.txt | tr '\n' '|' | sed 's/|$//')
+          echo "COMBINED_SUB_URL=${COMBINED_SUB_URL}" >> $GITHUB_ENV
+
+
+      - name: Convert and Deduplicate with subconverter
+        # 使用 subconverter 将多个订阅合并、去重并转换为 Clash YAML
+        run: |
+          ./subconverter -d -g "https://sub.example.com/sub?target=clash&url=${COMBINED_SUB_URL}&insert=false&scv=true&udp=true&skipcertverify=true&tfo=false&expand=false&nodefilter=&emoji=false&list=false&xudp=false&fdn=false&sort=false&url_replace=&c_expire=false&c_level=0&c_interval=false&c_tls=false&c_tcp=false&c_udp=false&c_fakeip=false&c_dns=false&c_rtout=false&c_sniff=false&c_redir=false&c_iface=false" > converted_clash.yaml
+          # 参数说明：
+          # -d: 启动守护模式（这里不需要，因为是单次转换，但有时教程会带上）
+          # -g: 指定要转换的订阅URL
+          # target=clash: 输出为 Clash 格式
+          # url=${COMBINED_SUB_URL}: 多个订阅源
+          # scv=true: 跳过证书验证 (部分订阅需要)
+          # list=false: 不要以列表形式输出，直接输出配置
+          # 更多参数请参考 subconverter 文档，用于去重和筛选
+          
+      - name: Perform Speed Test with Clash Core
+        # 启动 Clash 核心进行测速，并生成一个测试用的配置文件
+        run: |
+          echo "proxies: $(cat converted_clash.yaml | yq '.proxies')" > test_config.yaml # 仅包含代理部分
+          echo "external-controller: 127.0.0.1:9090" >> test_config.yaml
+          echo "log-level: info" >> test_config.yaml
+          
+          # 启动 Clash 核心
+          ./clash -f test_config.yaml &
+          CLASH_PID=$! # 获取 Clash 进程ID
+          sleep 5 # 等待 Clash 启动
+          
+          # 使用 Clash API 进行测速
+          # 假设节点名称都已存在于 converted_clash.yaml 中
+          # 遍历所有代理节点进行测速，并收集结果
+          NODE_NAMES=$(cat converted_clash.yaml | yq '.proxies[].name' | tr '\n' ' ')
+          echo "Testing nodes: $NODE_NAMES"
+
+          RESULTS_FILE="test_results.txt"
+          echo "" > $RESULTS_FILE # 清空文件
+
+          # 逐个测速并记录结果
+          for NODE_NAME in $NODE_NAMES; do
+            echo "Testing $NODE_NAME..."
+            # 请求测速，Clash 会返回延迟结果
+            LATENCY=$(curl -s -X GET "http://127.0.0.1:9090/proxies/$NODE_NAME/delay?url=https://www.google.com/generate_204&timeout=5000" | jq -r '.delay')
+            if [ "$LATENCY" == "null" ] || [ "$LATENCY" == "" ]; then
+              LATENCY="Timeout/Error"
+            fi
+            echo "$NODE_NAME: $LATENCY ms" >> $RESULTS_FILE
+          done
+          
+          kill $CLASH_PID # 停止 Clash 进程
+          sleep 1
+
+      - name: Filter and Organize Proxies Based on Speed Test
+        run: |
+          node -e '
+            const fs = require("fs");
+            const yaml = require("js-yaml");
+
+            try {
+              const allProxies = yaml.load(fs.readFileSync("converted_clash.yaml", "utf8")).proxies;
+              const testResults = fs.readFileSync("test_results.txt", "utf8").split("\n").filter(line => line.trim() !== "");
+
+              const proxyLatencyMap = new Map();
+              testResults.forEach(line => {
+                const parts = line.split(": ");
+                if (parts.length === 2) {
+                  const name = parts[0];
+                  let latency = parseInt(parts[1]);
+                  if (isNaN(latency) || latency === 0) { // 处理超时或错误
+                    latency = Infinity; // 设置为无限大，以便排序时排在后面
+                  }
+                  proxyLatencyMap.set(name, latency);
+                }
+              });
+
+              // 过滤掉不可用或延迟过高的节点，并按延迟排序
+              const sortedAndFilteredProxies = allProxies
+                .filter(p => p && p.name && proxyLatencyMap.has(p.name) && proxyLatencyMap.get(p.name) < Infinity) // 移除超时节点
+                .sort((a, b) => proxyLatencyMap.get(a.name) - proxyLatencyMap.get(b.name)); // 按延迟升序
+
+              // 构建最终的 Clash 配置 (这里只包含代理，你可以根据需要合并其他配置)
+              const finalConfig = {
+                "port": 7890,
+                "socks-port": 7891,
+                "allow-lan": false,
+                "mode": "rule",
+                "log-level": "info",
+                "external-controller": "0.0.0.0:9090",
+                "proxies": sortedAndFilteredProxies,
+                "proxy-groups": [
+                    {
+                        "name": "Proxy",
+                        "type": "select",
+                        "proxies": sortedAndFilteredProxies.map(p => p.name) // 将所有可用节点加入选择组
+                    },
+                    {
+                        "name": "Direct",
+                        "type": "direct"
+                    }
+                ],
+                "rules": [
+                    "MATCH,Proxy"
+                ]
+              };
+
+              fs.writeFileSync("data/clash.yaml", yaml.dump(finalConfig, { indent: 2 }));
+              console.log("Proxies collected, converted, tested, and saved successfully!");
+
+            } catch (e) {
+              console.error("Error processing proxies:", e);
+              process.exit(1);
+            }
+          '
+
+      - name: Commit and push changes
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email github-actions[bot]@users.noreply.github.com
+          git add data/clash.yaml
+          git commit -m "Update Clash config with tested proxies" || echo "No changes to commit"
+          git push
