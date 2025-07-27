@@ -126,15 +126,15 @@ jobs:
         if: success() && steps.start_clash_core.outcome == 'success'
         run: |
           # 暂时使用空密钥。后续运行正常后，强烈建议设置一个强密钥并使用 GitHub Secrets。
-          MIHOMO_SECRET="" # 留空表示无认证，或者如果你知道默认值可以填入，例如 "0"
+          MIHOMO_SECRET=""
           echo "Running clash-speedtest tool..."
           
+          # 移除了不支持的 --timeout 参数
           ./clash-speedtest-tool \
             --clash-addr "http://127.0.0.1:9090" \
             --clash-secret "${MIHOMO_SECRET}" \
             --output "starudream_sorted.yaml" \
             --download "cloudflare" \
-            --timeout 5s \
             --threads 5 \
             --size 20 \
             --includes ".*" \
