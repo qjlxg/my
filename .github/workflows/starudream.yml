@@ -20,7 +20,7 @@ jobs:
 
     - name: Install Python dependencies
       run: |
-        pip install requests tqdm # <-- 确保这里包含了 tqdm
+        pip install requests tqdm # 这里只安装 requests 和 tqdm，没有 pytz
 
     - name: Run IPTV List Updater
       run: python update_iptv_list.py
@@ -29,12 +29,8 @@ jobs:
       run: |
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
-        # 添加所有在 sc/ 目录下的更改
-        git add sc/
-        # 如果你希望提交其他地方的日志文件，也可以添加
-        # git add error_log.txt
+        git add sc/ # 添加所有在 sc/ 目录下的更改
         git commit -m "Update combined IPTV list [skip ci]" || echo "No changes to commit" # [skip ci] 避免循环触发工作流
         git push origin ${{ github.ref_name }}
       env:
-        # GITHUB_TOKEN 是 GitHub Actions 自动提供的，用于授权提交和推送
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
