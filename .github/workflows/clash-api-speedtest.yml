@@ -157,7 +157,7 @@ jobs:
           MIHOMO_PID=$! # Captures the process ID of Mihomo
           echo "Mihomo Core started, PID: $MIHOMO_PID"
           # Give Mihomo some time to start up and listen on ports
-          sleep 5
+          sleep 25
 
           # Verify Mihomo is listening on the external controller port
           if ! netstat -tuln | grep -q "127.0.0.1:9090"; then
