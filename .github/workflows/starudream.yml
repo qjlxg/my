@@ -1,48 +1,39 @@
 name: IPTV Processor and Checker
 
 on:
-  workflow_dispatch: # 允许在 GitHub Actions 页面手动触发工作流
   schedule:
-    - cron: '0 0 * * *' # 每天 UTC 时间 0点运行一次。
-                        # 例如，如果当前时间是 JST 下午 6 点 (UTC 上午 9 点)，那么这个设置会在 JST 上午 9 点运行。
-                        # 如果需要调整，请根据 UTC 时间转换，使用 Cron 表达式生成器辅助。
-                        # 例如，每天 JST 下午 6 点 (UTC 上午 9 点) 运行： cron: '0 9 * * *'
+    - cron: '0 0 * * *' # 每天 UTC 时间 0 点运行 (日本时间上午 9 点)
+  workflow_dispatch: # 允许手动触发
 
 jobs:
   build:
-    runs-on: ubuntu-latest # 在最新的 Ubuntu 虚拟机上运行此作业
+    runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout repository # 步骤 1: 克隆您的 GitHub 仓库代码
+    - name: Checkout repository
       uses: actions/checkout@v4
 
-    - name: Set up Python # 步骤 2: 设置 Python 环境
+    - name: Set up Python
       uses: actions/setup-python@v5
       with:
         python-version: '3.x' # 使用最新的 Python 3 版本
 
-    - name: Install Python dependencies # 步骤 3: 安装 Python 脚本所需的依赖
+    - name: Install dependencies # <-- Add this new step!
       run: |
-        python -m pip install --upgrade pip
-        pip install requests # 您的 iptv_processor.py 脚本需要 requests 库
+        pip install pytz requests # Install pytz and ensure requests is also installed
 
-    - name: Install FFmpeg # 步骤 4: 安装 FFmpeg (包含 ffprobe)
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y ffmpeg # 在 Ubuntu 系统上安装 FFmpeg
-
-    - name: Create 'sc' directory # 步骤 5: 创建输出目录 'sc'
-      run: mkdir -p sc
-
-    - name: Run IPTV processing script # 步骤 6: 运行 Python 脚本
-      id: run_script # 为这一步添加一个ID，以便后续引用
+    - name: Run IPTV Processor
       run: python iptv_processor.py
+      env:
+        # 如果你的脚本需要任何环境变量，可以在这里添加
+        # 例如: MY_API_KEY: ${{ secrets.MY_API_KEY }}
 
-    - name: Commit and push changes # 步骤 7: 自动提交并推送更新后的 iptv_list.txt
-      # 这个 action 会检查是否有文件变动，如果有则自动提交
-      uses: stefanzweifel/git-auto-commit-action@v5 
-      with:
-        commit_message: "Update IPTV list [automated]" # 自动提交的提交信息
-        files: sc/iptv_list.txt # 指定只提交这个文件，确保只更新 IPTV 列表
-        branch: main # 提交到的分支名，请根据您的仓库主分支名称修改 (可能是 'main' 或 'master')
-        # GITHUB_TOKEN 是 GitHub Actions 自动提供的，通常不需要额外配置即可拥有提交权限
+    - name: Commit and push changes
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add output/
+        git commit -m "Update IPTV lists [skip ci]" || echo "No changes to commit"
+        git push origin ${{ github.ref_name }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
