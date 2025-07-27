@@ -1,4 +1,4 @@
-name: Automated Proxy Management (Python & Mihomo)
+name: Automated Proxy Management (Integrated Python & Mihomo)
 
 on:
   workflow_dispatch: # 允许手动触发
@@ -81,7 +81,7 @@ try:
             # 移除常见的分隔符和多余空格，并确保名称不为空
             cleaned_name = re.sub(r'[\s|/-]+', ' ', cleaned_name).strip()
             if not cleaned_name: # 如果清理后名称为空，则尝试使用默认名或跳过
-                cleaned_name = f'Unnamed_Proxy_{len(cleaned_proxies)}'
+                cleaned_name = f'Unnamed_Proxy_{len(cleaned_proxies) + 1}' # 从1开始计数
             proxy['name'] = cleaned_name
         cleaned_proxies.append(proxy)
     
@@ -104,12 +104,12 @@ except Exception as e:
     sys.exit(1)
 " > python_process_log.txt 2>&1 # 将Python的输出重定向到文件，包括错误
 
+          # 检查 Python 脚本是否成功生成了文件
           if [ ! -s "converted_clash.yaml" ]; then
             echo "Error: converted_clash.yaml was not generated or is empty by Python script. Check python_process_log.txt for details."
             cat python_process_log.txt # 输出Python日志方便调试
             exit 1
           fi
-
 
       - name: Perform Speed Test with Mihomo Core
         run: |
@@ -124,7 +124,7 @@ except Exception as e:
           
           ./mihomo -f test_config.yaml &
           MIHOMO_PID=$!
-          sleep 5
+          sleep 5 # 给 Mihomo 启动时间
 
           NODE_NAMES=$(yq '.proxies[].name // []' converted_clash.yaml | tr '\n' ' ')
           if [ -z "$NODE_NAMES" ]; then
@@ -148,7 +148,7 @@ except Exception as e:
             echo "$NODE_NAME: $LATENCY ms" >> $RESULTS_FILE
           done
           
-          kill $MIHOMO_PID
+          kill $MIHOMO_PID # 关闭 Mihomo
           sleep 1
 
       - name: Filter and Organize Proxies Based on Speed Test
@@ -164,7 +164,7 @@ except Exception as e:
               }
 
               const fullConfig = yaml.load(fs.readFileSync("converted_clash.yaml", "utf8"));
-              const allProxies = fullConfig ? (fullConfig.proxies || []) : []; // Ensure proxies is an array
+              const allProxies = fullConfig ? (fullConfig.proxies || []) : []; // 确保 proxies 是一个数组
 
               if (!allProxies || !Array.isArray(allProxies) || allProxies.length === 0) {
                 console.warn("No proxies found in converted_clash.yaml after initial load. Generating empty config.");
@@ -187,12 +187,13 @@ except Exception as e:
                   const name = parts[0];
                   let latency = parseInt(parts[1]);
                   if (isNaN(latency) || latency === 0) {
-                    latency = Infinity;
+                    latency = Infinity; // 将无法获取延迟的节点视为不可用
                   }
                   proxyLatencyMap.set(name, latency);
                 }
               });
 
+              // 过滤掉延迟为 Infinity 的节点（即无法测速或超时）
               const sortedAndFilteredProxies = allProxies
                 .filter(p => p && p.name && proxyLatencyMap.has(p.name) && proxyLatencyMap.get(p.name) < Infinity)
                 .sort((a, b) => proxyLatencyMap.get(a.name) - proxyLatencyMap.get(b.name));
@@ -224,12 +225,12 @@ except Exception as e:
                         "proxies": sortedAndFilteredProxies.map(p => p.name)
                     },
                     {
-                        "name": "Direct",
+                        "name": "Direct", // 添加一个 Direct 组，确保有回退选项
                         "type": "direct"
                     }
                 ],
                 "rules": [
-                    "MATCH,Proxy"
+                    "MATCH,Proxy" // 默认所有流量走 Proxy 组
                 ]
               };
 
