@@ -1,0 +1,236 @@
+# 工作流名称
+name: Clash API Speed Test and Sort
+
+# 触发工作流的事件
+on:
+  workflow_dispatch: # 手动触发
+  schedule:
+    - cron: '0 */4 * * *' # 每4小时运行一次，可以根据需要调整
+
+jobs:
+  api-speed-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出仓库
+        uses: actions/checkout@v4
+
+      - name: 设置 Python 环境
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: 安装 Python 依赖
+        run: |
+          pip install PyYAML requests
+
+      - name: 下载 Clash Core (Mihomo)
+        id: download_clash_core
+        run: |
+          # 推荐使用 Mihomo 作为 Clash Core
+          MIHOMO_VERSION="1.19.11" # 您之前提供的版本
+          ARCHIVE_NAME="mihomo-linux-amd64-v${MIHOMO_VERSION}.gz" # Mihomo 的文件通常是 .gz 压缩
+          MIHOMO_URL="https://github.com/MetaCubeX/mihomo/releases/download/v${MIHOMO_VERSION}/${ARCHIVE_NAME}"
+          EXECUTABLE_NAME="mihomo" # 解压后的可执行文件名称
+
+          echo "尝试下载 Mihomo Core ${ARCHIVE_NAME}..."
+          curl -S -L --retry 5 --retry-delay 5 --connect-timeout 10 --max-time 60 --output "$ARCHIVE_NAME" "$MIHOMO_URL"
+          if [ $? -ne 0 ]; then
+            echo "错误: curl 命令执行失败，无法下载 Mihomo Core 文件。"
+            exit 1
+          fi
+          if [ ! -f "$ARCHIVE_NAME" ]; then
+            echo "错误: Mihomo Core 文件不存在。下载可能失败。"
+            exit 1
+          fi
+          if [ ! -s "$ARCHIVE_NAME" ]; then
+            echo "错误: Mihomo Core 文件为空。下载可能失败。"
+            exit 1
+          fi
+          echo "Mihomo Core 下载成功，大小: $(du -h "$ARCHIVE_NAME" | awk '{print $1}')"
+
+          echo "解压 ${ARCHIVE_NAME}..."
+          gzip -d "$ARCHIVE_NAME" # 解压 .gz 文件，解压后会得到 mihomo 可执行文件
+
+          FILE_TYPE_INFO=$(file "./${EXECUTABLE_NAME}")
+          echo "${EXECUTABLE_NAME} 文件类型信息: ${FILE_TYPE_INFO}"
+          if ! echo "$FILE_TYPE_INFO" | grep -q "ELF 64-bit LSB executable"; then
+              echo "错误: ${EXECUTABLE_NAME} 文件不是预期的 Linux AMD64 可执行文件。请检查文件是否损坏或上传了错误版本。"
+              exit 1
+          fi
+          chmod +x "./${EXECUTABLE_NAME}"
+          echo "'${EXECUTABLE_NAME}' 权限已设置并验证为可执行文件。"
+
+      - name: 下载完整的 Clash 配置
+        id: download_config
+        run: |
+          CONFIG_URL="https://raw.githubusercontent.com/qjlxg/vt/refs/heads/main/clash_config.yaml"
+          OUTPUT_FILE="clash_config.yaml"
+          echo "尝试从 $CONFIG_URL 下载完整的 Clash 配置文件..."
+          curl -S -L -v --retry 5 --retry-delay 5 --connect-timeout 10 --max-time 60 --output "$OUTPUT_FILE" "$CONFIG_URL"
+          if [ $? -ne 0 ]; then
+            echo "错误: curl 命令执行失败，无法下载文件。"
+            exit 1
+          fi
+          if [ ! -f "$OUTPUT_FILE" ]; then
+            echo "错误: $OUTPUT_FILE 文件不存在。"
+            exit 1
+          fi
+          if [ ! -s "$OUTPUT_FILE" ]; then
+            echo "错误: $OUTPUT_FILE 文件为空。"
+            head -n 20 "$OUTPUT_FILE" || true
+            exit 1
+          fi
+          echo "$OUTPUT_FILE 文件下载成功，大小: $(du -h "$OUTPUT_FILE" | awk '{print $1}')"
+
+      - name: 过滤节点 (使用 Python 脚本)
+        run: python filter_clash_nodes.py
+      
+      - name: 验证过滤后的文件
+        id: check_filtered_file
+        run: |
+          if [ ! -s "filtered_nodes.yaml" ]; then
+            echo "警告: 'filtered_nodes.yaml' 文件为空或无有效内容。可能没有节点符合过滤条件。"
+            echo "FILTERED_NODES_EMPTY=true" >> $GITHUB_OUTPUT 
+            head -n 20 filtered_nodes.yaml || true
+            exit 0
+          fi
+          echo "filtered_nodes.yaml 文件大小: $(du -h filtered_nodes.yaml | awk '{print $1}')"
+          echo "FILTERED_NODES_EMPTY=false" >> $GITHUB_OUTPUT
+
+      - name: 准备 Clash 核心配置
+        if: steps.check_filtered_file.outputs.FILTERED_NODES_EMPTY == 'false'
+        run: |
+          # 创建一个简化的 Clash 配置来启动 Mihomo，只包含 proxy-providers
+          # 确保 external-controller 和 secret 开启
+          echo "正在生成 Mihomo 启动配置..."
+          cat > mihomo_config.yaml <<EOF
+          # 最小化配置，用于启动 Mihomo
+          port: 7890
+          socks-port: 7891
+          allow-lan: false
+          mode: rule
+          log-level: info
+          external-controller: 127.0.0.1:9090
+          secret: your_secret_token_here # 设置一个秘钥，Python脚本将使用它
+          
+          # 引入过滤后的节点作为 proxy-providers
+          # 注意：Mihomo的配置中，proxy-providers是独立的顶级键
+          # 为了简化，我们将直接在 proxies 下面引用这些节点
+          proxies:
+          EOF
+          # 将 filtered_nodes.yaml 的内容追加到 proxies: 下
+          sed 's/^/- /' filtered_nodes.yaml >> mihomo_config.yaml
+          
+          echo "mihomo_config.yaml 生成完毕:"
+          cat mihomo_config.yaml
+
+      - name: 启动 Clash Core (Mihomo)
+        id: start_clash_core
+        if: success() && steps.check_filtered_file.outputs.FILTERED_NODES_EMPTY == 'false'
+        run: |
+          echo "启动 Mihomo Core..."
+          # 以后台模式启动 Mihomo
+          # -d 参数指定工作目录
+          # -f 参数指定配置文件
+          ./mihomo -d . -f mihomo_config.yaml &
+          MIHOMO_PID=$!
+          echo "Mihomo Core 已启动，PID: $MIHOMO_PID"
+          # 等待 Mihomo 启动并监听端口
+          sleep 5 # 给予 Mihomo 足够的时间启动
+
+          # 检查端口是否在监听
+          if ! netstat -tuln | grep -q "127.0.0.1:9090"; then
+            echo "错误: Mihomo Core 未能在 9090 端口启动。请检查日志。"
+            kill $MIHOMO_PID || true # 尝试杀死进程
+            exit 1
+          fi
+          echo "Mihomo Core 已成功启动并监听 9090 端口。"
+          echo "MIHOMO_PID=$MIHOMO_PID" >> $GITHUB_OUTPUT # 导出 PID 供后续步骤使用
+
+      - name: 运行 Python 脚本进行 API 测速和排序
+        id: run_api_speedtest
+        if: success() && steps.check_filtered_file.outputs.FILTERED_NODES_EMPTY == 'false' && steps.start_clash_core.outcome == 'success'
+        run: |
+          echo "开始运行 Python 脚本进行 API 测速和排序..."
+          # 将 SECRET_TOKEN 传递给 Python 脚本
+          python clash_api_speedtest.py \
+            --clash-url "http://127.0.0.1:9090" \
+            --clash-secret "your_secret_token_here" \
+            --input-file "filtered_nodes.yaml" \
+            --output-file "clash_api_sorted.yaml" \
+            --timeout 5000 \
+            --concurrent 10 \
+            --max-latency 3000 \
+            --min-download 0.5 \
+            --min-upload 0.1 \
+            --sort download \
+            --rename # 告诉脚本是否重命名节点
+
+      - name: 验证生成的 clash_api_sorted.yaml 文件并计数节点
+        id: count_nodes_api
+        if: success() && steps.check_filtered_file.outputs.FILTERED_NODES_EMPTY == 'false' && steps.run_api_speedtest.outcome == 'success'
+        run: |
+          if [ -f "clash_api_sorted.yaml" ]; then
+            echo "'clash_api_sorted.yaml' 文件已生成，大小: $(du -h clash_api_sorted.yaml | awk '{print $1}')"
+            echo "--- clash_api_sorted.yaml 文件内容 (前50行) ---"
+            head -n 50 clash_api_sorted.yaml || true
+            echo "----------------------------------------"
+            NODE_COUNT=$(grep -c 'name:' clash_api_sorted.yaml) # 仍然通过 'name:' 计数
+            echo "检测到 ${NODE_COUNT} 个代理节点。"
+            echo "NODE_COUNT=${NODE_COUNT}" >> $GITHUB_OUTPUT
+            if [ "${NODE_COUNT}" -eq 0 ]; then
+              echo "警告: 'clash_api_sorted.yaml' 文件中没有检测到代理节点。可能所有节点都未通过速度测试后的过滤。"
+            fi
+          else
+            echo "错误: 未生成 'clash_api_sorted.yaml'。API 速度测试可能失败或没有通过过滤的节点。"
+            echo "NODE_COUNT=0" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+      
+      - name: 备份旧的 Clash 配置 (API)
+        if: success() && steps.check_filtered_file.outputs.FILTERED_NODES_EMPTY == 'false' && steps.count_nodes_api.outputs.NODE_COUNT > 0
+        run: |
+          # 输出文件名为 clash_api_sorted.yaml
+          if [ ! -f "clash_api_sorted.yaml" ]; then
+            echo "警告: 'clash_api_sorted.yaml' 文件不存在，跳过备份旧配置。"
+            exit 0
+          fi
+          mkdir -p sc_api # 为此脚本单独创建备份目录
+          TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+          echo "正在备份旧的 clash_api_sorted.yaml 到 sc_api/clash_api_${TIMESTAMP}.yaml..."
+          cp clash_api_sorted.yaml sc_api/clash_api_${TIMESTAMP}.yaml
+          echo "旧配置备份完成。"
+
+      - name: 提交并推送排序后的 Clash 配置 (API)
+        if: success() && steps.check_filtered_file.outputs.FILTERED_NODES_EMPTY == 'false' && steps.count_nodes_api.outputs.NODE_COUNT > 0
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "更新 Clash 配置 (API Speed Test)：节点已按速度排序并备份旧配置"
+          file_pattern: "clash_api_sorted.yaml sc_api/" # 同时提交新的配置文件和其备份
+          branch: main
+          commit_user_name: github-actions[bot]
+          commit_user_email: 41898282+github-actions[bot]@users.noreply.github.com
+          commit_author: qjlxg <12179157+qjlxg@users.noreply.github.com>
+          repository: .
+          skip_dirty_check: false
+          skip_fetch: false
+          skip_checkout: false
+          disable_globbing: false
+          create_branch: false
+          create_git_tag_only: false
+          internal_git_binary: git
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: 停止 Clash Core (Mihomo)
+        if: always() && steps.start_clash_core.outcome == 'success' && steps.start_clash_core.outputs.MIHOMO_PID
+        run: |
+          echo "停止 Mihomo Core (PID: ${{ steps.start_clash_core.outputs.MIHOMO_PID }})..."
+          kill ${{ steps.start_clash_core.outputs.MIHOMO_PID }} || true
+          sleep 2
+          if ps -p ${{ steps.start_clash_core.outputs.MIHOMO_PID }} > /dev/null; then
+            echo "Mihomo Core 未能正常停止，尝试强制杀死。"
+            kill -9 ${{ steps.start_clash_core.outputs.MIHOMO_PID }} || true
+          else
+            echo "Mihomo Core 已成功停止。"
+          fi
