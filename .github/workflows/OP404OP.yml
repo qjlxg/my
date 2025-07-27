@@ -95,7 +95,7 @@ jobs:
         run: |
           mkdir -p sc
           echo "开始使用 OP404OP/clash-speedtest 运行高级速度和解锁测试..."
-          # !!! 最关键的修改区域：确保以下每一行末尾的 '\' 后面都没有任何空格或注释 !!!
+          # !!! 关键修改：将 -min-download-speed 改为 -min-speed !!!
           ./clash-speedtest-op404op \
             -c ./filtered_nodes.yaml \
             -output sc/OP404OP.yaml \
@@ -104,7 +104,7 @@ jobs:
             -timeout 38s \
             -concurrent 50 \
             -max-latency 5000ms \
-            -min-download-speed 1 \
+            -min-speed 1 \  # <-- 这里已修改
             -min-upload-speed 0 \
             -unlock \
             -risk \
