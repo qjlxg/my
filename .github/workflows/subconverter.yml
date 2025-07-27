@@ -1,101 +1,96 @@
-name: Automated Proxy Management
+name: Automated Proxy Management (with SubConv)
 
 on:
-  workflow_dispatch: # 允许手动触发
+  workflow_dispatch:
   schedule:
-    - cron: '0 */6 * * *' # 每6小时运行一次
+    - cron: '0 */6 * * *'
 
 jobs:
   process_proxies:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # 授予写入权限，以便推送结果文件
+      contents: write
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Node.js (for script processing)
+      - name: Set up Python
+        uses: actions/setup-python@v5 # 使用 Python
+        with:
+          python-version: '3.x' # 选择一个合适的 Python 版本
+
+      - name: Set up Node.js (for YAML processing)
         uses: actions/setup-node@v4
         with:
           node-version: '16'
 
-      - name: Install YAML parsing dependencies
+      - name: Install Node.js YAML dependencies
         run: npm install js-yaml
 
       - name: Create data directory
         run: mkdir -p data
 
-      - name: Download subconverter
-        # 下载预编译的 subconverter 二进制文件
+      # --- 新增：克隆 SubConv 仓库并安装依赖 ---
+      - name: Clone SubConv repository
         run: |
-          SUB_VERSION="v0.7.0" # 检查 subconverter Release 页面获取最新版本
-          curl -L "https://github.com/tindyjo/subconverter/releases/download/${SUB_VERSION}/subconverter-linux64.tar.gz" -o subconverter.tar.gz
-          tar -xzf subconverter.tar.gz
-          chmod +x subconverter
+          git clone https://github.com/SubConv/SubConv.git ./subconv_repo
+          cd ./subconv_repo
+          pip install -r requirements.txt # 安装 SubConv 的 Python 依赖
 
       - name: Download Clash Core (for speed testing)
-        # 下载 Clash premium 内核，用于测速。请注意授权问题。
-        # 这里仅为示例，实际使用请确保符合 Clash Premium 的使用条款。
-        # 也可以使用开源的 Clash Meta 或 Clash.For.Windows 的内核。
         run: |
-          CLASH_VERSION="v2023.08.17.01" # 检查 Clash Premium 的 Release 页面获取最新版本
+          CLASH_VERSION="v2023.08.17.01" # 检查 Clash Premium 或 Clash Meta Release 页面获取最新版本
           curl -L "https://github.com/Dreamacro/clash/releases/download/${CLASH_VERSION}/clash-linux-amd64-${CLASH_VERSION}.gz" -o clash.gz
           gzip -d clash.gz
           chmod +x clash
 
-      - name: Prepare combined subscription URL for subconverter
-        # 将多个订阅链接合并，Subconverter 可以一次性处理
-        # 替换为你的实际订阅链接
+      - name: Prepare combined subscription URLs
         run: |
+          # 你的订阅链接，这里可以直接写死，或者从文件读取
           echo "https://raw.githubusercontent.com/qjlxg/vt/refs/heads/main/clash.yaml" > sub_urls.txt
           echo "https://raw.githubusercontent.com/qjlxg/my/refs/heads/main/sc/OP404OP.yaml" >> sub_urls.txt
-          # 如果有更多订阅，继续添加
+          # 将所有订阅链接组合成一个列表，供 SubConv 使用
+          # SubConv 可能会接受一个文件路径，或者多个 URL 作为参数
+          # 你需要查看 SubConv 的文档来确定如何传递多个订阅URL给它
           
-          # 将所有订阅链接组合成一个URL参数，用 | 分隔
-          # subconverter 支持 `url=url1|url2|url3` 这种方式合并多个订阅
-          COMBINED_SUB_URL=$(cat sub_urls.txt | tr '\n' '|' | sed 's/|$//')
-          echo "COMBINED_SUB_URL=${COMBINED_SUB_URL}" >> $GITHUB_ENV
-
-
-      - name: Convert and Deduplicate with subconverter
-        # 使用 subconverter 将多个订阅合并、去重并转换为 Clash YAML
+      - name: Convert and Deduplicate with SubConv
+        # 这一步需要根据 SubConv 的实际用法来填写
+        # 假设 SubConv 有一个命令行工具或一个主脚本 `main.py`
+        # 你需要查阅 SubConv 的 README，找到如何：
+        # 1. 传递多个订阅链接作为输入
+        # 2. 指定输出为 Clash YAML 格式
+        # 3. 启用其内置的去重功能
         run: |
-          ./subconverter -d -g "https://sub.example.com/sub?target=clash&url=${COMBINED_SUB_URL}&insert=false&scv=true&udp=true&skipcertverify=true&tfo=false&expand=false&nodefilter=&emoji=false&list=false&xudp=false&fdn=false&sort=false&url_replace=&c_expire=false&c_level=0&c_interval=false&c_tls=false&c_tcp=false&c_udp=false&c_fakeip=false&c_dns=false&c_rtout=false&c_sniff=false&c_redir=false&c_iface=false" > converted_clash.yaml
-          # 参数说明：
-          # -d: 启动守护模式（这里不需要，因为是单次转换，但有时教程会带上）
-          # -g: 指定要转换的订阅URL
-          # target=clash: 输出为 Clash 格式
-          # url=${COMBINED_SUB_URL}: 多个订阅源
-          # scv=true: 跳过证书验证 (部分订阅需要)
-          # list=false: 不要以列表形式输出，直接输出配置
-          # 更多参数请参考 subconverter 文档，用于去重和筛选
+          cd ./subconv_repo
+          # 示例命令 (请替换为实际的 SubConv 用法!)
+          # 例如：python main.py convert --urls "URL1" "URL2" --target clash --deduplicate --output ../converted_clash.yaml
+          # 或者，如果它支持读取文件：
+          # python main.py convert --url-file ../sub_urls.txt --target clash --deduplicate --output ../converted_clash.yaml
+          python your_subconv_script.py --urls "你的第一个订阅URL" "你的第二个订阅URL" --target clash --deduplicate --output ../converted_clash.yaml # 假设的命令
           
+          # 假设转换后的文件会出现在仓库根目录下的 converted_clash.yaml
+          cd .. # 回到仓库根目录
+
       - name: Perform Speed Test with Clash Core
-        # 启动 Clash 核心进行测速，并生成一个测试用的配置文件
+        # 这部分与之前的脚本相同
         run: |
-          echo "proxies: $(cat converted_clash.yaml | yq '.proxies')" > test_config.yaml # 仅包含代理部分
+          echo "proxies: $(cat converted_clash.yaml | yq '.proxies')" > test_config.yaml
           echo "external-controller: 127.0.0.1:9090" >> test_config.yaml
           echo "log-level: info" >> test_config.yaml
           
-          # 启动 Clash 核心
           ./clash -f test_config.yaml &
-          CLASH_PID=$! # 获取 Clash 进程ID
-          sleep 5 # 等待 Clash 启动
+          CLASH_PID=$!
+          sleep 5
           
-          # 使用 Clash API 进行测速
-          # 假设节点名称都已存在于 converted_clash.yaml 中
-          # 遍历所有代理节点进行测速，并收集结果
           NODE_NAMES=$(cat converted_clash.yaml | yq '.proxies[].name' | tr '\n' ' ')
           echo "Testing nodes: $NODE_NAMES"
 
           RESULTS_FILE="test_results.txt"
-          echo "" > $RESULTS_FILE # 清空文件
+          echo "" > $RESULTS_FILE
 
-          # 逐个测速并记录结果
           for NODE_NAME in $NODE_NAMES; do
             echo "Testing $NODE_NAME..."
-            # 请求测速，Clash 会返回延迟结果
             LATENCY=$(curl -s -X GET "http://127.0.0.1:9090/proxies/$NODE_NAME/delay?url=https://www.google.com/generate_204&timeout=5000" | jq -r '.delay')
             if [ "$LATENCY" == "null" ] || [ "$LATENCY" == "" ]; then
               LATENCY="Timeout/Error"
@@ -103,10 +98,11 @@ jobs:
             echo "$NODE_NAME: $LATENCY ms" >> $RESULTS_FILE
           done
           
-          kill $CLASH_PID # 停止 Clash 进程
+          kill $CLASH_PID
           sleep 1
 
       - name: Filter and Organize Proxies Based on Speed Test
+        # 这部分与之前的脚本相同
         run: |
           node -e '
             const fs = require("fs");
@@ -122,19 +118,17 @@ jobs:
                 if (parts.length === 2) {
                   const name = parts[0];
                   let latency = parseInt(parts[1]);
-                  if (isNaN(latency) || latency === 0) { // 处理超时或错误
-                    latency = Infinity; // 设置为无限大，以便排序时排在后面
+                  if (isNaN(latency) || latency === 0) {
+                    latency = Infinity;
                   }
                   proxyLatencyMap.set(name, latency);
                 }
               });
 
-              // 过滤掉不可用或延迟过高的节点，并按延迟排序
               const sortedAndFilteredProxies = allProxies
-                .filter(p => p && p.name && proxyLatencyMap.has(p.name) && proxyLatencyMap.get(p.name) < Infinity) // 移除超时节点
-                .sort((a, b) => proxyLatencyMap.get(a.name) - proxyLatencyMap.get(b.name)); // 按延迟升序
+                .filter(p => p && p.name && proxyLatencyMap.has(p.name) && proxyLatencyMap.get(p.name) < Infinity)
+                .sort((a, b) => proxyLatencyMap.get(a.name) - proxyLatencyMap.get(b.name));
 
-              // 构建最终的 Clash 配置 (这里只包含代理，你可以根据需要合并其他配置)
               const finalConfig = {
                 "port": 7890,
                 "socks-port": 7891,
@@ -147,7 +141,7 @@ jobs:
                     {
                         "name": "Proxy",
                         "type": "select",
-                        "proxies": sortedAndFilteredProxies.map(p => p.name) // 将所有可用节点加入选择组
+                        "proxies": sortedAndFilteredProxies.map(p => p.name)
                     },
                     {
                         "name": "Direct",
