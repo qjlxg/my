@@ -102,7 +102,7 @@ jobs:
             -download-size 5 \
             -upload-size 1 \
             -timeout 38s \
-            -concurrent 50 \
+            -concurrent 80 \
             -max-latency 5000ms \
             -min-speed 1 \
           #  -unlock \
