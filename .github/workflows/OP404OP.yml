@@ -109,7 +109,7 @@ jobs:
             exit 1
           fi
           echo "执行 clash-speedtest-op404op..."
-          ./clash-speedtest-op404op -c ./filtered_nodes.yaml -output sc/OP404OP.yaml -download-size 5 -upload-size 1 -timeout 38s -concurrent 50 -max-latency 5000ms -min-download-speed 1 -min-upload-speed 0 -unlock -risk -rename -debug
+          ./clash-speedtest-op404op -c ./filtered_nodes.yaml -output sc/OP404OP.yaml -download-size 5 -upload-size 1 -timeout 38s -concurrent 50 -max-latency 5000ms -min-speed 1 -unlock -risk -rename -debug
           if [ $? -ne 0 ]; then
             echo "错误: clash-speedtest-op404op 执行失败"
             exit 1
