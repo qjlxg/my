@@ -5,7 +5,7 @@ name: Clash API Speed Test and Sort
 on:
   workflow_dispatch: # Allows manual triggering from the GitHub Actions UI
   schedule:
-    - cron: '0 */4 * * *' # Runs every 4 hours. Adjust this to your needs.
+    - cron: '0 */4 * * *' # Runs every 04:00 and 08:00 (UTC), etc. Adjust this to your needs.
 
 jobs:
   api-speed-test:
@@ -117,8 +117,6 @@ jobs:
         # This step runs only if filtered_nodes.yaml is not empty
         if: steps.check_filtered_file.outputs.FILTERED_NODES_EMPTY == 'false'
         run: |
-          # Creates a minimal Mihomo config, only referencing the 'filtered_nodes.yaml' via proxy-providers
-          # It enables the external controller and sets a secret for API access.
           echo "Generating Mihomo startup configuration..."
           # Mihomo will automatically load provider files if specified via path in proxy-providers.
           # We use a placeholder secret, remember to replace it with your actual secure secret.
@@ -139,13 +137,8 @@ jobs:
               health-check:
                 enable: false # Disable health checks to prevent interference during speedtest
           
-          # A dummy proxy group to make Mihomo happy and load the proxies
-          proxies:
-            - {name: "Proxy Group", type: select, proxies: [{{ range .filtered-proxies.proxies }}{{ .name | quote }}, {{ end }}]}
-          
-          # Basic rule (not critical for speed test itself, but required for config)
-          rules:
-            - 'MATCH,Proxy Group'
+          # 移除了 'proxies' 和 'rules' 部分，因为 Mihomo 会通过 proxy-providers 加载代理
+          # 并且我们的 Python 脚本会直接通过 Mihomo API 获取代理列表进行测速
           EOF
           
           echo "mihomo_config.yaml generated:"
