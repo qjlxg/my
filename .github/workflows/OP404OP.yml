@@ -1,5 +1,4 @@
 name: OP404OP Clash 速度测试 (独立)
-
 on:
   workflow_dispatch:
   schedule:
@@ -8,7 +7,6 @@ on:
 jobs:
   op404op-speed-test:
     runs-on: ubuntu-latest
-
     steps:
       - name: 检出仓库
         uses: actions/checkout@v4
@@ -27,8 +25,8 @@ jobs:
         run: |
           CONFIG_URL="https://raw.githubusercontent.com/qjlxg/vt/refs/heads/main/clash_config.yaml"
           OUTPUT_FILE="clash_config.yaml"
-          echo "尝试从 $CONFIG_URL 下载配置文件..."
-          curl -S -L -v --retry 5 --retry-delay 5 --connect-timeout 10 --max-time 60 -o "$OUTPUT_FILE" "$CONFIG_URL"
+          echo "尝试从 $CONFIG_URL 下载完整的 Clash 配置文件..."
+          curl -S -L -v --retry 5 --retry-delay 5 --connect-timeout 10 --max-time 60 --output "$OUTPUT_FILE" "$CONFIG_URL"
           if [ $? -ne 0 ]; then
             echo "错误: curl 命令执行失败，无法下载文件。"
             exit 1
@@ -42,23 +40,21 @@ jobs:
             head -n 20 "$OUTPUT_FILE" || true
             exit 1
           fi
-          echo "$OUTPUT_FILE 下载成功，大小: $(du -h "$OUTPUT_FILE" | awk '{print $1}')"
+          echo "$OUTPUT_FILE 文件下载成功，大小: $(du -h "$OUTPUT_FILE" | awk '{print $1}')"
 
       - name: 过滤节点 (使用 Python 脚本)
         run: python filter_clash_nodes.py
-
+      
       - name: 验证过滤后的文件
         id: check_filtered_file
         run: |
           if [ ! -s "filtered_nodes.yaml" ]; then
-            echo "警告: 'filtered_nodes.yaml' 文件为空或无有效内容。"
-            echo "FILTERED_NODES_EMPTY=true" >> $GITHUB_OUTPUT
+            echo "警告: 'filtered_nodes.yaml' 文件为空或无有效内容。可能没有节点符合过滤条件。"
+            echo "FILTERED_NODES_EMPTY=true" >> $GITHUB_OUTPUT 
             head -n 20 filtered_nodes.yaml || true
             exit 0
           fi
-          echo "filtered_nodes.yaml 大小: $(du -h filtered_nodes.yaml | awk '{print $1}')"
-          echo "检查 filtered_nodes.yaml 前几行："
-          head -n 10 filtered_nodes.yaml || true
+          echo "filtered_nodes.yaml 文件大小: $(du -h filtered_nodes.yaml | awk '{print $1}')"
           echo "FILTERED_NODES_EMPTY=false" >> $GITHUB_OUTPUT
 
       - name: 下载 OP404OP/clash-speedtest 工具
@@ -68,67 +64,65 @@ jobs:
           TOOL_FILENAME="clash-speedtest-linux-x86_64"
           TOOL_URL="https://github.com/OP404OP/clash-speedtest/releases/download/${TOOL_VERSION}/${TOOL_FILENAME}"
           OUTPUT_PATH="./clash-speedtest-op404op"
-          echo "尝试从 $TOOL_URL 下载工具..."
-          curl -S -L -v --retry 5 --retry-delay 5 --connect-timeout 10 --max-time 60 -o "$OUTPUT_PATH" "$TOOL_URL"
+          echo "尝试从 $TOOL_URL 下载 OP404OP/clash-speedtest 工具..."
+          curl -S -L -v --retry 5 --retry-delay 5 --connect-timeout 10 --max-time 60 --output "$OUTPUT_PATH" "$TOOL_URL"
           if [ $? -ne 0 ]; then
-            echo "错误: curl 命令执行失败，无法下载工具。"
+            echo "错误: curl 命令执行失败，无法下载 OP404OP/clash-speedtest 工具。请检查 TOOL_URL 是否正确或网络问题。"
             exit 1
           fi
           if [ ! -f "$OUTPUT_PATH" ]; then
-            echo "错误: $OUTPUT_PATH 文件不存在。"
+            echo "错误: $OUTPUT_PATH 文件不存在。下载可能未成功。"
             exit 1
           fi
           if [ ! -s "$OUTPUT_PATH" ]; then
-            echo "错误: $OUTPUT_PATH 文件为空。"
+            echo "错误: $OUTPUT_PATH 文件为空。下载的文件内容可能不正确。"
             head -n 20 "$OUTPUT_PATH" || true
             exit 1
           fi
-          echo "工具下载成功，大小: $(du -h "$OUTPUT_PATH" | awk '{print $1}')"
-          file "$OUTPUT_PATH"
+          echo "OP404OP/clash-speedtest 工具下载成功，大小: $(du -h "$OUTPUT_PATH" | awk '{print $1}')"
+          FILE_TYPE_INFO=$(file "$OUTPUT_PATH")
+          echo "文件类型信息: $FILE_TYPE_INFO"
+          if ! echo "$FILE_TYPE_INFO" | grep -q "ELF 64-bit LSB executable"; then
+              echo "错误: 下载的文件不是预期的 Linux AMD64 可执行文件。请检查 TOOL_URL 和 TOOL_FILENAME 是否正确指向了 'clash-speedtest-linux-x86_64' 二进制文件。"
+              exit 1
+          fi
           chmod +x "$OUTPUT_PATH"
-          echo "赋予执行权限完成。"
-          echo "检查工具帮助信息："
-          ./clash-speedtest-op404op -h || true
-          echo "检查工具版本："
-          ./clash-speedtest-op404op --version || ./clash-speedtest-op404op -v || true
+          echo "赋予 OP404OP/clash-speedtest 执行权限完成。"
           echo "OP_TOOL_DOWNLOADED=true" >> $GITHUB_OUTPUT
 
       - name: 运行 OP404OP/clash-speedtest 进行高级测试
         if: success() && steps.check_filtered_file.outputs.FILTERED_NODES_EMPTY == 'false' && steps.download_op404op_tool.outputs.OP_TOOL_DOWNLOADED == 'true'
         run: |
           mkdir -p sc
-          echo "开始运行 OP404OP/clash-speedtest 测试..."
-          echo "当前目录内容："
-          ls -l
-          echo "检查 filtered_nodes.yaml："
-          if [ -s "./filtered_nodes.yaml" ]; then
-            echo "filtered_nodes.yaml 存在，大小: $(du -h ./filtered_nodes.yaml | awk '{print $1}')"
-            head -n 10 ./filtered_nodes.yaml
-          else
-            echo "错误: filtered_nodes.yaml 不存在或为空"
-            exit 1
-          fi
-          echo "执行 clash-speedtest-op404op..."
-          ./clash-speedtest-op404op -c ./filtered_nodes.yaml -output sc/OP404OP.yaml -download-size 5 -upload-size 1 -timeout 38s -concurrent 50 -max-latency 5000ms -min-speed 1 -unlock -risk -rename -debug
-          if [ $? -ne 0 ]; then
-            echo "错误: clash-speedtest-op404op 执行失败"
-            exit 1
-          fi
-          echo "测试完成，结果保存到 sc/OP404OP.yaml"
+          echo "开始使用 OP404OP/clash-speedtest 运行高级速度和解锁测试..."
+          # !!! 关键修改：移除 -min-upload-speed 参数 !!!
+          ./clash-speedtest-op404op \
+            -c ./filtered_nodes.yaml \
+            -output sc/OP404OP.yaml \
+            -download-size 5 \
+            -upload-size 1 \
+            -timeout 38s \
+            -concurrent 50 \
+            -max-latency 5000ms \
+            -min-speed 1 \
+            -unlock \
+            -risk \
+            -rename
+          echo "OP404OP/clash-speedtest 测试完成，结果保存到 sc/OP404OP.yaml"
 
       - name: 验证 OP404OP/clash-speedtest 生成的文件
         if: success() && steps.download_op404op_tool.outputs.OP_TOOL_DOWNLOADED == 'true'
         run: |
           if [ -f "sc/OP404OP.yaml" ]; then
-            echo "'sc/OP404OP.yaml' 已生成，大小: $(du -h sc/OP404OP.yaml | awk '{print $1}')"
-            echo "--- sc/OP404OP.yaml 内容 (前50行) ---"
+            echo "'sc/OP404OP.yaml' 文件已生成，大小: $(du -h sc/OP404OP.yaml | awk '{print $1}')"
+            echo "--- sc/OP404OP.yaml 文件内容 (前50行) ---"
             head -n 50 sc/OP404OP.yaml || true
             echo "----------------------------------------"
             if [ "$(grep -c 'name:' sc/OP404OP.yaml)" -eq 0 ]; then
-              echo "警告: 'sc/OP404OP.yaml' 无代理节点，可能所有节点未通过测试。"
+              echo "警告: 'sc/OP404OP.yaml' 文件中没有检测到代理节点。可能所有节点都未通过 OP404OP/clash-speedtest 的过滤。"
             fi
           else
-            echo "警告: 未生成 'sc/OP404OP.yaml'，测试可能失败或无通过节点。"
+            echo "警告: 未生成 'sc/OP404OP.yaml'。OP404OP/clash-speedtest 可能失败或没有通过过滤的节点。"
           fi
 
       - name: 提交并推送 OP404OP 配置文件
@@ -148,5 +142,6 @@ jobs:
           disable_globbing: false
           create_branch: false
           create_git_tag_only: false
+          internal_git_binary: git
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
