@@ -2,7 +2,7 @@ import os
 import requests
 from urllib.parse import urlparse
 import re
-from concurrent.futures import ThreadPoolExecutor, as_completed # 导入并发相关模块
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from tqdm import tqdm # 用于显示进度条，需要额外安装
 
 # --- 配置 ---
@@ -29,7 +29,7 @@ def download_content(url, timeout=10):
         response.raise_for_status() # 检查HTTP错误
         return url, response.text # 返回URL和内容
     except requests.exceptions.RequestException as e:
-        # print(f"警告: 下载 {url} 失败: {e}") # 并发模式下不直接打印，由主线程统一处理
+        # 在并发模式下，这里只返回None，主线程会统一处理错误信息
         return url, None # 返回URL和None表示失败
 
 def parse_m3u_content(content):
@@ -116,7 +116,8 @@ def main():
         future_to_url = {executor.submit(download_content, url): url for url in source_urls}
         
         # 使用 tqdm 显示进度条
-        for future in tqdm(as_completed(future_to_url), total=len(source_to_url), desc="下载并解析源"):
+        # 修复了 NameError: name 'source_to_url' is not defined 的问题
+        for future in tqdm(as_completed(future_to_url), total=len(source_urls), desc="下载并解析源"):
             url = future_to_url[future]
             try:
                 downloaded_url, content = future.result() # 获取下载结果
