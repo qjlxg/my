@@ -6,16 +6,17 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # --- 配置参数 ---
-# 存放临时下载的原始M3U文件的目录
-DOWNLOAD_DIR = "temp_iptv_sources"
-# 合并后的M3U文件路径
-MERGED_M3U_FILE = "temp_merged_iptv.m3u"
+# 存放临时下载的原始M3U文件的目录。所有临时文件都放到 'sc' 目录下，避免路径问题。
+DOWNLOAD_DIR = "sc/temp_iptv_sources" 
+# 合并后的M3U文件路径，也放到 'sc' 目录下。
+MERGED_M3U_FILE = "sc/temp_merged_iptv.m3u"
 # 最终输出的有效IPTV节目源文件
 FINAL_OUTPUT_FILE = "sc/iptv_list.txt"
 # ffprobe 测试流的超时时间 (秒) - 根据网络和服务器性能调整，避免长时间等待
+# 默认值设置为 8 秒，这是尝试连接和探测流的最大时间。
 FFPROBE_TIMEOUT = 8 
-# 最大并发测试流的数量，根据您的网络和CPU资源调整
-MAX_WORKERS = 10 
+# 最大并发测试流的数量，根据您的网络和CPU资源调整。GitHub Actions 虚拟机通常有足够的核心。
+MAX_WORKERS = 15 # 稍微增加并发数，利用GitHub Actions的资源
 
 # --- 辅助函数 ---
 def ensure_directory_exists(path):
@@ -72,7 +73,13 @@ def merge_m3u_files_and_deduplicate(input_dir, output_file):
     print(f"\n--- 步骤 2: 合并并去重M3U文件 ---")
     merged_streams_set = set() # 用set来去重
     
+    # 确保输出文件的父目录存在
     ensure_directory_exists(os.path.dirname(output_file))
+
+    # 检查输入目录是否存在且不为空
+    if not os.path.exists(input_dir) or not os.listdir(input_dir):
+        print(f"警告: 输入目录 '{input_dir}' 不存在或为空，跳过合并。")
+        return []
 
     with open(output_file, 'w', encoding='utf-8') as outfile:
         outfile.write("#EXTM3U\n") # M3U 文件的开头
@@ -130,7 +137,8 @@ def check_stream_availability(stream_tuple):
             url
         ]
         
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=FFPROBE_TIMEOUT + 2) # 整体运行超时，比 ffprobe 探测超时略长
+        # 整体运行超时，比 ffprobe 探测超时略长，给进程启动和关闭留点时间
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=FFPROBE_TIMEOUT + 2) 
         
         # 如果ffprobe返回码为0且标准错误中没有明显错误信息，通常认为流可用
         if result.returncode == 0 and "error" not in result.stderr.lower():
@@ -140,6 +148,7 @@ def check_stream_availability(stream_tuple):
             # print(f"DEBUG: ffprobe failed for {url}: RC={result.returncode}, Stderr={result.stderr.strip()}")
             return extinf, url, False
     except FileNotFoundError:
+        # 这个错误通常在工作流启动时就发现，但为了健壮性，这里也处理一下
         print("\n错误: ffprobe 未找到。请确保已安装 FFmpeg 并将其添加到 PATH 中。跳过流测试。")
         return extinf, url, False
     except subprocess.TimeoutExpired:
@@ -161,12 +170,9 @@ def main():
     # 这些仓库通常会定期更新免费的IPTV列表，您可以直接下载其raw文件。
     # 您可以在这里添加或移除您希望获取的M3U URL
     github_m3u_urls = [
-        "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/cn.m3u", # 示例：中国频道
-        "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/us.m3u", # 示例：美国频道
-        "https://raw.githubusercontent.com/fanmingming/live/main/live.m3u" # 另一个流行的M3U仓库
-        # 更多示例：
-        # "https://raw.githubusercontent.com/Blackeaglez/IPTV/main/All.m3u",
-        # "https://raw.githubusercontent.com/free-iptv/free-iptv-live/master/channels.m3u"
+      
+        "https://raw.githubusercontent.com/qjlxg/vt/refs/heads/main/iptv_list.txt",
+        "https://raw.githubusercontent.com/qjlxg/vt/refs/heads/main/list.txt"
     ]
     
     downloaded_files_count = 0
