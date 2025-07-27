@@ -22,7 +22,8 @@ jobs:
 
       - name: Install Python Dependencies
         run: |
-          pip install PyYAML requests # Installs necessary Python libraries
+         
+          pip install PyYAML requests aiohttp # 安装必要的 Python 库，包括 aiohttp
 
       - name: Download Clash Core (Mihomo)
         id: download_clash_core # Assigns an ID for referencing outputs
