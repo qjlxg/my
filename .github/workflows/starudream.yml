@@ -1,237 +1,48 @@
-name: Clash Speed Test and Sort with faceair/clash-speedtest
+name: IPTV Processor and Checker
 
 on:
-  workflow_dispatch: # 允许手动触发
+  workflow_dispatch: # 允许在 GitHub Actions 页面手动触发工作流
   schedule:
-    - cron: '0 */4 * * *' # 每4小时自动运行一次
+    - cron: '0 0 * * *' # 每天 UTC 时间 0点运行一次。
+                        # 例如，如果当前时间是 JST 下午 6 点 (UTC 上午 9 点)，那么这个设置会在 JST 上午 9 点运行。
+                        # 如果需要调整，请根据 UTC 时间转换，使用 Cron 表达式生成器辅助。
+                        # 例如，每天 JST 下午 6 点 (UTC 上午 9 点) 运行： cron: '0 9 * * *'
 
 jobs:
-  speed-test:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20 # 设置作业超时时间，防止长时间运行
+  build:
+    runs-on: ubuntu-latest # 在最新的 Ubuntu 虚拟机上运行此作业
 
     steps:
-      - name: 检出仓库
-        uses: actions/checkout@v4
+    - name: Checkout repository # 步骤 1: 克隆您的 GitHub 仓库代码
+      uses: actions/checkout@v4
 
-      - name: 测试网络连通性
-        run: |
-          echo "测试到 1.1.1.1 的连通性..."
-          ping -c 4 1.1.1.1 || true
-          echo "测试到 speedtest.net 的 HTTP 连通性..."
-          curl -s -I https://www.speedtest.net || true
-          echo "测试到 speed.cloudflare.com 的 HTTP 连通性..."
-          curl -s -I https://speed.cloudflare.com || true
+    - name: Set up Python # 步骤 2: 设置 Python 环境
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.x' # 使用最新的 Python 3 版本
 
-      - name: 下载 Clash 核心 (Mihomo)
-        id: download_clash_core
-        run: |
-          MIHOMO_VERSION="1.19.11" # 您可以根据需要更新版本
-          ARCHIVE_NAME="mihomo-linux-amd64-v${MIHOMO_VERSION}.gz"
-          MIHOMO_URL="https://github.com/MetaCubeX/mihomo/releases/download/v${MIHOMO_VERSION}/${ARCHIVE_NAME}"
-          EXECUTABLE_SOURCE_NAME="mihomo-linux-amd64-v${MIHOMO_VERSION}"
-          EXECUTABLE_NAME="mihomo"
+    - name: Install Python dependencies # 步骤 3: 安装 Python 脚本所需的依赖
+      run: |
+        python -m pip install --upgrade pip
+        pip install requests # 您的 iptv_processor.py 脚本需要 requests 库
 
-          echo "下载 Mihomo Core ${ARCHIVE_NAME}..."
-          curl -S -L --retry 5 --retry-delay 5 --connect-timeout 10 --max-time 60 --output "$ARCHIVE_NAME" "$MIHOMO_URL" || { echo "Mihomo 下载失败"; exit 1; }
-          echo "解压 ${ARCHIVE_NAME}..."
-          gzip -d "$ARCHIVE_NAME" || { echo "Mihomo 解压失败"; exit 1; }
-          mv "./${EXECUTABLE_SOURCE_NAME}" "./${EXECUTABLE_NAME}" || { echo "Mihomo 重命名失败"; exit 1; }
-          chmod +x "./${EXECUTABLE_NAME}" || { echo "Mihomo 赋予执行权限失败"; exit 1; }
-          echo "Mihomo Core 下载并准备完成。"
+    - name: Install FFmpeg # 步骤 4: 安装 FFmpeg (包含 ffprobe)
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y ffmpeg # 在 Ubuntu 系统上安装 FFmpeg
 
-      - name: 下载完整的 Clash 配置
-        id: download_config
-        run: |
-          CONFIG_URL="https://raw.githubusercontent.com/qjlxg/vt/refs/heads/main/clash_config.yaml"
-          OUTPUT_FILE="clash_config.yaml"
-          echo "从 ${CONFIG_URL} 下载 Clash 配置..."
-          curl -S -L --retry 5 --retry-delay 5 --connect-timeout 10 --max-time 60 --output "$OUTPUT_FILE" "$CONFIG_URL" || { echo "配置下载失败"; exit 1; }
-          
-          if [ ! -s "$OUTPUT_FILE" ]; then
-            echo "错误: 下载的配置文件为空或缺失。"
-            exit 1
-          fi
-          if ! grep -q "proxies:" "$OUTPUT_FILE"; then
-            echo "错误: clash_config.yaml 中未找到代理配置。"
-            exit 1
-          fi
-          echo "已下载 ${OUTPUT_FILE}。"
-          echo "下载的配置内容 (前20行):"
-          head -n 20 "$OUTPUT_FILE" || true
+    - name: Create 'sc' directory # 步骤 5: 创建输出目录 'sc'
+      run: mkdir -p sc
 
-      - name: 设置 Python 环境
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.x'
+    - name: Run IPTV processing script # 步骤 6: 运行 Python 脚本
+      id: run_script # 为这一步添加一个ID，以便后续引用
+      run: python iptv_processor.py
 
-      - name: 安装 Python 依赖
-        run: pip install PyYAML
-
-      - name: 过滤节点 (使用 Python 脚本)
-        run: |
-          # 确保您的 'filter_clash_nodes.py' 脚本存在并能够正确过滤 'clash_config.yaml'
-          # 这个脚本的目的是生成 'filtered_nodes.yaml'
-          python filter_clash_nodes.py
-
-      - name: 验证过滤后的文件
-        id: check_filtered_file
-        run: |
-          if [ ! -s "filtered_nodes.yaml" ]; then
-            echo "警告: 'filtered_nodes.yaml' 文件为空或无有效内容。可能没有节点符合过滤条件。"
-            echo "FILTERED_NODES_EMPTY=true" >> $GITHUB_OUTPUT
-            head -n 20 filtered_nodes.yaml || true
-            exit 0 # 允许继续，但后续测速步骤会跳过
-          fi
-          echo "filtered_nodes.yaml 文件大小: $(du -h filtered_nodes.yaml | awk '{print $1}')"
-          echo "FILTERED_NODES_EMPTY=false" >> $GITHUB_OUTPUT
-
-      - name: 启动 Clash 核心 (Mihomo)
-        id: start_clash_core
-        if: steps.check_filtered_file.outputs.FILTERED_NODES_EMPTY == 'false'
-        run: |
-          echo "后台启动 Mihomo Core..."
-          ./mihomo -d . -f filtered_nodes.yaml > mihomo.log 2>&1 &
-          MIHOMO_PID=$!
-          echo "Mihomo Core 启动, PID: $MIHOMO_PID"
-          sleep 20 # 给予 Mihomo 足够时间启动并加载配置
-          
-          if ! netstat -tuln | grep -q "127.0.0.1:9090"; then
-            echo "错误: Mihomo Core 未在 9090 端口启动。日志:"
-            cat mihomo.log || true
-            kill $MIHOMO_PID || true
-            exit 1
-          fi
-          PROXY_COUNT=$(curl -s "http://127.0.0.1:9090/proxies" | jq '.proxies | length' || echo 0)
-          if [ "$PROXY_COUNT" -eq 0 ]; then
-            echo "错误: Mihomo 未加载任何代理。日志:"
-            cat mihomo.log || true
-            kill $MIHOMO_PID || true
-            exit 1
-          fi
-          echo "可用代理:"
-          curl -s "http://127.0.0.1:9090/proxies" | jq '.proxies | keys'
-          echo "Mihomo Core 启动，包含 $PROXY_COUNT 个代理。"
-          echo "MIHOMO_PID=$MIHOMO_PID" >> $GITHUB_OUTPUT
-
-      - name: 下载 faceair/clash-speedtest 工具 (v1.7.0)
-        id: download_faceair_tool
-        # 只有在有节点需要测试时才下载工具
-        if: success() && steps.check_filtered_file.outputs.FILTERED_NODES_EMPTY == 'false'
-        run: |
-          # 根据您提供的Release信息，使用v1.7.0和正确的tar.gz文件名
-          TOOL_VERSION="1.7.0"
-          TOOL_ARCHIVE="clash-speedtest_Linux_x86_64.tar.gz" # <-- 注意是tar.gz文件
-          TOOL_URL="https://github.com/faceair/clash-speedtest/releases/download/v${TOOL_VERSION}/${TOOL_ARCHIVE}"
-          OUTPUT_DIR="faceair_tool_extracted" # 创建一个目录用于解压
-          EXECUTABLE_NAME="clash-speedtest" # 解压后可执行文件的默认名称
-
-          echo "尝试从 ${TOOL_URL} 下载 faceair/clash-speedtest 工具..."
-          curl -S -L --retry 5 --retry-delay 5 --connect-timeout 10 --max-time 60 --output "$TOOL_ARCHIVE" "$TOOL_URL" || { echo "下载 faceair/clash-speedtest 工具失败"; exit 1; }
-          
-          echo "解压 ${TOOL_ARCHIVE} 到 ${OUTPUT_DIR}..."
-          mkdir -p "$OUTPUT_DIR"
-          tar -xzf "$TOOL_ARCHIVE" -C "$OUTPUT_DIR" || { echo "解压 faceair/clash-speedtest 工具失败"; exit 1; }
-          
-          # 检查解压后的可执行文件是否存在
-          if [ ! -f "${OUTPUT_DIR}/${EXECUTABLE_NAME}" ]; then
-            echo "错误: 解压后未找到可执行文件 '${EXECUTABLE_NAME}'。"
-            ls -R "$OUTPUT_DIR" || true # 列出解压目录内容以帮助调试
-            exit 1
-          fi
-
-          chmod +x "${OUTPUT_DIR}/${EXECUTABLE_NAME}"
-          echo "赋予 faceair/clash-speedtest 执行权限完成。"
-          echo "FACEAIR_TOOL_PATH=${OUTPUT_DIR}/${EXECUTABLE_NAME}" >> $GITHUB_OUTPUT # 记录可执行文件的完整路径
-          echo "FACEAIR_TOOL_DOWNLOADED=true" >> $GITHUB_OUTPUT
-
-      - name: 运行 faceair/clash-speedtest 进行测速和排序
-        id: run_faceair_speedtest
-        # 确保 Mihomo 已启动，过滤后的文件不为空，且 faceair 工具已下载
-        if: success() && steps.start_clash_core.outcome == 'success' && steps.check_filtered_file.outputs.FILTERED_NODES_EMPTY == 'false' && steps.download_faceair_tool.outputs.FACEAIR_TOOL_DOWNLOADED == 'true'
-        run: |
-          mkdir -p sc
-          echo "开始使用 faceair/clash-speedtest (v1.7.0) 运行速度测试..."
-          
-          # 从上一步获取工具路径
-          FACEAIR_TOOL="${{ steps.download_faceair_tool.outputs.FACEAIR_TOOL_PATH }}"
-
-          # faceair/clash-speedtest 的参数说明:
-          # -c: Clash 配置文件的路径
-          # -o: 输出排序后的 Clash 配置文件的路径
-          # -d: 下载测试的大小 (MB), 推荐 2-5MB
-          # -t: 每个节点的超时时间 (秒), 推荐 10-20秒
-          # -n: 并发测试的节点数量, 推荐 5-20个, 太高可能导致不稳定
-          # --proxy: Clash API 地址
-          # --proxy-secret: 如果您的 Clash API 设置了 secret，请在这里填写
-          # --test-url: 指定测速URL，可以提高稳定性
-          # --fast: 启用快速模式，只测试延迟（在v1.7.0中新增）
-          
-          "$FACEAIR_TOOL" \
-            -c ./filtered_nodes.yaml \
-            -o sc/faceair_sorted.yaml \
-            -d 5 \ # 下载测试大小，可根据需求调整
-            -t 15 \ # 超时时间，可根据需求调整
-            -n 10 \ # 并发数，可根据服务器性能和节点数量调整
-            --proxy "http://127.0.0.1:9090" \
-            --test-url "https://speed.cloudflare.com/__down?bytes=10000000" # 建议使用稳定测速点
-            # --fast # 如果您只关心延迟，可以取消注释此行以启用快速模式，会大大加快速度
-
-          echo "faceair/clash-speedtest 测试完成，结果保存到 sc/faceair_sorted.yaml"
-          if [ ! -s "sc/faceair_sorted.yaml" ]; then
-            echo "错误: sc/faceair_sorted.yaml 是空文件或未生成。请检查测速工具运行日志。"
-            # cat speedtest.log # 如果想看工具的详细日志可以取消注释
-            exit 1
-          fi
-          echo "Generated sc/faceair_sorted.yaml (前50行):"
-          head -n 50 sc/faceair_sorted.yaml || true
-
-      - name: 验证生成的 faceair_sorted.yaml 并统计节点
-        id: count_nodes_faceair
-        # 只有在测速成功生成文件后才执行
-        if: success() && steps.run_faceair_speedtest.outcome == 'success' && steps.check_filtered_file.outputs.FILTERED_NODES_EMPTY == 'false'
-        run: |
-          if [ -f "sc/faceair_sorted.yaml" ]; then
-            echo "'sc/faceair_sorted.yaml' 文件已生成，大小: $(du -h sc/faceair_sorted.yaml | awk '{print $1}')"
-            NODE_COUNT=$(grep -c 'name:' sc/faceair_sorted.yaml || true)
-            echo "检测到 ${NODE_COUNT} 个代理节点。"
-            echo "NODE_COUNT=${NODE_COUNT}" >> $GITHUB_OUTPUT
-            if [ "${NODE_COUNT}" -eq 0 ]; then
-              echo "警告: 'sc/faceair_sorted.yaml' 文件中没有检测到代理节点。"
-            fi
-          else
-            echo "错误: 'sc/faceair_sorted.yaml' 未找到。请检查上一步是否成功。"
-            echo "NODE_COUNT=0" >> $GITHUB_OUTPUT
-            exit 1 # 如果文件未生成，则失败此步骤
-          fi
-
-      - name: 提交并推送排序后的 Clash 配置
-        # 只有在有有效节点被测速并生成文件后才提交
-        if: success() && steps.count_nodes_faceair.outputs.NODE_COUNT > 0
-        uses: stefanzweifel/git-auto-commit-action@v5
-        with:
-          commit_message: "更新 Clash 配置: 节点已使用 faceair/clash-speedtest v${{ env.TOOL_VERSION }} 排序"
-          file_pattern: "sc/faceair_sorted.yaml" # <-- 更新为新的文件名
-          branch: main
-          commit_user_name: github-actions[bot]
-          commit_user_email: 41898282+github-actions[bot]@users.noreply.github.com
-          commit_author: qjlxg <12179157+qjlxg@users.noreply.github.com>
-          repository: .
-          push_options: '--force' # 强制推送以解决分歧问题
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TOOL_VERSION: "1.7.0" # 在这里定义一个环境变量，用于commit message
-
-      - name: 停止 Clash 核心 (Mihomo)
-        # 确保无论前面步骤成功与否，都会尝试停止 Mihomo
-        if: always() && steps.start_clash_core.outcome == 'success' && steps.start_clash_core.outputs.MIHOMO_PID
-        run: |
-          echo "停止 Mihomo Core (PID: ${{ steps.start_clash_core.outputs.MIHOMO_PID }})..."
-          kill ${{ steps.start_clash_core.outputs.MIHOMO_PID }} || true
-          sleep 2
-          if ps -p ${{ steps.start_clash_core.outputs.MIHOMO_PID }} > /dev/null; then
-            echo "Mihomo Core 未能优雅停止，尝试强制杀死。"
-            kill -9 ${{ steps.start_clash_core.outputs.MIHOMO_PID }} || true
-          else
-            echo "Mihomo Core 已成功停止。"
-          fi
+    - name: Commit and push changes # 步骤 7: 自动提交并推送更新后的 iptv_list.txt
+      # 这个 action 会检查是否有文件变动，如果有则自动提交
+      uses: stefanzweifel/git-auto-commit-action@v5 
+      with:
+        commit_message: "Update IPTV list [automated]" # 自动提交的提交信息
+        files: sc/iptv_list.txt # 指定只提交这个文件，确保只更新 IPTV 列表
+        branch: main # 提交到的分支名，请根据您的仓库主分支名称修改 (可能是 'main' 或 'master')
+        # GITHUB_TOKEN 是 GitHub Actions 自动提供的，通常不需要额外配置即可拥有提交权限
