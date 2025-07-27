@@ -99,12 +99,12 @@ jobs:
           ./clash-speedtest-op404op \
             -c ./filtered_nodes.yaml \
             -output sc/OP404OP.yaml \
-            -download-size 5 \
+            -download-size 2 \
             -upload-size 1 \
             -timeout 38s \
-            -concurrent 80 \
-            -max-latency 5000ms \
-            -min-speed 0 \
+            -concurrent 50 \
+            -max-latency 3000ms \
+            -min-speed 0.1 \
           #  -unlock \
           #  -risk
             # -rename 
