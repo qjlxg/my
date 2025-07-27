@@ -16,7 +16,8 @@ jobs:
       - name: Test Network Connectivity
         run: |
           ping -c 4 1.1.1.1 || true
-          curl -s -I https://www.cloudflare.com || true
+          curl -s -I https://www.speedtest.net || true
+          curl -s -I https://speed.cloudflare.com || true
 
       - name: Download Clash Core (Mihomo)
         id: download_clash_core
@@ -104,11 +105,12 @@ jobs:
             --clash-addr "http://127.0.0.1:9090" \
             --clash-secret "${MIHOMO_SECRET}" \
             --output "starudream_sorted.yaml" \
-            --download "cloudflare" \
-            --threads 5 \
-            --size 20 \
-            -y
-          echo "Speed test completed. Output saved to starudream_sorted.yaml"
+            --download "speedtest" \
+            --threads 2 \
+            --size 10 \
+            -y > speedtest.log 2>&1
+          echo "Speed test completed. Logs:"
+          cat speedtest.log
           if [ ! -s "starudream_sorted.yaml" ]; then
             echo "Error: starudream_sorted.yaml is empty or not generated."
             exit 1
