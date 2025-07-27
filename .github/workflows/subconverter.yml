@@ -36,18 +36,28 @@ jobs:
           file subconverter.tar.gz
           gzip -t subconverter.tar.gz || { echo "Downloaded subconverter file is not a valid gzip. Aborting."; exit 1; }
 
-          tar -xzf subconverter.tar.gz
+          # *** 关键修改：解压到临时目录，然后移动可执行文件 ***
+          mkdir temp_subconverter_extract # 创建一个临时目录用于解压
+          tar -xzf subconverter.tar.gz -C temp_subconverter_extract # 解压到临时目录
           
-          # *** 关键修改：将真正的可执行文件从子目录移动到当前目录 ***
-          # 根据常见的打包方式，通常解压后会有一个同名目录，里面才是可执行文件
-          if [ -f "subconverter/subconverter" ]; then
-              mv subconverter/subconverter . # 将可执行文件移动到当前目录
-              rmdir subconverter # 删除现在为空的目录
-          fi
-          # 如果文件名不是 'subconverter' 或者目录结构不同，需要根据实际解压情况调整
-          # 可以先用 'ls -R' 看看解压后的文件结构
+          # 查找临时目录中的可执行文件并移动
+          # 通常，真正的可执行文件就是名字最像的那个，或者在一个子目录里
+          # 我们先假设它在 temp_subconverter_extract 目录下
+          # 可以用 find 命令更通用地查找
+          find temp_subconverter_extract -type f -name "subconverter*" -perm /u+x -print -quit | xargs -r mv -t . # 查找可执行文件并移动到当前目录
           
-          chmod +x subconverter # 授予执行权限给 'subconverter' 文件
+          # 也可以直接假定它就在 temp_subconverter_extract/subconverter
+          # if [ -f "temp_subconverter_extract/subconverter" ]; then
+          #     mv temp_subconverter_extract/subconverter .
+          # elif [ -f "temp_subconverter_extract/subconverter/subconverter" ]; then # 假设是双层目录
+          #     mv temp_subconverter_extract/subconverter/subconverter .
+          # fi
+
+          # 清理临时目录和tar文件
+          rm -rf temp_subconverter_extract
+          rm subconverter.tar.gz
+          
+          chmod +x subconverter # 授予执行权限给 'subconverter' 文件（现在应该在当前目录了）
 
       - name: Download Mihomo (Clash Meta) Core for Speed Testing
         run: |
