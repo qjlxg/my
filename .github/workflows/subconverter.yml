@@ -1,15 +1,15 @@
 name: Automated Proxy Management (with nekoray/subconverter & Mihomo)
 
 on:
-  workflow_dispatch: # 允许手动触发
+  workflow_dispatch: # Allows manual trigger
   schedule:
-    - cron: '0 */6 * * *' # 每6小时运行一次
+    - cron: '0 */6 * * *' # Runs every 6 hours
 
 jobs:
   process_proxies:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # 授予写入权限，以便推送结果文件
+      contents: write # Grants write access to push the result file
 
     steps:
       - name: Checkout repository
@@ -21,37 +21,40 @@ jobs:
           node-version: '16'
 
       - name: Install Node.js YAML dependencies
-        run: npm install js-yaml yq # 安装 yq 工具来更方便地处理 YAML
+        run: npm install js-yaml yq
 
       - name: Create data directory
         run: mkdir -p data
 
       - name: Download nekoray/subconverter Binary
-        # 从 nekoray/subconverter 的 Release 页面下载最新版本
-        # 访问 https://github.com/nekoray/subconverter/releases 确认版本号
+        # *** IMPORTANT: Double-check this exact URL on the GitHub Releases page ***
+        # Visit https://github.com/nekoray/subconverter/releases
+        # Find 'v0.7.1' and confirm the 'subconverter-linux64.tar.gz' asset is present and downloadable.
         run: |
-          SUB_CONVERTER_VERSION="v0.7.1" # 请务必检查 nekoray/subconverter 的最新版本号
-          curl -L "https://github.com/nekoray/subconverter/releases/download/${SUB_CONVERTER_VERSION}/subconverter-linux64.tar.gz" -o subconverter.tar.gz
+          SUB_CONVERTER_VERSION="v0.7.1" # Confirm this is the correct and existing version
+          DOWNLOAD_URL="https://github.com/nekoray/subconverter/releases/download/${SUB_CONVERTER_VERSION}/subconverter-linux64.tar.gz"
+          echo "Attempting to download from: ${DOWNLOAD_URL}"
+          curl -L --fail -o subconverter.tar.gz "${DOWNLOAD_URL}"
+          
+          # Check if the file was downloaded and is a valid gzip
+          file subconverter.tar.gz
+          gzip -t subconverter.tar.gz || { echo "Downloaded file is not a valid gzip. Aborting."; exit 1; }
+
           tar -xzf subconverter.tar.gz
-          chmod +x subconverter # 授予执行权限给 'subconverter' 文件
+          chmod +x subconverter # Grant execute permission
 
       - name: Download Mihomo (Clash Meta) Core for Speed Testing
-        # 访问 https://github.com/MetaCubeX/mihomo/releases 获取最新版本
+        # Visit https://github.com/MetaCubeX/mihomo/releases to get the latest version
         run: |
-          MIHOMO_VERSION="v1.18.2" # 请务必检查 mihomo Release 页面获取最新版本号
-          curl -L "https://github.com/MetaCubeX/mihomo/releases/download/${MIHOMO_VERSION}/mihomo-linux-amd64-${MIHOMO_VERSION}.gz" -o mihomo.gz
+          MIHOMO_VERSION="v1.18.2" # Confirm this is the correct and existing version
+          curl -L --fail -o mihomo.gz "https://github.com/MetaCubeX/mihomo/releases/download/${MIHOMO_VERSION}/mihomo-linux-amd64-${MIHOMO_VERSION}.gz"
           gzip -d mihomo.gz
-          chmod +x mihomo # 授予执行权限
+          chmod +x mihomo # Grant execute permission
 
       - name: Convert and Deduplicate with nekoray/subconverter
-        # 使用 nekoray/subconverter 命令行进行转换和去重
-        # target=clash: 输出为 Clash 格式
-        # url=: 多个订阅链接用 | 符号分隔
-        # scv=true: 跳过证书验证 (部分订阅需要)
-        # dedup=true: 启用去重 (如果有此参数，可确保去重)
+        # Using the same subconverter command as before
         run: |
           ./subconverter -g "https://sub.example.com/sub?target=clash&url=https://raw.githubusercontent.com/qjlxg/vt/refs/heads/main/clash.yaml|https://raw.githubusercontent.com/qjlxg/my/refs/heads/main/sc/OP404OP.yaml&scv=true&dedup=true" > converted_clash.yaml
-          # 注意：subconverter 通常不需要指定 output 文件名，直接重定向输出即可
 
       - name: Perform Speed Test with Mihomo Core
         run: |
