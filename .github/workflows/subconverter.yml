@@ -1,15 +1,15 @@
-name: Automated Proxy Management (with nekoray/subconverter & Mihomo)
+name: Automated Proxy Management (tindy2013/subconverter & Mihomo)
 
 on:
-  workflow_dispatch: # Allows manual trigger
+  workflow_dispatch: # 允许手动触发
   schedule:
-    - cron: '0 */6 * * *' # Runs every 6 hours
+    - cron: '0 */6 * * *' # 每6小时运行一次
 
 jobs:
   process_proxies:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # Grants write access to push the result file
+      contents: write # 授予写入权限，以便推送结果文件
 
     steps:
       - name: Checkout repository
@@ -21,59 +21,73 @@ jobs:
           node-version: '16'
 
       - name: Install Node.js YAML dependencies
-        run: npm install js-yaml yq
+        run: npm install js-yaml yq # 安装 yq 工具来更方便地处理 YAML 和 jq 用于处理 JSON
 
       - name: Create data directory
         run: mkdir -p data
 
-      - name: Download nekoray/subconverter Binary
-        # *** IMPORTANT: Double-check this exact URL on the GitHub Releases page ***
-        # Visit https://github.com/nekoray/subconverter/releases
-        # Find 'v0.7.1' and confirm the 'subconverter-linux64.tar.gz' asset is present and downloadable.
+      - name: Download tindy2013/subconverter v0.9.0 Binary
+        # 从你提供的链接下载最新稳定版 subconverter
+        # 确保版本号和文件名与 Release 页面完全一致
         run: |
-          SUB_CONVERTER_VERSION="v0.7.1" # Confirm this is the correct and existing version
-          DOWNLOAD_URL="https://github.com/nekoray/subconverter/releases/download/${SUB_CONVERTER_VERSION}/subconverter-linux64.tar.gz"
-          echo "Attempting to download from: ${DOWNLOAD_URL}"
+          SUB_CONVERTER_VERSION="v0.9.0"
+          DOWNLOAD_URL="https://github.com/tindy2013/subconverter/releases/download/${SUB_CONVERTER_VERSION}/subconverter_linux64.tar.gz"
+          echo "Attempting to download subconverter from: ${DOWNLOAD_URL}"
           curl -L --fail -o subconverter.tar.gz "${DOWNLOAD_URL}"
           
-          # Check if the file was downloaded and is a valid gzip
+          # 检查下载的文件是否有效
           file subconverter.tar.gz
-          gzip -t subconverter.tar.gz || { echo "Downloaded file is not a valid gzip. Aborting."; exit 1; }
+          gzip -t subconverter.tar.gz || { echo "Downloaded subconverter file is not a valid gzip. Aborting."; exit 1; }
 
           tar -xzf subconverter.tar.gz
-          chmod +x subconverter # Grant execute permission
+          chmod +x subconverter # 授予执行权限给 'subconverter' 文件
 
       - name: Download Mihomo (Clash Meta) Core for Speed Testing
-        # Visit https://github.com/MetaCubeX/mihomo/releases to get the latest version
+        # 访问 https://github.com/MetaCubeX/mihomo/releases 获取最新版本
         run: |
-          MIHOMO_VERSION="v1.18.2" # Confirm this is the correct and existing version
-          curl -L --fail -o mihomo.gz "https://github.com/MetaCubeX/mihomo/releases/download/${MIHOMO_VERSION}/mihomo-linux-amd64-${MIHOMO_VERSION}.gz"
-          gzip -d mihomo.gz
-          chmod +x mihomo # Grant execute permission
+          MIHOMO_VERSION="v1.18.2" # 请务必检查 mihomo Release 页面获取最新版本号
+          DOWNLOAD_URL="https://github.com/MetaCubeX/mihomo/releases/download/${MIHOMO_VERSION}/mihomo-linux-amd64-${MIHOMO_VERSION}.gz"
+          echo "Attempting to download mihomo from: ${DOWNLOAD_URL}"
+          curl -L --fail -o mihomo.gz "${DOWNLOAD_URL}"
+          
+          # 检查下载的文件是否有效
+          gzip -t mihomo.gz || { echo "Downloaded mihomo file is not a valid gzip. Aborting."; exit 1; }
 
-      - name: Convert and Deduplicate with nekoray/subconverter
-        # Using the same subconverter command as before
+          gzip -d mihomo.gz
+          chmod +x mihomo # 授予执行权限
+
+      - name: Convert and Deduplicate with tindy2013/subconverter
+        # 使用 subconverter 命令行进行转换和去重
+        # -g 参数指定转换 URL，其中 target=clash 指定输出格式
+        # url= 后跟多个订阅链接，用 | 符号分隔
+        # dedup=true 启用去重
+        # scv=true: 跳过证书验证 (部分订阅可能需要)
         run: |
           ./subconverter -g "https://sub.example.com/sub?target=clash&url=https://raw.githubusercontent.com/qjlxg/vt/refs/heads/main/clash.yaml|https://raw.githubusercontent.com/qjlxg/my/refs/heads/main/sc/OP404OP.yaml&scv=true&dedup=true" > converted_clash.yaml
 
       - name: Perform Speed Test with Mihomo Core
         run: |
+          # 从 converted_clash.yaml 提取 proxies 部分，创建测试配置文件
           echo "proxies: $(yq '.proxies' converted_clash.yaml)" > test_config.yaml
           echo "external-controller: 127.0.0.1:9090" >> test_config.yaml
           echo "log-level: info" >> test_config.yaml
           
+          # 启动 Mihomo 核心
           ./mihomo -f test_config.yaml &
-          MIHOMO_PID=$!
-          sleep 5
+          MIHOMO_PID=$! # 获取 Mihomo 进程ID
+          sleep 5 # 等待 Mihomo 启动
 
+          # 从转换后的文件中获取所有代理名称
           NODE_NAMES=$(yq '.proxies[].name' converted_clash.yaml | tr '\n' ' ')
           echo "Testing nodes: $NODE_NAMES"
 
           RESULTS_FILE="test_results.txt"
-          echo "" > $RESULTS_FILE
+          echo "" > $RESULTS_FILE # 清空文件
 
+          # 逐个测速并记录结果
           for NODE_NAME in $NODE_NAMES; do
             echo "Testing $NODE_NAME..."
+            # 请求测速，Mihomo 会返回延迟结果
             LATENCY=$(curl -s -X GET "http://127.0.0.1:9090/proxies/$NODE_NAME/delay?url=https://www.google.com/generate_204&timeout=5000" | jq -r '.delay')
             if [ "$LATENCY" == "null" ] || [ "$LATENCY" == "" ]; then
               LATENCY="Timeout/Error"
@@ -81,7 +95,7 @@ jobs:
             echo "$NODE_NAME: $LATENCY ms" >> $RESULTS_FILE
           done
           
-          kill $MIHOMO_PID
+          kill $MIHOMO_PID # 停止 Mihomo 进程
           sleep 1
 
       - name: Filter and Organize Proxies Based on Speed Test
@@ -100,16 +114,16 @@ jobs:
                 if (parts.length === 2) {
                   const name = parts[0];
                   let latency = parseInt(parts[1]);
-                  if (isNaN(latency) || latency === 0) {
-                    latency = Infinity;
+                  if (isNaN(latency) || latency === 0) { // 处理超时或错误
+                    latency = Infinity; // 设置为无限大，以便排序时排在后面
                   }
                   proxyLatencyMap.set(name, latency);
                 }
               });
 
               const sortedAndFilteredProxies = allProxies
-                .filter(p => p && p.name && proxyLatencyMap.has(p.name) && proxyLatencyMap.get(p.name) < Infinity)
-                .sort((a, b) => proxyLatencyMap.get(a.name) - proxyLatencyMap.get(b.name));
+                .filter(p => p && p.name && proxyLatencyMap.has(p.name) && proxyLatencyMap.get(p.name) < Infinity) // 移除超时节点
+                .sort((a, b) => proxyLatencyMap.get(a.name) - proxyLatencyMap.get(b.name)); // 按延迟升序
 
               const finalConfig = {
                 "port": 7890,
