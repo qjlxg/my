@@ -26,11 +26,11 @@ jobs:
       - name: 下载并赋予 xiecang/speedtest-clash 执行权限
         run: |
           TOOL_ARCHIVE_NAME="speedtest-clash_Linux_x86_64.tar.gz" # 完整的压缩包名称
-          TOOL_NAME="clash-speedtest" # 压缩包解压后，可执行文件的通用名称
-          # 根据您提供的Release信息，这是v0.2.4版本的完整下载链接
+          TOOL_NAME_EXPECTED="clash-speedtest" # 我们期望的可执行文件名称 (重命名后的目标名称)
+          # 这是v0.2.4版本的完整下载链接。如果未来有新版本，您可能需要更新此链接。
           TOOL_URL="https://github.com/xiecang/speedtest-clash/releases/download/v0.2.4/$TOOL_ARCHIVE_NAME" 
-          # 解压后通常会创建的目录名
-          EXTRACTED_DIR_NAME="speedtest-clash_Linux_x86_64"
+          # 解压后可能创建的目录名 (从压缩包名推断，用于清理，非核心逻辑)
+          EXTRACTED_ROOT_DIR="speedtest-clash_Linux_x86_64"
 
           echo "尝试下载 '$TOOL_ARCHIVE_NAME'..."
           curl -S -L --retry 5 --retry-delay 5 --connect-timeout 10 --max-time 60 --output "$TOOL_ARCHIVE_NAME" "$TOOL_URL"
@@ -51,24 +51,52 @@ jobs:
           echo "解压 '$TOOL_ARCHIVE_NAME'..."
           tar -xzf "$TOOL_ARCHIVE_NAME" # 解压 .tar.gz 文件
           
-          # **关键修正：处理解压后的目录结构**
-          # 检查可执行文件是否在解压后的子目录中
-          if [ -f "./$EXTRACTED_DIR_NAME/$TOOL_NAME" ]; then
-            echo "发现 '$TOOL_NAME' 在 '$EXTRACTED_DIR_NAME/' 目录下，正在移动到根目录..."
-            mv "./$EXTRACTED_DIR_NAME/$TOOL_NAME" "./$TOOL_NAME"
-          elif [ ! -f "./$TOOL_NAME" ]; then # 只有当上面没有找到且当前目录也没有时才报错
-            echo "错误: 解压后未找到 '$TOOL_NAME' 文件。请检查压缩包内容或解压路径。"
+          echo "--- 调试信息：解压后文件列表 ---"
+          ls -RF # 列出所有解压后的文件和目录结构，用于调试确认
+          echo "---------------------------------"
+
+          # **核心逻辑：自动查找并处理可执行文件**
+          # 查找解压后任何被识别为 "ELF 64-bit LSB executable" 类型的文件
+          # 使用 `find` 配合 `file` 命令来判断文件类型
+          # `head -n 1` 确保只取第一个找到的可执行文件，因为通常只有一个
+          FOUND_EXECUTABLE_PATH=$(find . -type f -print0 | xargs -0 file | grep "ELF 64-bit LSB executable" | head -n 1 | awk -F: '{print $1}')
+
+          if [ -z "$FOUND_EXECUTABLE_PATH" ]; then
+            echo "错误: 未在解压后的文件中找到任何 ELF 64-bit LSB 可执行文件。"
+            echo "请检查 '$TOOL_ARCHIVE_NAME' 压缩包的内容是否符合预期。"
             exit 1
           fi
 
-          FILE_TYPE_INFO=$(file "./$TOOL_NAME")
-          echo "'$TOOL_NAME' 文件类型信息: $FILE_TYPE_INFO"
+          echo "成功找到可执行文件，原始路径: '$FOUND_EXECUTABLE_PATH'"
+
+          # 如果找到的可执行文件不在根目录或者名称不是期望的，则移动并重命名
+          if [ "$FOUND_EXECUTABLE_PATH" != "./$TOOL_NAME_EXPECTED" ]; then
+            echo "正在将可执行文件移动并重命名到根目录为 '$TOOL_NAME_EXPECTED'..."
+            mv "$FOUND_EXECUTABLE_PATH" "./$TOOL_NAME_EXPECTED"
+            if [ $? -ne 0 ]; then
+              echo "错误: 移动或重命名文件失败。"
+              exit 1
+            fi
+            echo "文件移动和重命名成功。"
+          else
+            echo "可执行文件 '$FOUND_EXECUTABLE_PATH' 已在根目录并符合预期名称。"
+          fi
+          
+          # 最终确认可执行文件存在且可用
+          if [ ! -f "./$TOOL_NAME_EXPECTED" ]; then
+            echo "错误: 最终的可执行文件 './$TOOL_NAME_EXPECTED' 不存在。"
+            exit 1
+          fi
+
+          # 赋予执行权限并再次验证文件类型
+          FILE_TYPE_INFO=$(file "./$TOOL_NAME_EXPECTED")
+          echo "'$TOOL_NAME_EXPECTED' 文件类型信息: $FILE_TYPE_INFO"
           if ! echo "$FILE_TYPE_INFO" | grep -q "ELF 64-bit LSB executable"; then
-              echo "错误: '$TOOL_NAME' 文件不是预期的 Linux AMD64 可执行文件。请检查文件是否损坏或上传了错误版本。"
+              echo "错误: '$TOOL_NAME_EXPECTED' 文件不是预期的 Linux AMD64 可执行文件。请检查文件是否损坏或上传了错误版本。"
               exit 1
           fi
-          chmod +x "./$TOOL_NAME"
-          echo "'$TOOL_NAME' 权限已设置并验证为可执行文件。"
+          chmod +x "./$TOOL_NAME_EXPECTED"
+          echo "'$TOOL_NAME_EXPECTED' 权限已设置并验证为可执行文件。"
 
       - name: 下载完整的 Clash 配置
         id: download_config
