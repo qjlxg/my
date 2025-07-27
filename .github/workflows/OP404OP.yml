@@ -106,7 +106,7 @@ jobs:
             -max-latency 5000ms \
             -min-speed 1 \
           #  -unlock \
-            -risk
+          #  -risk
             # -rename 👈 这个参数已经被移除了
           echo "OP404OP/clash-speedtest 测试完成，结果保存到 sc/OP404OP.yaml"
 
