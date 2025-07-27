@@ -104,7 +104,7 @@ jobs:
             -timeout 38s \
             -concurrent 80 \
             -max-latency 5000ms \
-            -min-speed 1 \
+            -min-speed 0 \
           #  -unlock \
           #  -risk
             # -rename 👈 这个参数已经被移除了
