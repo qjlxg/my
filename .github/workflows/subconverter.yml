@@ -62,9 +62,25 @@ jobs:
         run: |
           pushd subconverter # 进入 subconverter 目录
           
-          # *** 关键修改：更新订阅源为新的链接 ***
-          # 同时保留 dedup=true 进行去重
-          ./subconverter -g "https://sub.example.com/sub?target=clash&url=https://raw.githubusercontent.com/qjlxg/ss/refs/heads/master/list.meta.yml&scv=true&dedup=true" | tail -n +2 > ../converted_clash.yaml
+          # *** 关键修改：使用一个 Base64 编码的测试订阅 ***
+          # 这是一个包含两个 VLESS 节点的 Base64 编码字符串
+          # 原始内容是：
+          # vless://testuuid1@test.server.com:443?security=tls&type=ws&path=/test1#TestNode1
+          # vless://testuuid2@test.server.org:443?security=tls&type=grpc#TestNode2
+          # 请注意，这些是测试节点，只是为了验证 subconverter 的功能。
+          # 如果成功，你需要用你自己的实际 VLESS 链接（清理掉特殊字符的）进行 Base64 编码。
+          TEST_SUB_B64="dmxlc3M6Ly90ZXN0dXVpZDEuZXhhbXBsZS5jb206NDQzP3NlY3VyaXR5PXRscyZ0eXBlPXdzJnBhdGg9L3Rlc3QxI1Rlc3ROb2RlMQp2bGVzczovL3Rlc3R1dWlkMkBleGFtcGxlLm9yZzo0NDM/c2VjdXJpdHk9dGxzJnR5cGU9Z3JwYyNUZXN0Tm9kZQ=="
+          
+          # 构建 subconverter 的 URL，使用 Base64 编码的测试订阅
+          # 注意：Base64 编码的订阅 URL 格式通常是 `sub?base64=`，而不是 `sub?url=`
+          # subconverter 文档提到它可以直接解码 base64 参数。
+          # 确认 subconverter 的文档，它确实支持 url=base64:<base64-string>
+          
+          # 所以，我们将使用 url=base64: 格式
+          SUB_CONVERTER_URL="https://sub.example.com/sub?target=clash&url=base64:${TEST_SUB_B64}&scv=true&dedup=true"
+          echo "Subconverter URL: ${SUB_CONVERTER_URL}"
+
+          ./subconverter -g "${SUB_CONVERTER_URL}" | tail -n +2 > ../converted_clash.yaml
           
           popd # 返回上一级目录
           
