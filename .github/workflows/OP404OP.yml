@@ -143,6 +143,6 @@ jobs:
           create_branch: false
           create_git_tag_only: false
           internal_git_binary: git
-          force_push: true
+          push_options: '--force'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
