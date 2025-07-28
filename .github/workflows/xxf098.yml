@@ -1,11 +1,11 @@
 name: LiteSpeedTest & Update Clash Config
 
 on:
-  schedule:
-    - cron: '0 */6 * * *'
-  workflow_dispatch:
   push:
     branches: [main]
+  # schedule:
+  #   - cron: '0 */6 * * *' # 每6小时运行一次
+  workflow_dispatch: # 允许手动触发
 
 jobs:
   speedtest:
@@ -14,90 +14,47 @@ jobs:
     steps:
       - name: Checkout Your Repository
         uses: actions/checkout@v4
+
+      - name: Download Full Clash Configuration (Your Node Source)
+        id: download_config
+        run: |
+          CONFIG_URL="https://raw.githubusercontent.com/qjlxg/vt/refs/heads/main/clash_config.yaml" # 您的主配置/订阅URL
+          OUTPUT_FILE="clash_config.yaml"
+          echo "Downloading Clash configuration from $CONFIG_URL..."
+          curl -S -L --retry 5 --retry-delay 5 --connect-timeout 10 --max-time 60 --output "$OUTPUT_FILE" "$CONFIG_URL" || { echo "Config download failed"; exit 1; }
+          echo "clash_config.yaml downloaded."
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
         with:
-          path: .
+          go-version: '1.22' # 确保使用 Go 1.20 或更高版本，这里选择 1.22
 
-      - name: Download Full Clash Configuration
+      - name: Install LiteSpeedTest using go install
         run: |
-          CONFIG_URL="https://raw.githubusercontent.com/qjlxg/vt/refs/heads/main/clash_config.yaml"
-          curl -S -L --retry 5 --retry-delay 5 --connect-timeout 10 --max-time 60 --output clash_config.yaml "$CONFIG_URL" || { echo "Config download failed"; exit 1; }
-          ls -l clash_config.yaml
-          if ! grep -q "proxies:" clash_config.yaml; then
-            echo "Invalid Clash configuration file"
-            exit 1
-          fi
+          echo "Installing LiteSpeedTest using go install..."
+          # 关键修改：使用 LiteSpeedTest 在 go.mod 中声明的实际模块路径
+          go install github.com/xxf098/lite-proxy@latest
+          echo "LiteSpeedTest installed."
 
-      - name: Create LiteSpeedTest Config
+      - name: Run LiteSpeedTest and Save TXT Result
         run: |
-          echo '{"test_download": true, "test_upload": false, "ping_count": 3}' > config.json
-          ls -l config.json
+          # 确保输出目录存在
+          mkdir -p sc
 
-      - name: Clone LiteSpeedTest Repository
-        uses: actions/checkout@v4
-        with:
-          repository: xxf098/LiteSpeedTest
-          path: LiteSpeedTest
-          # ref: v0.10.0 # 移除或替换为最新版本
+          # 运行 LiteSpeedTest 进行测速
+          # $GOPATH/bin 会自动添加到 PATH 中
+          lite --test "./clash_config.yaml" \
+               --config "./config.json" \
+               --output-mode 4 \
+               --output-path "./sc/xxf098.txt"
+          
+          echo "LiteSpeedTest results saved to sc/xxf098.txt in plain text format."
+          cat sc/xxf098.txt # 打印最终的文本内容供调试
 
-      - name: Debug Directory Structure
-        run: |
-          pwd
-          ls -la
-          ls -la LiteSpeedTest || echo "LiteSpeedTest directory not found"
-          ls -la LiteSpeedTest/docker || echo "docker directory not found"
-          ls -la LiteSpeedTest/docker/Dockerfile || echo "Dockerfile not found"
-
-      - name: Patch LiteSpeedTest Dockerfile
-        run: |
-          DOCKERFILE_PATH="./LiteSpeedTest/docker/Dockerfile"
-          if [ ! -f "$DOCKERFILE_PATH" ]; then
-            echo "Dockerfile not found at $DOCKERFILE_PATH"
-            exit 1
-          fi
-          if ! grep -q "GOOS=js GOARCH=wasm" "$DOCKERFILE_PATH"; then
-            echo "Dockerfile does not contain expected go get command, skipping patch"
-          else
-            sed -i '/RUN GOOS=js GOARCH=wasm go get -u .\/.../i \
-              RUN go mod tidy\nRUN go mod download' "$DOCKERFILE_PATH"
-            sed -i '/^RUN GOOS=js GOARCH=wasm go get -u .\/.../d' "$DOCKERFILE_PATH"
-            cat "$DOCKERFILE_PATH"
-          fi
-
-      - name: Build LiteSpeedTest Docker Image
-        run: |
-          docker build --network=host -t litespeedtest-custom -f ./LiteSpeedTest/docker/Dockerfile ./LiteSpeedTest
-          docker images | grep litespeedtest-custom
-
-      - name: Run LiteSpeedTest
-        shell: bash
-        run: |
-          pwd
-          ls -la
-          mkdir -p sc || { echo "Failed to create sc directory"; exit 1; }
-          ls -ld sc
-          docker run --rm --network host \
-            -v "$(pwd)/clash_config.yaml:/app/clash_config.yaml" \
-            -v "$(pwd)/config.json:/app/config.json" \
-            -v "$(pwd)/sc:/app/sc" \
-            litespeedtest-custom \
-            /usr/local/bin/lite \
-            --test file:///app/clash_config.yaml \
-            --config /app/config.json \
-            --output-mode 4 \
-            --output-path /app/sc/xxf098.txt
-          chmod -R 777 sc
-          if [ ! -s sc/xxf098.txt ]; then
-            echo "Error: LiteSpeedTest output file is empty or not created."
-            exit 1
-          fi
-          cat sc/xxf098.txt
-
-      - name: Commit and Push Results
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Commit and Push New Clash Config
         run: |
           git config user.name github-actions
           git config user.email github-actions@github.com
-          git add sc/xxf098.txt
-          git commit -m "Update Clash config with LiteSpeedTest results" || echo "No changes to commit"
-          git push https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git
+          git add sc/xxf098.txt # 添加最终的 TXT 结果文件
+          git commit -m "Update Clash config with LiteSpeedTest results (sc/xxf098.txt)" || echo "No changes to commit"
+          git push
