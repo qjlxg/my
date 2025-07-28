@@ -31,43 +31,48 @@ jobs:
       - name: Patch LiteSpeedTest Dockerfile for Go Modules
         run: |
           echo "Patching LiteSpeedTest Dockerfile to fix Go module issues..."
-          # 使用 sed 命令在 RUN GOOS=js GOARCH=wasm go get -u ./... 之前插入 go mod tidy 和 go mod download
-          # 这样可以确保依赖被正确清理和下载
-          sed -i '/RUN GOOS=js GOARCH=wasm go get -u .\/.../i RUN go mod tidy\nRUN go mod download' ./LiteSpeedTest/docker/Dockerfile
+          DOCKERFILE_PATH="./LiteSpeedTest/docker/Dockerfile"
+
+          # 确保 go mod tidy 和 go mod download 步骤存在（如果上次没成功插入，这次会重新插入）
+          # 这条 sed 命令会在 'RUN GOOS=js GOARCH=wasm go get -u .\/...' 行之前插入 tidy 和 download
+          # 如果这些行已经存在，sed 会避免重复插入，因为它们不会被匹配到。
+          sed -i '/RUN GOOS=js GOARCH=wasm go get -u .\/.../i \
+            RUN go mod tidy\nRUN go mod download' "$DOCKERFILE_PATH"
+
+          # 移除 problematic 的 'go get -u' 命令本身
+          # 这条 sed 命令会删除包含 'RUN GOOS=js GOARCH=wasm go get -u' 的整行
+          sed -i '/^RUN GOOS=js GOARCH=wasm go get -u .\/.../d' "$DOCKERFILE_PATH"
+
           echo "--- Patched Dockerfile Content ---"
-          cat ./LiteSpeedTest/docker/Dockerfile # 打印修改后的 Dockerfile 内容供调试
+          cat "$DOCKERFILE_PATH" # 打印修改后的 Dockerfile 内容供调试
           echo "----------------------------------"
 
       - name: Build LiteSpeedTest Docker Image
         run: |
           echo "Building LiteSpeedTest Docker image..."
-          # 进入 LiteSpeedTest 仓库目录进行构建
           docker build --network=host -t litespeedtest-custom -f ./LiteSpeedTest/docker/Dockerfile ./LiteSpeedTest
           echo "LiteSpeedTest Docker image built as litespeedtest-custom."
 
       - name: Run LiteSpeedTest (Custom Docker Image) and Save TXT Result
         run: |
-          # 确保输出目录存在
           mkdir -p sc
-
-          # 运行LiteSpeedTest进行测速，直接输出TXT结果到 sc/xxf098.txt
           docker run --rm --network host \
             -v "$(pwd)/clash_config.yaml:/app/clash_config.yaml" \
             -v "$(pwd)/config.json:/app/config.json" \
-            -v "$(pwd)/sc:/app/sc" `# 挂载整个 sc 目录，让容器直接写入` \
+            -v "$(pwd)/sc:/app/sc" \
             litespeedtest-custom \
             --test file:///app/clash_config.yaml \
             --config /app/config.json \
             --output-mode 4 \
-            --output-path /app/sc/xxf098.txt # 容器内路径
+            --output-path /app/sc/xxf098.txt
           
           echo "LiteSpeedTest results saved to sc/xxf098.txt in plain text format."
-          cat sc/xxf098.txt # 打印最终的文本内容供调试
+          cat sc/xxf098.txt
 
       - name: Commit and Push New Clash Config
         run: |
           git config user.name github-actions
           git config user.email github-actions@github.com
-          git add sc/xxf098.txt # 添加最终的 TXT 结果文件
+          git add sc/xxf098.txt
           git commit -m "Update Clash config with LiteSpeedTest results (sc/xxf098.txt)" || echo "No changes to commit"
           git push
