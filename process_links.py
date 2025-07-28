@@ -34,8 +34,13 @@ async def fetch_url(session: aiohttp.ClientSession, url: str) -> str:
                 # --- 添加内容预览以帮助调试 ---
                 print("\n--- Fetched Content Preview (First 10 lines) ---")
                 preview_lines = clean_content.splitlines()
-                for i, line in enumerate(preview_lines[:10]):
-                    print(f"Line {i+1}: {line}")
+                # If content is a single very long line, splitlines() will only have one element.
+                # In that case, we print a snippet of that single line.
+                if len(preview_lines) == 1 and len(preview_lines[0]) > 200:
+                    print(f"Line 1 (snippet): {preview_lines[0][:200]}...")
+                else:
+                    for i, line in enumerate(preview_lines[:10]):
+                        print(f"Line {i+1}: {line}")
                 print("--- End Content Preview ---\n")
                 # ---
 
@@ -377,6 +382,7 @@ def parse_line_as_node(line: str) -> List[Dict[str, Any]]:
     if not line:
         return nodes
 
+    # Try direct protocol links
     for protocol in SUPPORTED_PROTOCOLS:
         if line.startswith(f"{protocol}://"):
             data_part = line[len(protocol) + 3:]
@@ -396,16 +402,20 @@ def parse_line_as_node(line: str) -> List[Dict[str, Any]]:
                     nodes.append(node)
                 else:
                     print(f"Skipping unparseable {protocol} node from line: {line[:100]}...", file=sys.stderr)
-            return nodes
+                return nodes # Return after first successful protocol match
 
+    # Try multi-layer base64 decoding if no direct protocol match
     decoded_content = line
     for _ in range(5): # Try up to 5 times for multi-layer base64
         try:
             temp_decoded_b64 = decoded_content
             temp_decoded_b64 += '=' * (-len(temp_decoded_b64) % 4) # Add padding
             temp_decoded = base64.b64decode(temp_decoded_b64).decode('utf-8')
+            
+            # If the decoded content starts with any supported protocol, parse it
             for protocol in SUPPORTED_PROTOCOLS:
                 if temp_decoded.startswith(f"{protocol}://"):
+                    # Recursively call to handle potentially multiple links in a decoded string
                     nodes.extend(parse_line_as_node(temp_decoded))
                     return nodes
             decoded_content = temp_decoded # Continue decoding if not a direct protocol link
@@ -508,7 +518,111 @@ def parse_content(content: str) -> List[Dict[str, Any]]:
         print(f"Debug: Failed to parse as full JSON: {e}", file=sys.stderr)
         pass # Not a valid full JSON, try next
 
+    # --- 新增：处理被压扁的 YAML 内容 ---
+    # 如果内容是单行且包含 'proxies:' 和 '- name:' 的模式，尝试按此模式分割
+    if "\n" not in content and "proxies:- name:" in content:
+        print("Attempting to parse content as a single-line (flattened) YAML-like string.")
+        # 尝试通过正则表达式分割出每个代理的完整部分
+        # 这个正则表达式尝试匹配从 '- name:' 开始到下一个 '- ' 或字符串末尾的部分
+        # 注意：这是一种启发式方法，不保证100%准确，但能处理常见压扁格式
+        # 针对您给出的预览，第一个 '- name:' 应该被 'proxies:' 包含
+        # 我们寻找 ' - name:' 作为每个代理的开始
+        raw_proxies = re.split(r' - name:', content)
+        
+        # 移除第一个元素（通常是 'proxies:' 或其之前的部分）
+        if raw_proxies and raw_proxies[0].startswith('proxies:'):
+            raw_proxies = raw_proxies[1:] # Skip the 'proxies:' part
+        else: # Handle cases where 'proxies:' might not be at the very start or if it's just a list of items
+             if raw_proxies:
+                # If the first element doesn't start cleanly with 'name:', it might be part of the first item
+                # Or it could be junk before the first actual item.
+                # Let's try to infer if it's a valid first item or junk.
+                if raw_proxies[0].strip().startswith('name:'):
+                    pass # It's okay, the first element looks like a node
+                else:
+                    # If it's not a node, try to see if the content starts with 'proxies:'
+                    # If it does, we assume the first part until the first '- name:' is junk
+                    if content.strip().startswith('proxies:'):
+                        # Find the first real '- name:' and take content from there
+                        match_first_node_start = re.search(r' - name:', content)
+                        if match_first_node_start:
+                            content = content[match_first_node_start.start() + 1:].strip()
+                            raw_proxies = re.split(r' - name:', content) # Resplit from the cleaned content
+                    
+                    if raw_proxies and not raw_proxies[0].strip().startswith('name:'):
+                         # If after all attempts the first element still doesn't look like 'name:', it's likely junk
+                         raw_proxies = raw_proxies[1:] # Remove it as junk
+        
+        for i, item_str_raw in enumerate(raw_proxies):
+            item_str = item_str_raw.strip()
+            if not item_str:
+                continue
+
+            # Reconstruct as a valid YAML block for safe_load.
+            # Replace spaces after colon with a single space to avoid multiple spaces breaking YAML
+            # Add a name prefix back for the first item
+            if not item_str.startswith('name:'):
+                 item_str = 'name:' + item_str
+
+            # Now, try to make it a valid YAML string with proper indentation for a single item
+            # Replace multiple spaces after ':' with a single space if it's a key-value pair
+            clean_item_str = re.sub(r'([a-zA-Z0-9_-]+):(\s+)', r'\1: ', item_str)
+            
+            # For properties that might be concatenated, like 'type:trojan-sni:example.com', convert to standard YAML
+            # This is hard to do reliably with regex alone.
+            # The best approach is to re-parse each fragment as a standalone YAML dict.
+            
+            # Convert single-line "key: value key2: value2" to multi-line "key: value\nkey2: value2"
+            # This is still very challenging for a general solution without full YAML parser.
+            # A more robust approach:
+            
+            # Let's try to convert `key:val key2:val2` to `key: val\nkey2: val2`
+            # This is still a heuristic.
+            
+            # Simple heuristic: Split by spaces, then rejoin if it's not a 'key:'
+            # This is likely to fail given the complexity.
+            # The most reliable way for flattened YAML is to assume it's a list of dicts.
+            # We'll try to reconstruct each segment into a dictionary.
+
+            # We need to treat each 'name: ... ' as a starting point of a node.
+            # The structure appears to be `key:value key2:value2 key3:value3`
+            
+            # Reconstruct as a valid YAML dictionary string
+            # This is highly dependent on the exact structure of the "flattened" YAML.
+            # Based on the provided example, each entry seems to be a list of `key: value` pairs separated by spaces.
+            
+            # Let's try to convert it into a proper YAML dictionary string for each segment
+            # e.g., "name: foo password: bar" => "name: foo\n  password: bar"
+            
+            yaml_format_item = ""
+            parts = re.findall(r'(\w+:\s*[^ ]+)', item_str) # Find key:value pairs, roughly
+            if not parts:
+                 parts = re.findall(r'(\w+:[^ ]+)', item_str) # Try without space after colon
+
+            if parts:
+                yaml_format_item += "  " + "\n  ".join(parts) # Indent each part
+                try:
+                    single_node = yaml.safe_load(yaml_format_item)
+                    if isinstance(single_node, dict) and 'type' in single_node:
+                        # Correct "type" and ensure "name"
+                        nodes.append(ensure_node_name(single_node, single_node.get('type', 'unknown')))
+                    else:
+                        print(f"Warning: Skipping malformed flattened YAML segment (not a dict or missing type) {i+1}: '{item_str[:100]}...'", file=sys.stderr)
+                except yaml.YAMLError as e:
+                    print(f"Warning: Failed to parse flattened YAML segment {i+1} as YAML: {e} - '{item_str[:100]}...'", file=sys.stderr)
+                except Exception as e:
+                    print(f"Error processing flattened YAML segment {i+1}: {e} - '{item_str[:100]}...'", file=sys.stderr)
+            else:
+                 print(f"Warning: Could not extract key-value pairs from flattened YAML segment {i+1}: '{item_str[:100]}...'", file=sys.stderr)
+
+        if nodes:
+            print(f"Content parsed as flattened YAML, found {len(nodes)} valid nodes.")
+            return nodes
+    # --- 结束处理被压扁的 YAML 内容 ---
+
+
     # 3. 如果以上失败，则逐行解析（用于 vmess:// 等格式）
+    # This block will still catch standard base64 encoded links or direct protocol links
     print("Content is neither valid full YAML nor JSON, attempting line-by-line parsing for individual node links.")
     for i, line in enumerate(content.splitlines()):
         line_nodes = parse_line_as_node(line)
@@ -753,22 +867,33 @@ def get_output_filename(url: str) -> str:
     parsed_url = urlparse(url)
     path_segments = [s for s in parsed_url.path.split('/') if s]
     
+    # 更智能地处理文件名，尤其是针对 GitHub raw content
+    if "raw.githubusercontent.com" in parsed_url.hostname:
+        if len(path_segments) >= 4: # e.g., user/repo/branch/path/to/file.ext
+            user = path_segments[0]
+            repo = path_segments[1]
+            # Get the actual filename part, without branch or extra path segments
+            filename_with_ext = path_segments[-1]
+            base_filename = os.path.splitext(filename_with_ext)[0]
+            
+            # Use the last part of the path as the primary name, or a combination if needed
+            if base_filename == "clash" and repo == "aggregator":
+                return "aggregator_clash.yaml"
+            elif base_filename == "configtg" and repo == "hy2":
+                return "hy2_configtg.yaml"
+            elif base_filename == "config_all_merged_nodes" and repo == "collectSub":
+                return "collectSub_all_merged_nodes.yaml"
+            elif base_filename == "all" and repo == "my": # Your problematic URL
+                return "my_all_nodes.yaml"
+            else:
+                # Default for other github raw content
+                return f"{user}_{repo}_{base_filename}.yaml"
+        elif path_segments: # Simpler github raw path
+            return path_segments[-1].replace('.', '_').replace('-', '_') + ".yaml"
+    
+    # For other URLs, use the last segment or hostname
     if path_segments:
-        base_filename = path_segments[-1].split('.')[0] if '.' in path_segments[-1] else path_segments[-1]
-        
-        if "raw.githubusercontent.com" in parsed_url.hostname:
-            repo_parts = [p for p in parsed_url.path.split('/') if p]
-            if len(repo_parts) >= 3:
-                user = repo_parts[0]
-                repo = repo_parts[1]
-                file_segment = repo_parts[-1].split('.')[0] if '.' in repo_parts[-1] else repo_parts[-1]
-                
-                filename = f"{user}_{repo}_{file_segment}"
-                return re.sub(r'[^a-zA-Z0-9_.-]', '', filename) + ".yaml"
-
-            elif base_filename:
-                return base_filename.replace('~', '').replace('.', '_').replace('-', '_') + ".yaml"
-        
+        base_filename = os.path.splitext(path_segments[-1])[0]
         if base_filename:
             return base_filename.replace('~', '').replace('.', '_').replace('-', '_') + ".yaml"
 
@@ -802,11 +927,10 @@ def save_nodes_to_yaml(nodes: List[Dict[str, Any]], output_filepath: str):
 
 async def main():
     urls = [
-        "https://raw.githubusercontent.com/qjlxg/my/refs/heads/main/sc/all.yaml", # 使用这个 URL
-        # "https://raw.githubusercontent.com/qjlxg/ss/refs/heads/master/list.meta.yml", # 这个是元数据文件，建议移除
-        # 您可以在此处添加更多 URL
-        # "https://example.com/some_other_sub.txt",
-        # "https://example.com/another_yaml_sub.yaml"
+        "https://raw.githubusercontent.com/qjlxg/my/refs/heads/main/sc/all.yaml",
+        "https://raw.githubusercontent.com/qjlxg/aggregator/refs/heads/main/data/clash.yaml",
+        "https://raw.githubusercontent.com/qjlxg/hy2/refs/heads/main/configtg.txt",
+        "https://raw.githubusercontent.com/qjlxg/collectSub/refs/heads/main/config_all_merged_nodes.txt",
     ]
 
     all_fetched_nodes: List[Dict[str, Any]] = []
@@ -825,6 +949,7 @@ async def main():
     # --- 应用过滤逻辑 ---
     filtered_and_unique_nodes = filter_nodes(all_fetched_nodes)
     
+    # 将所有过滤后的节点保存到一个统一的 all.yaml 文件中
     all_output_filepath = os.path.join('sc', 'all.yaml')
     save_nodes_to_yaml(filtered_and_unique_nodes, all_output_filepath)
 
@@ -836,7 +961,12 @@ async def fetch_and_parse_nodes(session: aiohttp.ClientSession, url: str) -> Lis
         print(f"No content fetched from {url}, returning empty list.")
         return []
 
+    # 为每个 URL 生成不同的输出文件名，但最终会合并到 all.yaml
+    # filename_for_this_url = get_output_filename(url)
+    # individual_output_filepath = os.path.join('sc', filename_for_this_url)
+    
     nodes = parse_content(content)
+    # save_nodes_to_yaml(nodes, individual_output_filepath) # 暂时不保存单个文件的节点，只合并
     return nodes
 
 
