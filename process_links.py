@@ -19,7 +19,7 @@ from urllib.parse import urlparse, parse_qs, unquote
 from typing import List, Dict, Optional, Tuple, Any
 from dataclasses import dataclass, field
 
-# --- Configuration and Setup ---
+# --- 配置和设置 ---
 
 # 配置日志
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -32,10 +32,10 @@ NODE_SOURCES = [
     "https://raw.githubusercontent.com/qjlxg/ha/refs/heads/main/ss.txt",
     "https://raw.githubusercontent.com/qjlxg/ss/refs/heads/master/list.meta.yml",
     "https://raw.githubusercontent.com/qjlxg/hy2/refs/heads/main/configtg.txt",
-    "https://raw.githubusercontent.com/qjlxg/aggregator/refs/heads/main/ss.txt", # 这个链接之前返回了404错误
+    "https://raw.githubusercontent.com/qjlxg/aggregator/refs/heads/main/ss.txt",
     "https://raw.githubusercontent.com/qjlxg/collectSub/refs/heads/main/config_all_merged_nodes.txt",
     "https://raw.githubusercontent.com/qjlxg/vt/refs/heads/main/clash.yaml",
-    "https://raw.githubusercontent.com/qjlxg/aggregator/refs/heads/main/data/520.yaml" # 这个链接之前返回了404错误
+    "https://raw.githubusercontent.com/qjlxg/aggregator/refs/heads/main/data/520.yaml"
 ]
 
 # --- 数据类 ---
@@ -81,9 +81,10 @@ class TestResult:
     http_proxy_test: bool = False     # 是否理论上支持 HTTP 代理
     latency_ms: float = 0.0           # 延迟（毫秒）
     error_message: str = ""           # 错误信息
-    china_score: int = 0              # 中国可用性评分
-    is_china_usable: bool = False     # 是否在中国可用
-    suggestion: str = ""              # 建议
+    # 评分相关字段保留但不再计算，或简单判断
+    china_score: int = 0              # 中国可用性评分 (已简化/移除计算)
+    is_china_usable: bool = False     # 是否在中国可用 (基于基础测试结果)
+    suggestion: str = ""              # 建议 (已简化/移除计算)
 
 # --- 核心测试器类 ---
 
@@ -92,8 +93,8 @@ class EnhancedNodeTester:
         """
         初始化增强节点测试器。
 
-        :param timeout: 单个连接/操作的超时时间（秒）。已从10秒增加到20秒。
-        :param max_concurrent_tasks: 最大并发测试任务数。已从50减少到30。
+        :param timeout: 单个连接/操作的超时时间（秒）。
+        :param max_concurrent_tasks: 最大并发测试任务数。
         :param china_mode: 是否使用针对中国大陆的测试目标。
         """
         self.timeout = timeout
@@ -120,15 +121,7 @@ class EnhancedNodeTester:
             "https://www.netflix.com/favicon.ico"
         ]
         
-        # 评分权重
-        self.score_weights = {
-            'connectivity': 0.2, # 连接性权重
-            'latency': 0.2,      # 延迟权重
-            'ssl_handshake': 0.2, # SSL握手权重
-            'protocol_param': 0.1, # 协议参数权重
-            'http_proxy': 0.2,   # HTTP代理能力权重
-            'port_commonality': 0.1 # 端口常用性权重
-        }
+        # 评分权重已移除，不再使用
 
     async def __aenter__(self):
         """异步上下文管理器入口，用于 aiohttp 会话。"""
@@ -466,35 +459,9 @@ class EnhancedNodeTester:
             return False, "Hysteria2: 需要 ALPN。"
         return True, "Hysteria2 参数正常"
 
-    def _calculate_china_score(self, result: TestResult) -> int:
-        """计算中国可用性评分。"""
-        score = 0
-        if result.basic_connectivity: score += self.score_weights['connectivity'] * 100
-        if result.latency_ms > 0:
-            if result.latency_ms < 100: score += self.score_weights['latency'] * 100
-            elif result.latency_ms < 200: score += self.score_weights['latency'] * 80
-            elif result.latency_ms < 500: score += self.score_weights['latency'] * 60
-            elif result.latency_ms < 1000: score += self.score_weights['latency'] * 40
-            else: score += self.score_weights['latency'] * 20
-        if result.ssl_handshake: score += self.score_weights['ssl_handshake'] * 100
-        if result.protocol_test: score += self.score_weights['protocol_param'] * 100
-        if result.http_proxy_test: score += self.score_weights['http_proxy'] * 100 # 对于可用性很重要
-        if result.node_info.port in [80, 443, 8080, 8443, 2053, 2083, 2087, 2096, 8388, 8389]:
-            score += self.score_weights['port_commonality'] * 100
-        
-        # 协议特定加分
-        if result.node_info.protocol in ['trojan', 'vless', 'hysteria2']: score += 5
-        elif result.node_info.protocol == 'vmess' and result.node_info.network == 'ws' and result.node_info.security == 'tls': score += 5
-
-        return min(int(score), 100)
-
-    def _generate_suggestion(self, result: TestResult) -> str:
-        """根据评分生成建议。"""
-        if result.china_score >= 90: return "优秀节点，强烈推荐"
-        elif result.china_score >= 70: return "良好节点，推荐使用"
-        elif result.china_score >= 50: return "一般节点，备用选择"
-        elif result.china_score >= 20: return "质量较差，可能不稳定"
-        else: return "不可用节点，不推荐"
+    # 评分计算和建议生成功能已移除
+    # def _calculate_china_score(self, result: TestResult) -> int:
+    # def _generate_suggestion(self, result: TestResult) -> str:
 
     async def test_single_node_async(self, url: str) -> TestResult:
         """异步测试单个节点。"""
@@ -505,7 +472,10 @@ class EnhancedNodeTester:
                 if not node_info or not node_info.address or not node_info.port:
                     return TestResult(
                         node_info=NodeInfo(url=url, protocol='unknown', address='', port=0, remarks=''),
-                        error_message="解析节点失败或缺少地址/端口"
+                        error_message="解析节点失败或缺少地址/端口",
+                        is_china_usable=False,
+                        china_score=0,
+                        suggestion="解析失败"
                     )
                 
                 result = TestResult(node_info=node_info)
@@ -514,8 +484,9 @@ class EnhancedNodeTester:
                 result.basic_connectivity, result.latency_ms, error = await self._test_basic_connectivity_async(node_info)
                 if not result.basic_connectivity:
                     result.error_message = error
-                    result.china_score = self._calculate_china_score(result)
-                    result.suggestion = self._generate_suggestion(result)
+                    result.is_china_usable = False
+                    result.china_score = 0
+                    result.suggestion = "连接失败"
                     return result
                 
                 # 2. SSL 握手测试 (如果适用)
@@ -523,30 +494,38 @@ class EnhancedNodeTester:
                     result.ssl_handshake, ssl_info = await self._test_ssl_handshake_async(node_info)
                     if not result.ssl_handshake:
                         result.error_message = ssl_info
-                        result.china_score = self._calculate_china_score(result)
-                        result.suggestion = self._generate_suggestion(result)
+                        result.is_china_usable = False
+                        result.china_score = 0
+                        result.suggestion = "SSL握手失败"
                         return result
-                else: # 不需要 TLS，SSL 握手默认视为成功
+                else: # 不需要 TLS，SSL 握手默认视为成功。
                     result.ssl_handshake = True
                 
                 # 3. 协议参数验证
                 result.protocol_test, protocol_info = self._test_protocol_specific(node_info)
                 if not result.protocol_test:
                     result.error_message = protocol_info
-                    result.china_score = self._calculate_china_score(result)
-                    result.suggestion = self._generate_suggestion(result)
+                    result.is_china_usable = False
+                    result.china_score = 0
+                    result.suggestion = "协议参数错误"
                     return result
 
                 # 4. 模拟 HTTP 代理测试 (基于之前的阶段)
                 result.http_proxy_test, _, http_info = await self._test_http_proxy_async(result) 
                 if not result.http_proxy_test:
-                    result.error_message = http_info
+                    result.error_message = http_info # 仅记录错误，不立即失败
 
-
-                # 最终评分计算和建议
-                result.china_score = self._calculate_china_score(result)
-                result.is_china_usable = result.china_score >= 40 # 可用性阈值
-                result.suggestion = self._generate_suggestion(result)
+                # 如果所有基础测试通过，则认为可用
+                result.is_china_usable = (
+                    result.basic_connectivity and 
+                    result.ssl_handshake and 
+                    result.protocol_test and 
+                    result.http_proxy_test # 假设http_proxy_test也必须通过
+                )
+                
+                # 评分和建议现在是占位符或基于简单判断
+                result.china_score = 100 if result.is_china_usable else 0 # 简单设为100或0
+                result.suggestion = "通过基础测试" if result.is_china_usable else "未通过基础测试"
                 
                 return result
                 
@@ -554,7 +533,10 @@ class EnhancedNodeTester:
                 logger.error(f"测试节点 {url[:80]}... 时发生错误: {e}")
                 return TestResult(
                     node_info=NodeInfo(url=url, protocol='unknown', address='', port=0, remarks=''),
-                    error_message=f"测试意外失败: {str(e)}"
+                    error_message=f"测试意外失败: {str(e)}",
+                    is_china_usable=False,
+                    china_score=0,
+                    suggestion="测试异常"
                 )
 
     async def check_nodes_batch_async(self, nodes: List[str]) -> List[Dict]:
@@ -572,8 +554,7 @@ class EnhancedNodeTester:
             completed_count += 1
             if completed_count % 50 == 0 or completed_count == len(nodes):
                 usable_count = len([r for r in results if r.is_china_usable])
-                avg_score = sum(r.china_score for r in results) / len(results) if results else 0
-                logger.info(f"进度: {completed_count}/{len(nodes)}, 可用: {usable_count}, 平均评分: {avg_score:.1f}")
+                logger.info(f"进度: {completed_count}/{len(nodes)}, 可用: {usable_count}")
 
         # 将 TestResult 对象转换为字典，以便输出一致
         dict_results = []
@@ -586,9 +567,9 @@ class EnhancedNodeTester:
                 'remarks': res.node_info.remarks,
                 'success': res.is_china_usable, # 整体可用性
                 'latency': res.latency_ms,
-                'china_score': res.china_score,
+                'china_score': res.china_score, # 评分功能已移除，这里是占位符
                 'china_usable': res.is_china_usable,
-                'suggestion': res.suggestion,
+                'suggestion': res.suggestion, # 建议功能已移除，这里是占位符
                 'error': res.error_message,
                 'basic_connectivity': res.basic_connectivity,
                 'ssl_handshake': res.ssl_handshake,
@@ -598,8 +579,8 @@ class EnhancedNodeTester:
                 'node_info': res.node_info 
             })
         
-        # 按 china_score 降序排序 (最高分优先)
-        dict_results.sort(key=lambda x: x['china_score'], reverse=True)
+        # 不再按 china_score 排序，保留原始完成顺序或按需要进行其他排序
+        # 例如，可以按延迟排序，但为了避免复杂性，此处不进行排序
         
         usable_final_count = len([r for r in dict_results if r['china_usable']])
         logger.info(f"检测完成！可用节点数: {usable_final_count}/{len(dict_results)}")
@@ -844,7 +825,7 @@ def save_nodes_to_clash_yaml(nodes_data: List[Dict], filename: str = "sc/all.yam
 
     clash_proxies = []
     for node_dict in nodes_data:
-        # 从测试结果字典中提取 NodeInfo 对象
+        # 提取 NodeInfo 对象
         node_info = node_dict.get('node_info')
         if node_info:
             clash_node = to_clash_yaml_node(node_info)
@@ -950,16 +931,14 @@ async def main():
         logger.warning("没有获取到节点。退出。")
         return
 
-    # 创建 EnhancedNodeTester 实例，并使用修改后的超时和并发任务数
-    # timeout: 增加超时时间以应对可能较慢的节点
-    # max_concurrent_tasks: 减少并发任务数以降低资源消耗和避免卡顿
+    # 创建 EnhancedNodeTester 实例
     async with EnhancedNodeTester(timeout=20, max_concurrent_tasks=30) as tester:
         all_test_results = await tester.check_nodes_batch_async(all_raw_nodes)
     
-    # 筛选出基于 china_score 阈值 (>= 40) 被认为可用的节点
+    # 筛选出被认为可用的节点 (基于基础连接和协议测试)
     usable_nodes_for_clash = [
         result for result in all_test_results
-        if result['china_usable'] # 直接检查 china_usable 字段
+        if result['is_china_usable'] # 直接检查 is_china_usable 字段
     ]
 
     if usable_nodes_for_clash:
