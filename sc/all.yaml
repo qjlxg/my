@@ -26,20 +26,32 @@ dns:
     ipcidr:
     - 240.0.0.0/4
 proxies:
-- name: '@rxv2ray'
-  server: 77.91.87.79
-  port: 55
-  type: vmess
-  uuid: 0dc0d22c-68e5-440a-9465-97cad8d1cf33
-  alterId: 0
-  cipher: auto
-- name: VLESS-53fa8faf-ba4b-4322-9c69-a3e5b1555049:443
-  server: 53fa8faf-ba4b-4322-9c69-a3e5b1555049
+- name: 🇷🇺_RU_俄罗斯联邦_3
+  server: 185.236.233.111
+  port: 2053
+  type: trojan
+  password: ba74833c-8c0f-4dcd-8cbc-13e3c32d3765
+  tls: true
+  servername: ftp.debian.org
+- name: 🇺🇸_US_美国_4
+  server: series-a2.samanehha.co
   port: 443
-  type: vless
-  uuid: null
-  cipher: auto
-  flow: ''
+  type: ss
+  password: mps3FwmDjLrWaOVg
+  cipher: chacha20-ietf-poly1305
+- name: 🇸🇬_SG_新加坡_5
+  server: sg01.freeflyingcloud.xyz
+  port: 35702
+  type: trojan
+  password: 63db084a-e2ce-46db-9dd6-d4ed2c3d2663
+  tls: true
+  servername: sg01.freeflyingcloud.xyz
+- name: 🇺🇸_US_美国_6
+  server: 38.110.1.111
+  port: 8000
+  type: ss
+  password: KixLvKzwjekG00rm
+  cipher: aes-256-gcm
 - name: '@config_green ss://Y2hhY2hhMjAtaWV0Zi1wb2x5MTMwNTpCb2cwRUxtTU05RFN4RGRR@series-a2-me.varzesh360.co:443?type=tcp#@config_green
     Location: United Kingdom 🇬🇧 Protocol: shadowsocks 🚀 Data: Hamrah & Irancell ✅
     Join: @config_green ☘️'
@@ -41192,13 +41204,6 @@ proxies:
   mptcp: false
   skip-cert-verify: true
   servername: apple.com
-- name: 🇷🇺_RU_俄罗斯联邦_3
-  server: 185.236.233.111
-  port: 2053
-  type: trojan
-  password: ba74833c-8c0f-4dcd-8cbc-13e3c32d3765
-  tls: true
-  servername: ftp.debian.org
 - name: '@vpnv2rayNGv'
   server: 185.208.79.170
   port: 10780
@@ -41379,13 +41384,6 @@ proxies:
   flow: ''
   tls: true
   servername: refersion.com
-- name: 🇸🇬_SG_新加坡_5
-  server: sg01.freeflyingcloud.xyz
-  port: 35702
-  type: trojan
-  password: 63db084a-e2ce-46db-9dd6-d4ed2c3d2663
-  tls: true
-  servername: sg01.freeflyingcloud.xyz
 - name: Join---MARAMBASHI---Join---MARAMBASHI---Join---MARAMBASHI---Join---MARAMBASHI?ed=2560&security=none&encryption=none&host=vngsupply.ip-ddns.com&type=ws#@vpnv2rayNGv
   server: 104.25.220.177
   port: 8880
@@ -53108,8 +53106,10 @@ proxy-groups:
   proxies:
   - ♻️ 自动选择
   - 🎯 直连
-  - '@rxv2ray'
-  - VLESS-53fa8faf-ba4b-4322-9c69-a3e5b1555049:443
+  - 🇷🇺_RU_俄罗斯联邦_3
+  - 🇺🇸_US_美国_4
+  - 🇸🇬_SG_新加坡_5
+  - 🇺🇸_US_美国_6
   - '@config_green ss://Y2hhY2hhMjAtaWV0Zi1wb2x5MTMwNTpCb2cwRUxtTU05RFN4RGRR@series-a2-me.varzesh360.co:443?type=tcp#@config_green
     Location: United Kingdom 🇬🇧 Protocol: shadowsocks 🚀 Data: Hamrah & Irancell ✅
     Join: @config_green ☘️'
@@ -57073,7 +57073,6 @@ proxy-groups:
   - '['
   - Telegram @vpnjey  🇺🇸🇺🇸
   - Mci-@V2ray_Raha-10
-  - 🇷🇺_RU_俄罗斯联邦_3
   - '@vpnv2rayNGv'
   - VLESS-elegant-corporation.seotoolsforyou.co.uk:80
   - '@warp_city'
@@ -57092,7 +57091,6 @@ proxy-groups:
   - 美国06 付费推荐：https://dafei.de
   - 美国07 付费推荐：https://dafei.de
   - 🇺🇸+آمریکا🕊️@Gozargah_Azadi
-  - 🇸🇬_SG_新加坡_5
   - Join---MARAMBASHI---Join---MARAMBASHI---Join---MARAMBASHI---Join---MARAMBASHI?ed=2560&security=none&encryption=none&host=vngsupply.ip-ddns.com&type=ws#@vpnv2rayNGv
   - '@varn_Net'
   - 🇬🇧+لندن+🕊️@Gozargah_Azadi
@@ -58340,8 +58338,10 @@ proxy-groups:
 - name: ♻️ 自动选择
   type: url-test
   proxies:
-  - '@rxv2ray'
-  - VLESS-53fa8faf-ba4b-4322-9c69-a3e5b1555049:443
+  - 🇷🇺_RU_俄罗斯联邦_3
+  - 🇺🇸_US_美国_4
+  - 🇸🇬_SG_新加坡_5
+  - 🇺🇸_US_美国_6
   - '@config_green ss://Y2hhY2hhMjAtaWV0Zi1wb2x5MTMwNTpCb2cwRUxtTU05RFN4RGRR@series-a2-me.varzesh360.co:443?type=tcp#@config_green
     Location: United Kingdom 🇬🇧 Protocol: shadowsocks 🚀 Data: Hamrah & Irancell ✅
     Join: @config_green ☘️'
@@ -62305,7 +62305,6 @@ proxy-groups:
   - '['
   - Telegram @vpnjey  🇺🇸🇺🇸
   - Mci-@V2ray_Raha-10
-  - 🇷🇺_RU_俄罗斯联邦_3
   - '@vpnv2rayNGv'
   - VLESS-elegant-corporation.seotoolsforyou.co.uk:80
   - '@warp_city'
@@ -62324,7 +62323,6 @@ proxy-groups:
   - 美国06 付费推荐：https://dafei.de
   - 美国07 付费推荐：https://dafei.de
   - 🇺🇸+آمریکا🕊️@Gozargah_Azadi
-  - 🇸🇬_SG_新加坡_5
   - Join---MARAMBASHI---Join---MARAMBASHI---Join---MARAMBASHI---Join---MARAMBASHI?ed=2560&security=none&encryption=none&host=vngsupply.ip-ddns.com&type=ws#@vpnv2rayNGv
   - '@varn_Net'
   - 🇬🇧+لندن+🕊️@Gozargah_Azadi
