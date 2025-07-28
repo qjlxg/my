@@ -762,7 +762,7 @@ def save_nodes_to_yaml(nodes: List[Dict[str, Any]], output_filepath: str):
 
 async def main():
     urls = [
-        "https://raw.githubusercontent.com/qjlxg/ss/refs/heads/master/list.meta.yml",
+        "https://raw.githubusercontent.com/qjlxg/my/refs/heads/main/sc/all.yaml",
         # 您可以在此处添加更多 URL
         # "https://example.com/some_other_sub.txt",
         # "https://example.com/another_yaml_sub.yaml"
