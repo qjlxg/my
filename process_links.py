@@ -21,28 +21,28 @@ from dataclasses import dataclass, field
 
 # --- Configuration and Setup ---
 
-# Configure logging
+# 配置日志
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# List of node sources
+# 节点来源列表
 NODE_SOURCES = [
     "https://raw.githubusercontent.com/qjlxg/aggregator/refs/heads/main/data/clash.yaml",
     "https://raw.githubusercontent.com/qjlxg/my/refs/heads/main/sc/all.yaml",
     "https://raw.githubusercontent.com/qjlxg/ha/refs/heads/main/ss.txt",
     "https://raw.githubusercontent.com/qjlxg/ss/refs/heads/master/list.meta.yml",
     "https://raw.githubusercontent.com/qjlxg/hy2/refs/heads/main/configtg.txt",
-    "https://raw.githubusercontent.com/qjlxg/aggregator/refs/heads/main/ss.txt", # This one returned 404
+    "https://raw.githubusercontent.com/qjlxg/aggregator/refs/heads/main/ss.txt", # 这个链接之前返回了404错误
     "https://raw.githubusercontent.com/qjlxg/collectSub/refs/heads/main/config_all_merged_nodes.txt",
     "https://raw.githubusercontent.com/qjlxg/vt/refs/heads/main/clash.yaml",
-    "https://raw.githubusercontent.com/qjlxg/aggregator/refs/heads/main/data/520.yaml" # This one returned 404
+    "https://raw.githubusercontent.com/qjlxg/aggregator/refs/heads/main/data/520.yaml" # 这个链接之前返回了404错误
 ]
 
-# --- Data Classes ---
+# --- 数据类 ---
 
 @dataclass
 class NodeInfo:
-    """Node information parsed from URL."""
+    """从URL解析的节点信息。"""
     url: str
     protocol: str
     address: str
@@ -50,59 +50,68 @@ class NodeInfo:
     remarks: str = ""
     uuid: str = ""
     password: str = ""
-    method: str = ""  # SS method
-    security: str = ""  # VLESS security, e.g., tls, reality
-    network: str = "tcp"  # Vmess/Vless/Trojan network type
-    host: str = ""  # WS/H2 host header
+    method: str = ""  # SS 加密方法
+    security: str = ""  # VLESS 安全类型，例如 tls, reality
+    network: str = "tcp"  # Vmess/Vless/Trojan 传输协议类型
+    host: str = ""  # WS/H2 host 头
     path: str = ""  # WS/H2 path
     sni: str = ""  # TLS SNI
     flow: str = ""  # VLESS flow
     alter_id: int = 0  # Vmess alterId
     mux_enabled: bool = False  # Trojan mux
-    obfs: str = ""  # SSR/SS obfs
-    obfs_param: str = ""  # SSR/SS obfs param
-    protocol_param: str = ""  # SSR protocol param
-    obfs_hy2: str = ""  # Hysteria2 obfs
-    obfs_password_hy2: str = ""  # Hysteria2 obfs password
+    obfs: str = ""  # SSR/SS 混淆插件
+    obfs_param: str = ""  # SSR/SS 混淆参数
+    protocol_param: str = ""  # SSR 协议参数
+    obfs_hy2: str = ""  # Hysteria2 混淆
+    obfs_password_hy2: str = ""  # Hysteria2 混淆密码
     alpn: List[str] = field(default_factory=list)
-    insecure: bool = False  # Hysteria2/TLS insecure skip-cert-verify
+    insecure: bool = False  # Hysteria2/TLS 不安全跳过证书验证
     fast_open: bool = True  # Hysteria2 fast_open
     mptcp: bool = False  # Hysteria2 mptcp
-    up_mbps: int = 0  # Hysteria2 up bandwidth
-    down_mbps: int = 0 # Hysteria2 down bandwidth
+    up_mbps: int = 0  # Hysteria2 上行带宽
+    down_mbps: int = 0 # Hysteria2 下行带宽
 
 @dataclass
 class TestResult:
-    """Results of a node test."""
+    """节点测试结果。"""
     node_info: NodeInfo
-    basic_connectivity: bool = False
-    ssl_handshake: bool = False # This is a TestResult attribute!
-    protocol_test: bool = False
-    http_proxy_test: bool = False # Indicates if HTTP through proxy is theoretically possible
-    latency_ms: float = 0.0
-    error_message: str = ""
-    china_score: int = 0
-    is_china_usable: bool = False
-    suggestion: str = ""
+    basic_connectivity: bool = False # 基础连接性
+    ssl_handshake: bool = False       # SSL/TLS 握手
+    protocol_test: bool = False       # 协议参数验证
+    http_proxy_test: bool = False     # 是否理论上支持 HTTP 代理
+    latency_ms: float = 0.0           # 延迟（毫秒）
+    error_message: str = ""           # 错误信息
+    china_score: int = 0              # 中国可用性评分
+    is_china_usable: bool = False     # 是否在中国可用
+    suggestion: str = ""              # 建议
 
-# --- Core Tester Class ---
+# --- 核心测试器类 ---
 
 class EnhancedNodeTester:
     def __init__(self, timeout=20, max_concurrent_tasks=30, china_mode=True):
+        """
+        初始化增强节点测试器。
+
+        :param timeout: 单个连接/操作的超时时间（秒）。已从10秒增加到20秒。
+        :param max_concurrent_tasks: 最大并发测试任务数。已从50减少到30。
+        :param china_mode: 是否使用针对中国大陆的测试目标。
+        """
         self.timeout = timeout
         self.max_concurrent_tasks = max_concurrent_tasks
         self.china_mode = china_mode
         self.http_session: Optional[aiohttp.ClientSession] = None
-        self.sem = asyncio.Semaphore(self.max_concurrent_tasks) # Limit concurrent async tasks
+        self.sem = asyncio.Semaphore(self.max_concurrent_tasks) # 限制并发异步任务
 
+        # 针对中国大陆的测试目标
         self.china_test_targets = [
-            "https://www.google.com/generate_204", # Google no-content response, good for probing
+            "https://www.google.com/generate_204", # Google 无内容响应，适合探测
             "https://www.facebook.com/favicon.ico",
             "https://www.twitter.com/favicon.ico",
             "https://www.instagram.com/favicon.ico",
             "https://www.reddit.com/favicon.ico",
         ]
         
+        # 全球范围的测试目标
         self.global_test_targets = [
             "https://www.cloudflare.com/favicon.ico",
             "https://www.amazon.com/favicon.ico",
@@ -111,31 +120,32 @@ class EnhancedNodeTester:
             "https://www.netflix.com/favicon.ico"
         ]
         
+        # 评分权重
         self.score_weights = {
-            'connectivity': 0.2,
-            'latency': 0.2,
-            'ssl_handshake': 0.2,
-            'protocol_param': 0.1,
-            'http_proxy': 0.2,
-            'port_commonality': 0.1
+            'connectivity': 0.2, # 连接性权重
+            'latency': 0.2,      # 延迟权重
+            'ssl_handshake': 0.2, # SSL握手权重
+            'protocol_param': 0.1, # 协议参数权重
+            'http_proxy': 0.2,   # HTTP代理能力权重
+            'port_commonality': 0.1 # 端口常用性权重
         }
 
     async def __aenter__(self):
-        """Asynchronous context manager entry for aiohttp session."""
+        """异步上下文管理器入口，用于 aiohttp 会话。"""
         self.http_session = aiohttp.ClientSession(
             timeout=aiohttp.ClientTimeout(total=self.timeout),
             headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'},
-            connector=aiohttp.TCPConnector(ssl=False) # We perform explicit SSL checks, so don't verify here
+            connector=aiohttp.TCPConnector(ssl=False) # 我们执行显式SSL检查，因此这里不验证
         )
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        """Asynchronous context manager exit for closing aiohttp session."""
+        """异步上下文管理器出口，用于关闭 aiohttp 会话。"""
         if self.http_session:
             await self.http_session.close()
 
     def _decode_base64_urlsafe(self, s: str) -> str:
-        """Safely decode URL-safe Base64 strings, handling padding."""
+        """安全地解码 URL-safe Base64 字符串，处理填充。"""
         if not isinstance(s, str):
             return ""
         s = s.replace('-', '+').replace('_', '/')
@@ -148,7 +158,7 @@ class EnhancedNodeTester:
             return ""
 
     def parse_node(self, url: str) -> Optional[NodeInfo]:
-        """Parses a node URL into a NodeInfo object."""
+        """将节点 URL 解析为 NodeInfo 对象。"""
         try:
             if url.startswith('vmess://'):
                 return self._parse_vmess(url)
@@ -163,13 +173,14 @@ class EnhancedNodeTester:
             elif url.startswith('hysteria2://'):
                 return self._parse_hysteria2(url)
             else:
-                logger.debug(f"Unsupported protocol type: {url[:30]}...")
+                logger.debug(f"不支持的协议类型: {url[:30]}...")
                 return None
         except Exception as e:
-            logger.debug(f"Failed to parse node {url[:80]}...: {e}")
+            logger.debug(f"解析节点 {url[:80]}... 失败: {e}")
             return None
 
     def _parse_vmess(self, url: str) -> Optional[NodeInfo]:
+        """解析 VMess 链接。"""
         encoded = url[8:]
         decoded_json_str = self._decode_base64_urlsafe(encoded)
         if not decoded_json_str:
@@ -187,6 +198,7 @@ class EnhancedNodeTester:
         )
 
     def _parse_vless(self, url: str) -> Optional[NodeInfo]:
+        """解析 VLESS 链接。"""
         parsed = urlparse(url)
         uuid = parsed.username
         address = parsed.hostname
@@ -203,6 +215,7 @@ class EnhancedNodeTester:
         )
 
     def _parse_shadowsocks(self, url: str) -> Optional[NodeInfo]:
+        """解析 Shadowsocks (SS) 链接。"""
         raw_data = url[5:]
         parts = raw_data.split('#', 1)
         encoded_part = parts[0]
@@ -214,7 +227,7 @@ class EnhancedNodeTester:
 
         match = re.match(r'(.+?):(.+?)@(.+?):(\d+)', decoded_auth_server)
         if not match:
-            raise ValueError("SS link format mismatch after decode")
+            raise ValueError("SS 链接解码后格式不匹配")
 
         method, password, server, port = match.groups()
 
@@ -224,6 +237,7 @@ class EnhancedNodeTester:
         )
 
     def _parse_shadowsocksr(self, url: str) -> Optional[NodeInfo]:
+        """解析 ShadowsocksR (SSR) 链接。"""
         encoded_part_with_fragment = url[6:]
         parts = encoded_part_with_fragment.split('#', 1)
         encoded_params = parts[0]
@@ -235,7 +249,7 @@ class EnhancedNodeTester:
 
         ssr_parts = decoded_params.split(':')
         if len(ssr_parts) < 6:
-            raise ValueError("SSR link missing components")
+            raise ValueError("SSR 链接缺少组件")
 
         server = ssr_parts[0]
         port = int(ssr_parts[1])
@@ -257,12 +271,13 @@ class EnhancedNodeTester:
         protocol_param = self._decode_base64_urlsafe(query_params.get('protoparam', [''])[0])
 
         return NodeInfo(
-            url=url, protocol='ssr', address=server, port=port,
+            url=url, protocol='ssr', address=server, port=int(port),
             remarks=remarks or f"SSR-{server}:{port}", password=password,
             method=method, obfs=obfs, obfs_param=obfs_param, protocol_param=protocol_param
         )
 
     def _parse_trojan(self, url: str) -> Optional[NodeInfo]:
+        """解析 Trojan 链接。"""
         parsed = urlparse(url)
         password = parsed.username
         address = parsed.hostname
@@ -279,13 +294,14 @@ class EnhancedNodeTester:
         )
 
     def _parse_hysteria2(self, url: str) -> Optional[NodeInfo]:
+        """解析 Hysteria2 链接。"""
         parsed = urlparse(url)
         password = parsed.username or ""
         address = parsed.hostname
         port = parsed.port
 
         if not address or not port:
-            raise ValueError("Hysteria2 link missing address or port")
+            raise ValueError("Hysteria2 链接缺少地址或端口")
         
         params = parse_qs(parsed.query)
         sni = params.get('sni', [address])[0]
@@ -302,7 +318,7 @@ class EnhancedNodeTester:
         )
 
     async def _test_basic_connectivity_async(self, node_info: NodeInfo) -> Tuple[bool, float, str]:
-        """Asynchronous basic TCP connectivity test."""
+        """异步基础 TCP 连接性测试。"""
         try:
             start_time = time.monotonic()
             reader, writer = await asyncio.wait_for(
@@ -314,23 +330,24 @@ class EnhancedNodeTester:
             await writer.wait_closed()
             return True, latency, ""
         except asyncio.TimeoutError:
-            return False, 0, "Connection timeout"
+            return False, 0, "连接超时"
         except ConnectionRefusedError:
-            return False, 0, "Connection refused"
+            return False, 0, "连接被拒绝"
         except socket.gaierror:
-            return False, 0, "DNS resolution failed"
+            return False, 0, "DNS 解析失败"
         except Exception as e:
-            return False, 0, f"Connection error: {str(e)}"
+            return False, 0, f"连接错误: {str(e)}"
 
     async def _test_ssl_handshake_async(self, node_info: NodeInfo) -> Tuple[bool, str]:
-        """Asynchronous SSL/TLS handshake test."""
+        """异步 SSL/TLS 握手测试。"""
+        # 判断是否需要进行 TLS 检查
         requires_tls_check = (
             (node_info.protocol in ['vmess', 'vless', 'trojan'] and node_info.security == 'tls') or
             node_info.protocol == 'hysteria2' or
             node_info.port == 443
         )
         if not requires_tls_check:
-            return True, "Not applicable (no TLS configured or non-443 port)"
+            return True, "不适用 (未配置 TLS 或非 443 端口)"
 
         try:
             context = ssl.create_default_context()
@@ -342,9 +359,10 @@ class EnhancedNodeTester:
                 context.verify_mode = ssl.CERT_REQUIRED
             
             target_sni = node_info.sni if node_info.sni else node_info.address
-            if not target_sni and node_info.protocol not in ['ss', 'ssr']: # SS/SSR don't strictly require SNI for handshake
-                 # If TLS is required but SNI is missing for protocols that need it, mark as failure
-                return False, "SSL: SNI is required but not provided for TLS protocol"
+            # 对于 SS/SSR 协议，即使端口是 443，如果它们本身不支持 SNI 或 TLS，我们也不强制要求 SNI
+            if not target_sni and node_info.protocol not in ['ss', 'ssr']: 
+                 # 如果需要 TLS 但缺少 SNI，则标记为失败
+                return False, "SSL: 协议需要 SNI 但未提供"
 
             reader, writer = await asyncio.wait_for(
                 asyncio.open_connection(node_info.address, node_info.port, ssl=context, server_hostname=target_sni),
@@ -353,40 +371,36 @@ class EnhancedNodeTester:
             
             writer.close()
             await writer.wait_closed()
-            return True, f"SSL handshake successful with SNI: {target_sni}"
+            return True, f"SSL 握手成功，SNI: {target_sni}"
         except ssl.SSLError as e:
-            return False, f"SSL error: {str(e)}"
+            return False, f"SSL 错误: {str(e)}"
         except asyncio.TimeoutError:
-            return False, "SSL handshake timeout"
+            return False, "SSL 握手超时"
         except ConnectionRefusedError:
-            return False, "SSL connection refused"
+            return False, "SSL 连接被拒绝"
         except Exception as e:
-            return False, f"SSL test failed: {str(e)}"
+            return False, f"SSL 测试失败: {str(e)}"
 
-    # FIX START: Modified _test_http_proxy_async to accept TestResult
     async def _test_http_proxy_async(self, result: TestResult) -> Tuple[bool, float, str]:
         """
-        Simulated HTTP proxy test.
-        This function currently assumes that if TCP/SSL/Protocol validation passes,
-        the node is theoretically capable of proxying HTTP traffic.
-        A true HTTP proxy test would involve a local proxy or protocol-specific
-        HTTP tunneling, which is beyond a simple node checker's scope.
+        模拟 HTTP 代理测试。此函数目前假设如果 TCP/SSL/协议验证通过，
+        节点理论上能够代理 HTTP 流量。真正的 HTTP 代理测试将涉及本地代理
+        或协议特定的 HTTP 隧道，这超出了简单节点检查器的范围。
         """
-        node_info = result.node_info # Get NodeInfo from TestResult
+        node_info = result.node_info # 从 TestResult 中获取 NodeInfo
 
-        # If the node involves TLS/WebSocket/gRPC, and SSL handshake was successful,
-        # we consider it capable of carrying HTTP traffic.
-        # For SS/SSR, if basic connectivity and parameters are fine, we assume it too.
-        # This is a simplification.
+        # 如果节点涉及 TLS/WebSocket/gRPC，并且 SSL 握手成功，
+        # 我们认为它能够承载 HTTP 流量。
+        # 对于 SS/SSR，如果基本连接和参数正常，我们也假设如此。
+        # 这是一个简化处理。
         if (node_info.protocol in ['vmess', 'vless', 'trojan', 'hysteria2'] and result.ssl_handshake) or \
            (node_info.protocol in ['ss', 'ssr'] and result.basic_connectivity):
-            return True, 0.0, "Assumed HTTP proxy capability via protocol/TLS handshake"
+            return True, 0.0, "通过协议/TLS 握手假定 HTTP 代理能力"
         else:
-            return False, 0.0, "Protocol not directly suitable for simple HTTP proxy test or prior stage failed"
-    # FIX END
+            return False, 0.0, "协议不直接适合简单 HTTP 代理测试或前置阶段失败"
 
     def _test_protocol_specific(self, node_info: NodeInfo) -> Tuple[bool, str]:
-        """Protocol-specific parameter validation."""
+        """协议特定参数验证。"""
         try:
             if node_info.protocol == 'vmess':
                 return self._validate_vmess_params(node_info)
@@ -401,53 +415,59 @@ class EnhancedNodeTester:
             elif node_info.protocol == 'hysteria2':
                 return self._validate_hysteria2_params(node_info)
             else:
-                return False, "Unknown protocol"
+                return False, "未知协议"
         except Exception as e:
-            return False, f"Protocol validation failed: {str(e)}"
+            return False, f"协议验证失败: {str(e)}"
 
     def _validate_vmess_params(self, node_info: NodeInfo) -> Tuple[bool, str]:
-        if not all([node_info.uuid, node_info.address, node_info.port]): return False, "VMess: Missing required fields"
-        # VMess TLS security can be 'none' or 'tls'. If 'tls', SNI is important but not strictly mandatory by spec.
+        """验证 VMess 协议参数。"""
+        if not all([node_info.uuid, node_info.address, node_info.port]): return False, "VMess: 缺少必需字段"
+        # VMess TLS 安全可以是 'none' 或 'tls'。如果是 'tls'，SNI 很重要但不是规范强制要求。
         if node_info.security == 'tls' and not node_info.sni and node_info.network in ['ws', 'h2', 'grpc']:
-            return True, "VMess with TLS but SNI missing for web transport. May still work."
-        return True, "VMess params OK"
+            return True, "VMess 带 TLS 但 Web 传输缺少 SNI。可能仍然有效。"
+        return True, "VMess 参数正常"
 
     def _validate_vless_params(self, node_info: NodeInfo) -> Tuple[bool, str]:
-        if not all([node_info.uuid, node_info.address, node_info.port]): return False, "VLESS: Missing required fields"
+        """验证 VLESS 协议参数。"""
+        if not all([node_info.uuid, node_info.address, node_info.port]): return False, "VLESS: 缺少必需字段"
         if node_info.security in ['tls', 'reality'] and not node_info.sni:
-            return False, "VLESS with TLS/Reality: SNI is highly recommended and often required."
+            return False, "VLESS 带 TLS/Reality: 强烈建议并通常需要 SNI。"
         if node_info.network in ['ws', 'grpc'] and not node_info.path:
-            return False, f"VLESS with {node_info.network}: Path is usually required."
-        return True, "VLESS params OK"
+            return False, f"VLESS 带 {node_info.network}: 通常需要 Path。"
+        return True, "VLESS 参数正常"
 
     def _validate_trojan_params(self, node_info: NodeInfo) -> Tuple[bool, str]:
-        if not all([node_info.password, node_info.address, node_info.port]): return False, "Trojan: Missing required fields"
+        """验证 Trojan 协议参数。"""
+        if not all([node_info.password, node_info.address, node_info.port]): return False, "Trojan: 缺少必需字段"
         if not node_info.sni:
-            return False, "Trojan: SNI is highly recommended for Trojan."
-        return True, "Trojan params OK"
+            return False, "Trojan: 强烈建议使用 SNI。"
+        return True, "Trojan 参数正常"
 
     def _validate_ss_params(self, node_info: NodeInfo) -> Tuple[bool, str]:
-        if not all([node_info.method, node_info.password, node_info.address, node_info.port]): return False, "SS: Missing required fields"
+        """验证 Shadowsocks (SS) 协议参数。"""
+        if not all([node_info.method, node_info.password, node_info.address, node_info.port]): return False, "SS: 缺少必需字段"
         valid_methods = ['aes-256-gcm', 'aes-128-gcm', 'chacha20-poly1305', 'aes-256-cfb', 'aes-128-cfb', 'none']
         if node_info.method not in valid_methods:
-            return False, f"SS: Unsupported method: {node_info.method}"
-        return True, "SS params OK"
+            return False, f"SS: 不支持的方法: {node_info.method}"
+        return True, "SS 参数正常"
     
     def _validate_ssr_params(self, node_info: NodeInfo) -> Tuple[bool, str]:
+        """验证 ShadowsocksR (SSR) 协议参数。"""
         if not all([node_info.address, node_info.port, node_info.method, node_info.password, node_info.protocol_param, node_info.obfs]):
-            return False, "SSR: Missing required fields"
-        return True, "SSR params OK"
+            return False, "SSR: 缺少必需字段"
+        return True, "SSR 参数正常"
 
     def _validate_hysteria2_params(self, node_info: NodeInfo) -> Tuple[bool, str]:
-        if not all([node_info.address, node_info.port, node_info.password]): return False, "Hysteria2: Missing required fields"
+        """验证 Hysteria2 协议参数。"""
+        if not all([node_info.address, node_info.port, node_info.password]): return False, "Hysteria2: 缺少必需字段"
         if not node_info.sni:
-            return False, "Hysteria2: SNI is highly recommended."
+            return False, "Hysteria2: 强烈建议使用 SNI。"
         if not node_info.alpn:
-            return False, "Hysteria2: ALPN is required."
-        return True, "Hysteria2 params OK"
+            return False, "Hysteria2: 需要 ALPN。"
+        return True, "Hysteria2 参数正常"
 
     def _calculate_china_score(self, result: TestResult) -> int:
-        """Calculates a score for China usability."""
+        """计算中国可用性评分。"""
         score = 0
         if result.basic_connectivity: score += self.score_weights['connectivity'] * 100
         if result.latency_ms > 0:
@@ -458,39 +478,39 @@ class EnhancedNodeTester:
             else: score += self.score_weights['latency'] * 20
         if result.ssl_handshake: score += self.score_weights['ssl_handshake'] * 100
         if result.protocol_test: score += self.score_weights['protocol_param'] * 100
-        if result.http_proxy_test: score += self.score_weights['http_proxy'] * 100 # Important for usability
+        if result.http_proxy_test: score += self.score_weights['http_proxy'] * 100 # 对于可用性很重要
         if result.node_info.port in [80, 443, 8080, 8443, 2053, 2083, 2087, 2096, 8388, 8389]:
             score += self.score_weights['port_commonality'] * 100
         
-        # Protocol specific bonuses
+        # 协议特定加分
         if result.node_info.protocol in ['trojan', 'vless', 'hysteria2']: score += 5
         elif result.node_info.protocol == 'vmess' and result.node_info.network == 'ws' and result.node_info.security == 'tls': score += 5
 
         return min(int(score), 100)
 
     def _generate_suggestion(self, result: TestResult) -> str:
-        """Generates a suggestion based on the score."""
-        if result.china_score >= 90: return "Excellent node, highly recommended"
-        elif result.china_score >= 70: return "Good node, recommended for use"
-        elif result.china_score >= 50: return "Average node, secondary choice"
-        elif result.china_score >= 20: return "Poor quality, might be unstable"
-        else: return "Unusable node, not recommended"
+        """根据评分生成建议。"""
+        if result.china_score >= 90: return "优秀节点，强烈推荐"
+        elif result.china_score >= 70: return "良好节点，推荐使用"
+        elif result.china_score >= 50: return "一般节点，备用选择"
+        elif result.china_score >= 20: return "质量较差，可能不稳定"
+        else: return "不可用节点，不推荐"
 
     async def test_single_node_async(self, url: str) -> TestResult:
-        """Asynchronously tests a single node."""
-        async with self.sem: # Acquire a semaphore slot
-            logger.debug(f"Starting test for: {url}")
+        """异步测试单个节点。"""
+        async with self.sem: # 获取一个信号量槽位
+            logger.debug(f"开始测试: {url}")
             try:
                 node_info = self.parse_node(url)
                 if not node_info or not node_info.address or not node_info.port:
                     return TestResult(
                         node_info=NodeInfo(url=url, protocol='unknown', address='', port=0, remarks=''),
-                        error_message="Failed to parse node or missing address/port"
+                        error_message="解析节点失败或缺少地址/端口"
                     )
                 
                 result = TestResult(node_info=node_info)
                 
-                # 1. Basic TCP Connectivity Test
+                # 1. 基础 TCP 连接性测试
                 result.basic_connectivity, result.latency_ms, error = await self._test_basic_connectivity_async(node_info)
                 if not result.basic_connectivity:
                     result.error_message = error
@@ -498,7 +518,7 @@ class EnhancedNodeTester:
                     result.suggestion = self._generate_suggestion(result)
                     return result
                 
-                # 2. SSL Handshake Test (if applicable)
+                # 2. SSL 握手测试 (如果适用)
                 if (node_info.protocol in ['vmess', 'vless', 'trojan', 'hysteria2'] and node_info.security == 'tls') or node_info.port == 443:
                     result.ssl_handshake, ssl_info = await self._test_ssl_handshake_async(node_info)
                     if not result.ssl_handshake:
@@ -506,10 +526,10 @@ class EnhancedNodeTester:
                         result.china_score = self._calculate_china_score(result)
                         result.suggestion = self._generate_suggestion(result)
                         return result
-                else: # No TLS required, so SSL Handshake is 'true' by default.
+                else: # 不需要 TLS，SSL 握手默认视为成功
                     result.ssl_handshake = True
                 
-                # 3. Protocol Parameter Validation
+                # 3. 协议参数验证
                 result.protocol_test, protocol_info = self._test_protocol_specific(node_info)
                 if not result.protocol_test:
                     result.error_message = protocol_info
@@ -517,36 +537,35 @@ class EnhancedNodeTester:
                     result.suggestion = self._generate_suggestion(result)
                     return result
 
-                # 4. Simulated HTTP Proxy Test (based on previous stages)
-                # FIX: Pass the 'result' object directly to _test_http_proxy_async
+                # 4. 模拟 HTTP 代理测试 (基于之前的阶段)
                 result.http_proxy_test, _, http_info = await self._test_http_proxy_async(result) 
                 if not result.http_proxy_test:
                     result.error_message = http_info
 
 
-                # Final score calculation and suggestion
+                # 最终评分计算和建议
                 result.china_score = self._calculate_china_score(result)
-                result.is_china_usable = result.china_score >= 40
+                result.is_china_usable = result.china_score >= 40 # 可用性阈值
                 result.suggestion = self._generate_suggestion(result)
                 
                 return result
                 
             except Exception as e:
-                logger.error(f"Error testing node {url[:80]}...: {e}")
+                logger.error(f"测试节点 {url[:80]}... 时发生错误: {e}")
                 return TestResult(
                     node_info=NodeInfo(url=url, protocol='unknown', address='', port=0, remarks=''),
-                    error_message=f"Test failed unexpectedly: {str(e)}"
+                    error_message=f"测试意外失败: {str(e)}"
                 )
 
     async def check_nodes_batch_async(self, nodes: List[str]) -> List[Dict]:
-        """Asynchronously checks a batch of nodes."""
-        logger.info(f"Starting enhanced node detection for {len(nodes)} nodes...")
+        """异步检查一批节点。"""
+        logger.info(f"开始对 {len(nodes)} 个节点进行增强检测...")
         
         tasks = [self.test_single_node_async(node_url) for node_url in nodes]
         results: List[TestResult] = []
         completed_count = 0
 
-        # Use asyncio.as_completed to get results as they finish
+        # 使用 asyncio.as_completed 获取已完成的结果
         for future in asyncio.as_completed(tasks):
             test_result = await future
             results.append(test_result)
@@ -554,9 +573,9 @@ class EnhancedNodeTester:
             if completed_count % 50 == 0 or completed_count == len(nodes):
                 usable_count = len([r for r in results if r.is_china_usable])
                 avg_score = sum(r.china_score for r in results) / len(results) if results else 0
-                logger.info(f"Progress: {completed_count}/{len(nodes)}, Usable: {usable_count}, Avg Score: {avg_score:.1f}")
+                logger.info(f"进度: {completed_count}/{len(nodes)}, 可用: {usable_count}, 平均评分: {avg_score:.1f}")
 
-        # Convert TestResult objects to dictionaries for consistent output
+        # 将 TestResult 对象转换为字典，以便输出一致
         dict_results = []
         for res in results:
             dict_results.append({
@@ -565,7 +584,7 @@ class EnhancedNodeTester:
                 'address': res.node_info.address,
                 'port': res.node_info.port,
                 'remarks': res.node_info.remarks,
-                'success': res.is_china_usable, # Overall usability
+                'success': res.is_china_usable, # 整体可用性
                 'latency': res.latency_ms,
                 'china_score': res.china_score,
                 'china_usable': res.is_china_usable,
@@ -575,54 +594,54 @@ class EnhancedNodeTester:
                 'ssl_handshake': res.ssl_handshake,
                 'protocol_test': res.protocol_test,
                 'http_proxy_test': res.http_proxy_test,
-                # Include node_info object for later YAML conversion
+                # 包含 node_info 对象以供后续 YAML 转换
                 'node_info': res.node_info 
             })
         
-        # Sort by china_score (highest first)
+        # 按 china_score 降序排序 (最高分优先)
         dict_results.sort(key=lambda x: x['china_score'], reverse=True)
         
         usable_final_count = len([r for r in dict_results if r['china_usable']])
-        logger.info(f"Detection complete! Usable nodes: {usable_final_count}/{len(dict_results)}")
+        logger.info(f"检测完成！可用节点数: {usable_final_count}/{len(dict_results)}")
         
         return dict_results
 
     def get_test_targets(self) -> List[str]:
-        """Gets test targets based on china_mode."""
+        """根据 china_mode 获取测试目标。"""
         return self.china_test_targets if self.china_mode else self.global_test_targets
 
-# --- Node Fetching and YAML Generation ---
+# --- 节点获取和 YAML 生成 ---
 
 async def fetch_nodes_from_url(session: aiohttp.ClientSession, url: str) -> List[str]:
-    """Fetches node URLs from a given remote URL, handling various formats."""
+    """从给定的远程 URL 获取节点 URL，处理各种格式。"""
     try:
-        logger.info(f"Fetching nodes from: {url}")
+        logger.info(f"正在从以下地址获取节点: {url}")
         async with session.get(url, timeout=15) as response:
-            response.raise_for_status() # Raise an exception for HTTP errors (4xx or 5xx)
+            response.raise_for_status() # 对 HTTP 错误 (4xx 或 5xx) 抛出异常
             content_type = response.headers.get('Content-Type', '')
             text_content = await response.text()
 
-            # Handle base64 encoded content
+            # 处理 Base64 编码的内容
             if "text/plain" in content_type and not text_content.startswith(('vmess://', 'vless://', 'ss://', 'trojan://', 'ssr://', 'hysteria2://')) and len(text_content) > 100:
                 try:
                     decoded_content = base64.b64decode(text_content.strip()).decode('utf-8')
-                    # Check if decoded content looks like a list of URLs or a YAML
+                    # 检查解码后的内容是否像 URL 列表或 YAML
                     if '\n' in decoded_content or decoded_content.strip().startswith(('vmess://', 'vless://', 'ss://', 'trojan://', 'ssr://', 'hysteria2://')):
                         text_content = decoded_content
                     elif decoded_content.strip().startswith(('proxies:', 'proxy-groups:', 'rules:')):
-                         # It's a Clash YAML
+                         # 这是一个 Clash YAML
                         try:
                             config = yaml.safe_load(decoded_content)
                             if 'proxies' in config and isinstance(config['proxies'], list):
-                                # If it's a Clash YAML, the conversion to URL is complex and not guaranteed.
-                                # For now, we rely on the direct parsing logic for Clash YAML further down.
+                                # 如果是 Clash YAML，转换为 URL 是复杂的且不保证。
+                                # 目前，我们依赖于下面直接解析 Clash YAML 的逻辑。
                                 pass 
                         except yaml.YAMLError:
-                            pass # Not a valid YAML, continue
+                            pass # 不是有效的 YAML，继续
                 except Exception as e:
-                    logger.debug(f"Failed to decode base64 from {url}: {e}")
+                    logger.debug(f"从 {url} 解码 base64 失败: {e}")
 
-            # Handle direct node lists (one URL per line)
+            # 处理直接的节点列表 (每行一个 URL)
             if '\n' in text_content:
                 lines = text_content.splitlines()
                 nodes = []
@@ -632,19 +651,18 @@ async def fetch_nodes_from_url(session: aiohttp.ClientSession, url: str) -> List
                         nodes.append(line)
                 if nodes: return nodes
 
-            # Handle Clash YAML (proxies section)
+            # 处理 Clash YAML (proxies 部分)
             if text_content.strip().startswith(('proxies:', 'proxy-groups:', 'rules:')) or "yaml" in content_type:
                 try:
                     config = yaml.safe_load(text_content)
                     if 'proxies' in config and isinstance(config['proxies'], list):
                         clash_proxies = config['proxies']
                         nodes = []
-                        # Convert Clash proxy dict to a URL string if possible
+                        # 尝试从代理字典中重建 URL
                         for proxy_dict in clash_proxies:
                             url = ""
-                            # Attempt to reconstruct a URL from the proxy dict
                             if proxy_dict.get('type') == 'vmess':
-                                # This is a simplification; full VMess URL reconstruction is complex
+                                # 这是一个简化；完整的 VMess URL 重建很复杂
                                 vmess_config = {
                                     'add': proxy_dict.get('server'),
                                     'port': proxy_dict.get('port'),
@@ -672,12 +690,10 @@ async def fetch_nodes_from_url(session: aiohttp.ClientSession, url: str) -> List
                                         query_params.append(f"serviceName={proxy_dict.get('grpc-opts').get('serviceName')}")
                                 if proxy_dict.get('servername'): query_params.append(f"sni={proxy_dict.get('servername')}")
                                 if proxy_dict.get('flow'): query_params.append(f"flow={proxy_dict.get('flow')}")
-                                
                                 query_string = "&".join(query_params)
                                 url = f"vless://{proxy_dict.get('uuid')}@{proxy_dict.get('server')}:{proxy_dict.get('port')}"
                                 if query_string: url += f"?{query_string}"
                                 if proxy_dict.get('name'): url += f"#{proxy_dict.get('name')}"
-
                             elif proxy_dict.get('type') == 'trojan':
                                 query_params = []
                                 if proxy_dict.get('servername'): query_params.append(f"sni={proxy_dict.get('servername')}")
@@ -689,12 +705,10 @@ async def fetch_nodes_from_url(session: aiohttp.ClientSession, url: str) -> List
                                 elif proxy_dict.get('network') == 'grpc':
                                     if proxy_dict.get('grpc-opts', {}).get('serviceName'):
                                         query_params.append(f"serviceName={proxy_dict.get('grpc-opts').get('serviceName')}")
-                                
                                 query_string = "&".join(query_params)
                                 url = f"trojan://{proxy_dict.get('password')}@{proxy_dict.get('server')}:{proxy_dict.get('port')}"
                                 if query_string: url += f"?{query_string}"
                                 if proxy_dict.get('name'): url += f"#{proxy_dict.get('name')}"
-
                             elif proxy_dict.get('type') == 'ss':
                                 auth_part = base64.b64encode(f"{proxy_dict.get('cipher')}:{proxy_dict.get('password')}".encode()).decode().rstrip('=')
                                 server_port = f"{proxy_dict.get('server')}:{proxy_dict.get('port')}"
@@ -706,45 +720,40 @@ async def fetch_nodes_from_url(session: aiohttp.ClientSession, url: str) -> List
                                 if proxy_dict.get('alpn'): query_params.append(f"alpn={','.join(proxy_dict.get('alpn'))}")
                                 if proxy_dict.get('skip-cert-verify'): query_params.append('insecure=1')
                                 if proxy_dict.get('servername'): query_params.append(f"sni={proxy_dict.get('servername')}")
-                                # Add other Hysteria2 specific parameters here if they exist in Clash YAML and you want to reconstruct
-                                
+                                # 如果 Clash YAML 中存在 Hysteria2 特定参数并希望重建，请在此处添加
                                 query_string = "&".join(query_params)
                                 url = f"hysteria2://{proxy_dict.get('password')}@{proxy_dict.get('server')}:{proxy_dict.get('port')}"
                                 if query_string: url += f"?{query_string}"
                                 if proxy_dict.get('name'): url += f"#{proxy_dict.get('name')}"
                             elif proxy_dict.get('type') == 'ssr':
-                                # SSR URL reconstruction is quite complex due to multiple encoding layers
-                                # This is a placeholder; needs full SSR spec adherence
-                                logger.warning(f"Skipping SSR proxy reconstruction from Clash YAML: {proxy_dict.get('name')}")
-                                url = "" # Don't add if complex reconstruction is not done
-                            
+                                # SSR URL 重建相当复杂，因为它涉及多层编码
+                                # 这是一个占位符；需要完全遵守 SSR 规范
+                                logger.warning(f"跳过从 Clash YAML 重建 SSR 代理: {proxy_dict.get('name')}")
+                                url = "" # 如果没有完成复杂的重建，则不添加
                             if url:
                                 nodes.append(url)
                         if nodes: return nodes
                 except yaml.YAMLError as e:
-                    logger.debug(f"Failed to parse YAML from {url}: {e}")
-            
-            logger.warning(f"Could not extract nodes from {url}. Content might be unsupported format or empty.")
+                    logger.debug(f"解析 {url} 中的 YAML 失败: {e}")
+            logger.warning(f"无法从 {url} 中提取节点。内容可能是不支持的格式或为空。")
             return []
-
     except aiohttp.ClientError as e:
-        logger.error(f"HTTP error fetching {url}: {e}")
+        logger.error(f"获取 {url} 时发生 HTTP 错误: {e}")
         return []
     except asyncio.TimeoutError:
-        logger.error(f"Timeout fetching {url}")
+        logger.error(f"获取 {url} 超时")
         return []
     except Exception as e:
-        logger.error(f"An unexpected error occurred while fetching {url}: {e}")
+        logger.error(f"获取 {url} 时发生意外错误: {e}")
         return []
 
 def to_clash_yaml_node(node_info: NodeInfo) -> Optional[Dict]:
-    """Converts a NodeInfo object to a Clash YAML compatible dictionary."""
+    """将 NodeInfo 对象转换为 Clash YAML 兼容的字典。"""
     node = {
         "name": node_info.remarks if node_info.remarks else f"{node_info.protocol}-{node_info.address}:{node_info.port}",
         "server": node_info.address,
         "port": node_info.port,
     }
-
     if node_info.protocol == 'vmess':
         node["type"] = "vmess"
         node["uuid"] = node_info.uuid
@@ -753,12 +762,13 @@ def to_clash_yaml_node(node_info: NodeInfo) -> Optional[Dict]:
         if node_info.network == "ws":
             node["network"] = "ws"
             ws_opts = {"path": node_info.path}
-            if node_info.host: ws_opts["headers"] = {"Host": node_info.host}
+            if node_info.host:
+                ws_opts["headers"] = {"Host": node_info.host}
             node["ws-opts"] = ws_opts
         if node_info.security == 'tls' or node_info.port == 443:
             node["tls"] = True
-            if node_info.sni: node["servername"] = node_info.sni
-            
+            if node_info.sni:
+                node["servername"] = node_info.sni
     elif node_info.protocol == 'vless':
         node["type"] = "vless"
         node["uuid"] = node_info.uuid
@@ -767,7 +777,8 @@ def to_clash_yaml_node(node_info: NodeInfo) -> Optional[Dict]:
         if node_info.network == "ws":
             node["network"] = "ws"
             ws_opts = {"path": node_info.path}
-            if node_info.host: ws_opts["headers"] = {"Host": node_info.host}
+            if node_info.host:
+                ws_opts["headers"] = {"Host": node_info.host}
             node["ws-opts"] = ws_opts
         elif node_info.network == "grpc":
             node["network"] = "grpc"
@@ -775,28 +786,28 @@ def to_clash_yaml_node(node_info: NodeInfo) -> Optional[Dict]:
             node["grpc-opts"] = grpc_opts
         if node_info.security in ['tls', 'reality']:
             node["tls"] = True
-            if node_info.sni: node["servername"] = node_info.sni
-
+            if node_info.sni:
+                node["servername"] = node_info.sni
     elif node_info.protocol == 'ss':
         node["type"] = "ss"
         node["password"] = node_info.password
         node["cipher"] = node_info.method
-            
     elif node_info.protocol == 'trojan':
         node["type"] = "trojan"
         node["password"] = node_info.password
         node["tls"] = True
-        if node_info.sni: node["servername"] = node_info.sni
+        if node_info.sni:
+            node["servername"] = node_info.sni
         if node_info.network == "ws":
             node["network"] = "ws"
             ws_opts = {"path": node_info.path}
-            if node_info.host: ws_opts["headers"] = {"Host": node_info.host}
+            if node_info.host:
+                ws_opts["headers"] = {"Host": node_info.host}
             node["ws-opts"] = ws_opts
         elif node_info.network == "grpc":
             node["network"] = "grpc"
             grpc_opts = {"serviceName": node_info.path.lstrip('/')}
             node["grpc-opts"] = grpc_opts
-        
     elif node_info.protocol == 'hysteria2':
         node["type"] = "hysteria2"
         node["password"] = node_info.password
@@ -807,64 +818,68 @@ def to_clash_yaml_node(node_info: NodeInfo) -> Optional[Dict]:
         node["fast-open"] = node_info.fast_open
         node["mptcp"] = node_info.mptcp
         node["skip-cert-verify"] = node_info.insecure
-        if node_info.sni: node["servername"] = node_info.sni
-
+        if node_info.sni:
+            node["servername"] = node_info.sni
     elif node_info.protocol == 'ssr':
-        node["type"] = "ssr" # Requires Clash.Meta or specific Clash builds
+        node["type"] = "ssr" # 需要 Clash.Meta 或特定的 Clash 构建版本
         node["password"] = node_info.password
         node["cipher"] = node_info.method
         node["protocol"] = node_info.protocol_param
         node["obfs"] = node_info.obfs
         node["obfs-param"] = node_info.obfs_param
-
     else:
-        logger.warning(f"Unsupported protocol {node_info.protocol} for Clash YAML conversion: {node_info.remarks}")
+        logger.warning(f"不支持将 {node_info.protocol} 协议转换为 Clash YAML: {node_info.remarks}")
         return None
-    
     return node
 
 def save_nodes_to_clash_yaml(nodes_data: List[Dict], filename: str = "sc/all.yaml"):
     """
-    Saves a list of validated nodes to a Clash-compatible YAML configuration file.
-    :param nodes_data: List of dictionaries from EnhancedNodeTester's check_nodes_batch_async.
-    :param filename: The target YAML file path.
+    将经过验证的节点列表保存到 Clash 兼容的 YAML 配置文件中。
+    :param nodes_data: 来自 EnhancedNodeTester's check_nodes_batch_async 的字典列表。
+    :param filename: 目标 YAML 文件路径。
     """
     if not nodes_data:
-        logger.warning("No usable node data to save to YAML.")
+        logger.warning("没有可用的节点数据保存到 YAML。")
         return
 
     clash_proxies = []
     for node_dict in nodes_data:
-        # Extract NodeInfo object from the test result dictionary
+        # 从测试结果字典中提取 NodeInfo 对象
         node_info = node_dict.get('node_info')
         if node_info:
             clash_node = to_clash_yaml_node(node_info)
             if clash_node:
                 clash_proxies.append(clash_node)
-    
+
     if not clash_proxies:
-        logger.warning("No nodes successfully converted to Clash YAML format. File not generated.")
+        logger.warning("没有节点成功转换为 Clash YAML 格式。文件未生成。")
         return
 
-    # Basic Clash configuration framework
+    # 基本 Clash 配置框架
     clash_config = {
         "port": 7890,
         "socks-port": 7891,
         "redir-port": 7892,
         "mixed-port": 7893,
         "allow-lan": False,
-        "mode": "rule", # Set default mode to rule
+        "mode": "rule", # 设置默认模式为 rule
         "log-level": "info",
         "external-controller": "127.0.0.1:9090",
-        "secret": "", # You might want to set a secret for external controller
+        "secret": "", # 您可能需要为外部控制器设置一个密钥
         "dns": {
             "enable": True,
             "ipv6": False,
             "listen": "0.0.0.0:7893",
             "enhanced-mode": "redir-host",
             "default-nameserver": ["114.114.114.114", "223.5.5.5"],
-            "nameserver": ["114.114.114.114", "223.5.5.5", "8.8.8.8", "1.1.1.1"],
-            "fallback": ["8.8.8.8", "1.1.1.1"],
+            "nameserver": [
+                "tls://dns.google/dns-query",
+                "tls://1.1.1.1/dns-query"
+            ],
+            "fallback": [
+                "tls://dns.alidns.com/dns-query",
+                "tls://public.dns.wordpress.com/dns-query"
+            ],
             "fallback-filter": {
                 "geoip": True,
                 "ipcidr": ["240.0.0.0/4"]
@@ -875,52 +890,31 @@ def save_nodes_to_clash_yaml(nodes_data: List[Dict], filename: str = "sc/all.yam
             {
                 "name": "Proxy",
                 "type": "select",
-                "proxies": ["♻️ Auto Select", "🚀 Manual Select", "DIRECT"] + [node["name"] for node in clash_proxies]
+                "proxies": ["♻️ 自动选择", "🎯 直连"] + [node['name'] for node in clash_proxies]
             },
             {
-                "name": "♻️ Auto Select",
+                "name": "♻️ 自动选择",
                 "type": "url-test",
-                "url": "http://www.gstatic.com/generate_204",
-                "interval": 300,
-                "proxies": [node["name"] for node in clash_proxies]
+                "proxies": [node['name'] for node in clash_proxies],
+                "url": "http://www.google.com/generate_204",
+                "interval": 300
             },
             {
-                "name": "🚀 Manual Select",
-                "type": "select",
-                "proxies": [node["name"] for node in clash_proxies]
+                "name": "🎯 直连",
+                "type": "direct"
             },
             {
-                "name": "🌐 外网直连",
-                "type": "fallback",
-                "url": "http://www.gstatic.com/generate_204",
-                "interval": 300,
-                "proxies": [node["name"] for node in clash_proxies if node["type"] != 'ssr'] # SSR might be less compatible
-            },
-            {"name": "DIRECT", "type": "select", "proxies": ["DIRECT"]},
-            {"name": "AdBlock", "type": "select", "proxies": ["DIRECT", "Proxy"]},
-            {"name": "Domestic", "type": "select", "proxies": ["DIRECT", "Proxy"]},
+                "name": "🛑 拒绝",
+                "type": "reject"
+            }
         ],
         "rules": [
-            "PROCESS-NAME,Telegram.exe,Proxy",
-            "PROCESS-NAME,chrome.exe,Proxy",
-            "DOMAIN-KEYWORD,google,Proxy",
-            "DOMAIN-KEYWORD,youtube,Proxy",
-            "DOMAIN-KEYWORD,facebook,Proxy",
-            "DOMAIN-KEYWORD,twitter,Proxy",
-            "DOMAIN-KEYWORD,netflix,Proxy",
-            "DOMAIN-KEYWORD,t.me,Proxy",
-            "DOMAIN-SUFFIX,google.com,Proxy",
-            # This line seems incorrect, it should be a domain or IP, not a full URL
-            # "DOMAIN-SUFFIX,youtube.com,Proxy",
-            "DOMAIN-SUFFIX,googleusercontent.com,Proxy", # Corrected for a domain suffix
-            "DOMAIN-SUFFIX,facebook.com,Proxy",
-            "DOMAIN-SUFFIX,twitter.com,Proxy",
-            "DOMAIN-SUFFIX,instagram.com,Proxy",
-            "DOMAIN-SUFFIX,netflix.com,Proxy",
-            "DOMAIN-SUFFIX,github.com,Proxy",
-            "DOMAIN-SUFFIX,wikipedia.org,Proxy",
-            "GEOSITE,CN,DIRECT",
-            "GEOIP,CN,DIRECT",
+            "PROCESS-NAME,clash,Proxy",
+            "PROCESS-NAME,ShadowsocksX-NG,Proxy",
+            "DOMAIN-SUFFIX,cn,🎯 直连",
+            "DOMAIN-KEYWORD,cn,🎯 直连",
+            "DOMAIN,speedtest.net,🎯 直连",
+            "GEOIP,CN,🎯 直连",
             "MATCH,Proxy"
         ]
     }
@@ -928,19 +922,18 @@ def save_nodes_to_clash_yaml(nodes_data: List[Dict], filename: str = "sc/all.yam
     output_dir = os.path.dirname(filename)
     if output_dir and not os.path.exists(output_dir):
         os.makedirs(output_dir)
-        logger.info(f"Created output directory: {output_dir}")
 
     try:
         with open(filename, 'w', encoding='utf-8') as f:
-            yaml.dump(clash_config, f, sort_keys=False, indent=2, allow_unicode=True)
-        logger.info(f"Successfully saved {len(clash_proxies)} usable nodes to {filename}")
+            yaml.dump(clash_config, f, allow_unicode=True, indent=2, sort_keys=False)
+        logger.info(f"成功保存 {len(clash_proxies)} 个可用节点到 {filename}")
     except Exception as e:
-        logger.error(f"Failed to save YAML file: {e}")
+        logger.error(f"保存 YAML 文件失败: {e}")
 
-# --- Main Execution ---
+# --- 主执行 ---
 
 async def main():
-    logger.info("Starting node fetching and testing process...")
+    logger.info("启动节点获取和测试过程...")
 
     all_raw_nodes: List[str] = []
     async with aiohttp.ClientSession() as session:
@@ -949,26 +942,36 @@ async def main():
         for nodes_list in fetched_lists:
             all_raw_nodes.extend(nodes_list)
     
-    # Remove duplicates
+    # 去重
     all_raw_nodes = list(dict.fromkeys(all_raw_nodes))
-    logger.info(f"Fetched {len(all_raw_nodes)} unique nodes from all sources.")
+    logger.info(f"从所有来源获取到 {len(all_raw_nodes)} 个唯一节点。")
 
     if not all_raw_nodes:
-        logger.warning("No nodes fetched. Exiting.")
+        logger.warning("没有获取到节点。退出。")
         return
 
-    async with EnhancedNodeTester(timeout=10, max_concurrent_tasks=50) as tester:
+    # 创建 EnhancedNodeTester 实例，并使用修改后的超时和并发任务数
+    # timeout: 增加超时时间以应对可能较慢的节点
+    # max_concurrent_tasks: 减少并发任务数以降低资源消耗和避免卡顿
+    async with EnhancedNodeTester(timeout=20, max_concurrent_tasks=30) as tester:
         all_test_results = await tester.check_nodes_batch_async(all_raw_nodes)
     
-    # Filter for nodes deemed usable based on the china_score threshold (>= 40)
+    # 筛选出基于 china_score 阈值 (>= 40) 被认为可用的节点
     usable_nodes_for_clash = [
         result for result in all_test_results
-        if result['china_usable'] # This directly checks if china_score >= 40
+        if result['china_usable'] # 直接检查 china_usable 字段
     ]
 
-    # Save to YAML file
-    save_nodes_to_clash_yaml(usable_nodes_for_clash, filename="sc/all.yaml")
-    logger.info("Node detection and YAML generation complete.")
+    if usable_nodes_for_clash:
+        # 将可用节点保存为 Clash YAML 文件
+        save_nodes_to_clash_yaml(usable_nodes_for_clash)
+    else:
+        logger.info("没有找到可用的节点来生成 Clash YAML 文件。")
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        logger.info("脚本被用户中断。")
+    except Exception as e:
+        logger.critical(f"脚本执行过程中发生严重错误: {e}")
