@@ -11,6 +11,12 @@ from urllib.parse import urlparse, unquote, parse_qs
 from typing import List, Dict, Any, Optional
 from collections import defaultdict
 
+# --- 全局配置开关 ---
+# 将此设置为 True 启用区域过滤（排除国内节点和保留特定国际节点），
+# 设置为 False 关闭区域过滤，所有通过其他校验的节点都会被保留。
+ENABLE_REGION_FILTERING = False
+# ---
+
 # 定义支持的协议
 SUPPORTED_PROTOCOLS = {'hysteria2', 'vmess', 'trojan', 'ss', 'ssr', 'vless'}
 
@@ -43,22 +49,20 @@ def ensure_node_name(node: Dict[str, Any], protocol: str) -> Dict[str, Any]:
         server = node.get('server')
         port = node.get('port')
         node['name'] = generate_node_name(protocol, server, port)
-        print(f"Warning: Node missing name, generated: {node['name']}")
+        # print(f"Warning: Node missing name, generated: {node['name']}") # 避免过多输出
     return node
 
 def parse_vmess(data: str) -> Optional[Dict[str, Any]]:
     """解析 vmess 协议"""
     try:
-        # 移除任何可能的空白字符，特别是对于 base64 编码的字符串
         decoded_data = base64.b64decode(data.strip() + '==').decode('utf-8')
         config = json.loads(decoded_data)
         
         server = config.get('add')
         port = int(config.get('port', 0))
 
-        # 3. 过滤无效或非标准的代理节点：添加基本校验
         if not server or not port:
-            print(f"Invalid vmess node: missing server or port in {decoded_data[:50]}...")
+            print(f"Invalid vmess node: missing server or port in {decoded_data[:50]}...", file=sys.stderr)
             return None
 
         uuid = config.get('id', "")
@@ -86,7 +90,7 @@ def parse_vmess(data: str) -> Optional[Dict[str, Any]]:
             
             if 'fp' in config and config['fp']:
                 node['client-fingerprint'] = config['fp']
-            elif 'fingerprint' in config and config['fingerprint']: # 兼容不同的字段名
+            elif 'fingerprint' in config and config['fingerprint']:
                 node['client-fingerprint'] = config['fingerprint']
 
         network = config.get('net')
@@ -107,16 +111,15 @@ def parse_vmess(data: str) -> Optional[Dict[str, Any]]:
 def parse_trojan(data: str) -> Optional[Dict[str, Any]]:
     """解析 trojan 协议"""
     try:
-        parsed_url = urlparse("trojan://" + data.strip()) # 移除空白字符
+        parsed_url = urlparse("trojan://" + data.strip())
         
         password = parsed_url.username if parsed_url.username else ""
         server = parsed_url.hostname
         port = parsed_url.port if parsed_url.port else 443
         name = unquote(parsed_url.fragment) if parsed_url.fragment else generate_node_name('trojan', server, port)
         
-        # 3. 过滤无效或非标准的代理节点：添加基本校验
         if not server or not port or not password:
-            print(f"Invalid trojan node: missing server, port or password in {data[:50]}...")
+            print(f"Invalid trojan node: missing server, port or password in {data[:50]}...", file=sys.stderr)
             return None
 
         params = parse_qs(parsed_url.query)
@@ -148,7 +151,7 @@ def parse_trojan(data: str) -> Optional[Dict[str, Any]]:
 def parse_ss(data: str) -> Optional[Dict[str, Any]]:
     """解析 ss 协议"""
     try:
-        parts = data.strip().split('#', 1) # 移除空白字符
+        parts = data.strip().split('#', 1)
         encoded_info = parts[0]
         
         decoded_info = base64.b64decode(encoded_info + '==').decode('utf-8')
@@ -159,9 +162,8 @@ def parse_ss(data: str) -> Optional[Dict[str, Any]]:
             port = int(port_str)
             node_name_from_fragment = unquote(parts[1]) if len(parts) > 1 else None
             
-            # 3. 过滤无效或非标准的代理节点：添加基本校验
             if not server or not port or not method or not password:
-                print(f"Invalid ss node: missing server, port, method or password in {decoded_info[:50]}...")
+                print(f"Invalid ss node: missing server, port, method or password in {decoded_info[:50]}...", file=sys.stderr)
                 return None
 
             method = method if method else 'auto' 
@@ -185,16 +187,15 @@ def parse_ss(data: str) -> Optional[Dict[str, Any]]:
 def parse_vless(data: str) -> Optional[Dict[str, Any]]:
     """解析 vless 协议"""
     try:
-        parsed_url = urlparse("vless://" + data.strip()) # 移除空白字符
+        parsed_url = urlparse("vless://" + data.strip())
         
         uuid = parsed_url.username if parsed_url.username else ""
         server = parsed_url.hostname
         port = parsed_url.port if parsed_url.port else 443
         name = unquote(parsed_url.fragment) if parsed_url.fragment else generate_node_name('vless', server, port)
         
-        # 3. 过滤无效或非标准的代理节点：添加基本校验
         if not server or not port or not uuid:
-            print(f"Invalid vless node: missing server, port or uuid in {data[:50]}...")
+            print(f"Invalid vless node: missing server, port or uuid in {data[:50]}...", file=sys.stderr)
             return None
 
         params = parse_qs(parsed_url.query)
@@ -216,7 +217,7 @@ def parse_vless(data: str) -> Optional[Dict[str, Any]]:
             
             if 'fp' in params:
                 node['client-fingerprint'] = params['fp'][0]
-            elif 'fingerprint' in params: # 兼容不同的字段名
+            elif 'fingerprint' in params:
                 node['client-fingerprint'] = params['fingerprint'][0]
         elif security_param and security_param != 'none':
             print(f"Warning: Vless node '{name}' has unknown security type: '{security_param}'", file=sys.stderr)
@@ -243,16 +244,15 @@ def parse_vless(data: str) -> Optional[Dict[str, Any]]:
 def parse_hysteria2(data: str) -> Optional[Dict[str, Any]]:
     """解析 hysteria2 协议"""
     try:
-        parsed_url = urlparse("hysteria2://" + data.strip()) # 移除空白字符
+        parsed_url = urlparse("hysteria2://" + data.strip())
         
         password = parsed_url.username if parsed_url.username else ""
         server = parsed_url.hostname
         port = parsed_url.port if parsed_url.port else 443
         name = unquote(parsed_url.fragment) if parsed_url.fragment else generate_node_name('hysteria2', server, port)
         
-        # 3. 过滤无效或非标准的代理节点：添加基本校验
         if not server or not port or not password:
-            print(f"Invalid hysteria2 node: missing server, port or password in {data[:50]}...")
+            print(f"Invalid hysteria2 node: missing server, port or password in {data[:50]}...", file=sys.stderr)
             return None
 
         params = parse_qs(parsed_url.query)
@@ -276,9 +276,9 @@ def parse_hysteria2(data: str) -> Optional[Dict[str, Any]]:
         
         if 'fingerprint' in params:
             node['client-fingerprint'] = params['fingerprint'][0]
-        # 2. 强制为 short-id 添加引号：Hysteria2 协议可能包含 short-id
+        
         if 'short-id' in params:
-            node['short-id'] = str(params['short-id'][0]) # 强制转换为字符串
+            node['short-id'] = str(params['short-id'][0]) # 确保 short-id 是字符串
             
         return ensure_node_name(node, 'hysteria2')
     except Exception as e:
@@ -288,7 +288,6 @@ def parse_hysteria2(data: str) -> Optional[Dict[str, Any]]:
 def parse_ssr(data: str) -> Optional[Dict[str, Any]]:
     """解析 ssr 协议"""
     try:
-        # SSR 的 base64 编码通常需要特殊处理填充和字符替换
         decoded_data = base64.b64decode(data.strip().replace('-', '+').replace('_', '/') + '==').decode('utf-8')
         
         parts = decoded_data.split(':')
@@ -324,9 +323,8 @@ def parse_ssr(data: str) -> Optional[Dict[str, Any]]:
         protocol_param_encoded = params.get('protoparam', [''])[0]
         protocol_param = unquote(base64.b64decode(protocol_param_encoded.replace('-', '+').replace('_', '/') + '==').decode('utf-8')) if protocol_param_encoded else ''
 
-        # 3. 过滤无效或非标准的代理节点：添加基本校验
         if not server or not port or not method or not password:
-            print(f"Invalid ssr node: missing server, port, method or password in {decoded_data[:50]}...")
+            print(f"Invalid ssr node: missing server, port, method or password in {decoded_data[:50]}...", file=sys.stderr)
             return None
 
         method = method if method else 'auto' 
@@ -373,12 +371,11 @@ def parse_line_as_node(line: str) -> List[Dict[str, Any]]:
                 if node:
                     nodes.append(node)
                 else:
-                    # 3. 过滤无效或非标准的代理节点：这里已经有打印，但可以更明确
                     print(f"Skipping unparseable {protocol} node from line: {line[:100]}...", file=sys.stderr)
             return nodes
 
     decoded_content = line
-    for _ in range(5): # 尝试多层 base64 解码
+    for _ in range(5):
         try:
             temp_decoded = base64.b64decode(decoded_content + '==').decode('utf-8')
             for protocol in SUPPORTED_PROTOCOLS:
@@ -389,15 +386,12 @@ def parse_line_as_node(line: str) -> List[Dict[str, Any]]:
         except Exception:
             break
     
-    # 如果经过多次尝试仍未能解析，可能是无效行
-    # print(f"Could not parse line after multiple decodings: {line[:100]}...", file=sys.stderr)
     return nodes
 
 def parse_content(content: str) -> List[Dict[str, Any]]:
     """解析内容，可能包含多行节点、YAML 或 JSON"""
     nodes: List[Dict[str, Any]] = []
     
-    # 1. 移除控制字符：在解析内容之前进行一次全局清理
     content = re.sub(r'[\x00-\x1F\x7F-\x9F]', '', content)
 
     try:
@@ -406,7 +400,6 @@ def parse_content(content: str) -> List[Dict[str, Any]]:
             if 'proxies' in data and isinstance(data['proxies'], list):
                 for proxy in data['proxies']:
                     if isinstance(proxy, dict) and 'type' in proxy:
-                        # 3. 过滤无效或非标准的代理节点：对从 YAML/JSON 加载的节点也进行基本校验
                         if all(k in proxy for k in ['type', 'server', 'port']):
                             nodes.append(ensure_node_name(proxy, proxy.get('type', 'unknown')))
                         else:
@@ -414,7 +407,6 @@ def parse_content(content: str) -> List[Dict[str, Any]]:
                     else:
                         print(f"Skipping non-dict or missing type item found in YAML proxies: {str(proxy)[:100]}", file=sys.stderr)
             else: 
-                # 处理单个 YAML 节点的情况，例如 'type: vmess' 这种
                 if all(k in data for k in ['type', 'server', 'port']):
                     nodes.append(ensure_node_name(data, data.get('type', 'unknown')))
                 else:
@@ -423,7 +415,6 @@ def parse_content(content: str) -> List[Dict[str, Any]]:
         elif isinstance(data, list):
             for item in data:
                 if isinstance(item, dict) and 'type' in item:
-                    # 3. 过滤无效或非标准的代理节点：对从 YAML/JSON 加载的节点也进行基本校验
                     if all(k in item for k in ['type', 'server', 'port']):
                         nodes.append(ensure_node_name(item, item.get('type', 'unknown')))
                     else:
@@ -439,7 +430,7 @@ def parse_content(content: str) -> List[Dict[str, Any]]:
             print(f"Content parsed as YAML, found {len(nodes)} valid nodes.")
             return nodes
     except yaml.YAMLError:
-        pass # 不是 YAML，继续尝试 JSON
+        pass
 
     try:
         data = json.loads(content)
@@ -447,7 +438,6 @@ def parse_content(content: str) -> List[Dict[str, Any]]:
             if 'proxies' in data and isinstance(data['proxies'], list):
                 for proxy in data['proxies']:
                     if isinstance(proxy, dict) and 'type' in proxy:
-                        # 3. 过滤无效或非标准的代理节点：对从 YAML/JSON 加载的节点也进行基本校验
                         if all(k in proxy for k in ['type', 'server', 'port']):
                             nodes.append(ensure_node_name(proxy, proxy.get('type', 'unknown')))
                         else:
@@ -455,7 +445,6 @@ def parse_content(content: str) -> List[Dict[str, Any]]:
                     else:
                         print(f"Skipping non-dict or missing type item found in JSON proxies: {str(proxy)[:100]}", file=sys.stderr)
             else:
-                # 处理单个 JSON 节点的情况
                 if all(k in data for k in ['type', 'server', 'port']):
                     nodes.append(ensure_node_name(data, data.get('type', 'unknown')))
                 else:
@@ -463,7 +452,6 @@ def parse_content(content: str) -> List[Dict[str, Any]]:
         elif isinstance(data, list):
             for item in data:
                 if isinstance(item, dict) and 'type' in item:
-                    # 3. 过滤无效或非标准的代理节点：对从 YAML/JSON 加载的节点也进行基本校验
                     if all(k in item for k in ['type', 'server', 'port']):
                         nodes.append(ensure_node_name(item, item.get('type', 'unknown')))
                     else:
@@ -479,9 +467,8 @@ def parse_content(content: str) -> List[Dict[str, Any]]:
             print(f"Content parsed as JSON, found {len(nodes)} valid nodes.")
             return nodes
     except json.JSONDecodeError:
-        pass # 不是 JSON，继续尝试按行解析
+        pass
 
-    # 如果既不是 YAML 也不是 JSON，则尝试按行解析原始文本内容
     print("Content is neither valid YAML nor JSON, attempting line-by-line parsing.")
     for i, line in enumerate(content.splitlines()):
         line_nodes = parse_line_as_node(line)
@@ -489,10 +476,237 @@ def parse_content(content: str) -> List[Dict[str, Any]]:
             for node in line_nodes:
                 nodes.append(ensure_node_name(node, node.get('type', 'unknown')))
         else:
-            if line.strip(): # 只打印非空行的解析失败信息
+            if line.strip():
                 print(f"Could not parse line {i+1} as a node: {line.strip()[:100]}...", file=sys.stderr)
 
     return nodes
+
+def filter_nodes(proxies: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    根据给定的规则过滤代理节点：
+    - 校验必填字段
+    - 校验特定协议的特殊字段（如 VMess cipher, VLESS security, SS cipher, SSR obfs-param）
+    - 可选的区域过滤
+    """
+    filtered_proxies = []
+    # 用于跟踪已处理的代理名称，以便处理重复名称
+    seen_proxy_names = defaultdict(int) 
+
+    for i, proxy in enumerate(proxies):
+        # --- 确保代理是字典类型且包含 'type' 字段 ---
+        if not isinstance(proxy, dict) or 'type' not in proxy:
+            print(f"Warning: Proxy {i+1}: Skipping malformed proxy entry or entry without 'type' key: {proxy.get('name', 'Unnamed') if isinstance(proxy, dict) else str(proxy)[:50]}...", file=sys.stderr)
+            continue
+
+        proxy_type = proxy['type']
+        original_proxy_name = proxy.get('name', f"Unnamed Proxy {i+1}")
+        proxy_name = original_proxy_name # 初始化为原始名称
+
+        is_valid_node = True
+        missing_fields = []
+
+        # --- 增强的 VMess 错误排除：针对 unsupported security type 和 cipher missing ---
+        if proxy_type == 'vmess':
+            valid_vmess_ciphers = [
+                'auto', 'none', 'aes-128-gcm', 'chacha20-poly1305',
+                'chacha20-ietf-poly1305', 'aes-256-gcm'
+            ]
+            
+            vmess_cipher = proxy.get('cipher')
+
+            if vmess_cipher is None:
+                print(f"Warning: Proxy {i+1} ('{proxy_name}'): Skipping VMess proxy because 'cipher' field is missing. This often causes 'key 'cipher' missing' error.", file=sys.stderr)
+                is_valid_node = False
+            elif not isinstance(vmess_cipher, str) or vmess_cipher.strip() == '':
+                print(f"Warning: Proxy {i+1} ('{proxy_name}'): Skipping VMess proxy due to invalid or empty 'cipher' field (received: '{vmess_cipher}'). This incessantly causes 'unsupported security type' error.", file=sys.stderr)
+                is_valid_node = False
+            elif vmess_cipher.lower() not in valid_vmess_ciphers:
+                print(f"Warning: Proxy {i+1} ('{proxy_name}'): Skipping VMess proxy due to unsupported 'cipher' type ('{vmess_cipher}'). This often causes 'unsupported security type' error.", file=sys.stderr)
+                is_valid_node = False
+
+        # --- 针对不同代理类型校验所需的关键字段是否存在 ---
+        if proxy_type == 'vmess':
+            required_fields = ['server', 'port', 'uuid', 'alterId']
+            for field in required_fields:
+                if field not in proxy:
+                    missing_fields.append(field)
+            if missing_fields:
+                is_valid_node = False
+        elif proxy_type == 'trojan':
+            required_fields = ['server', 'port', 'password']
+            for field in required_fields:
+                if field not in proxy:
+                    missing_fields.append(field)
+            if missing_fields:
+                is_valid_node = False
+        elif proxy_type == 'ss':
+            required_fields = ['server', 'port', 'cipher', 'password']
+            for field in required_fields:
+                if field not in proxy:
+                    missing_fields.append(field)
+            if missing_fields:
+                is_valid_node = False
+            # 特殊处理：排除 cipher 为 'ss' 的 SS 节点
+            if proxy.get('cipher') is None or (isinstance(proxy.get('cipher'), str) and proxy.get('cipher').lower() == 'ss'):
+                print(f"Warning: Proxy {i+1} ('{proxy_name}'): Skipping SS proxy due to missing or unsupported 'cipher' method ('{proxy.get('cipher', 'missing') if proxy.get('cipher') is not None else 'missing'}').", file=sys.stderr)
+                is_valid_node = False
+
+        elif proxy_type == 'vless':
+            required_fields = ['server', 'port', 'uuid']
+            for field in required_fields:
+                if field not in proxy:
+                    missing_fields.append(field)
+            if missing_fields:
+                is_valid_node = False
+            vless_security = proxy.get('security')
+            if vless_security is not None:
+                if not isinstance(vless_security, str) or \
+                   (isinstance(vless_security, str) and vless_security.strip() == '') or \
+                   (vless_security.lower() not in ['tls', 'none']):
+                    print(f"Warning: Proxy {i+1} ('{proxy_name}'): Skipping VLESS proxy due to unsupported or empty 'security' field ('{vless_security}').", file=sys.stderr)
+                    is_valid_node = False
+        elif proxy_type == 'hysteria2':
+            required_fields = ['server', 'port', 'password']
+            for field in required_fields:
+                if field not in proxy:
+                    missing_fields.append(field)
+            if missing_fields:
+                is_valid_node = False
+        elif proxy_type == 'ssr':
+            required_fields = ['server', 'port', 'cipher', 'password', 'protocol', 'obfs']
+            for field in required_fields:
+                if field not in proxy:
+                    missing_fields.append(field)
+            if missing_fields:
+                is_valid_node = False
+            if proxy.get('cipher') is None:
+                print(f"Warning: Proxy {i+1} ('{proxy_name}'): Skipping SSR proxy due to missing 'cipher' field.", file=sys.stderr)
+                is_valid_node = False
+            # --- 新增：SSR obfs-param 校验 ---
+            # 如果 obfs 字段存在，则 obfs-param 不能为空或缺失
+            if 'obfs' in proxy and proxy['obfs'] is not None and proxy['obfs'].strip() != '':
+                if 'obfs-param' not in proxy or proxy['obfs-param'] is None or proxy['obfs-param'].strip() == '':
+                    print(f"Warning: Proxy {i+1} ('{proxy_name}'): Skipping SSR proxy because 'obfs' is specified but 'obfs-param' is missing or empty. This causes 'missing obfs password' or similar errors.", file=sys.stderr)
+                    is_valid_node = False
+            # --- SSR obfs-param 校验结束 ---
+        else:
+            # 警告并跳过不支持的代理类型
+            print(f"Warning: Proxy {i+1} ('{proxy_name}'): Skipping unsupported proxy type '{proxy_type}'.", file=sys.stderr)
+            continue
+
+
+        # 如果节点在上述校验中被标记为无效，则跳过
+        if not is_valid_node:
+            if missing_fields:
+                print(f"Warning: Proxy {i+1} ('{proxy_name}'): Skipping proxy due to missing required fields: {', '.join(missing_fields)}.", file=sys.stderr)
+            continue
+
+        # 确保 'server' 或 'host' 字段存在以获取服务器地址，这是后续判断的基础
+        server_address = proxy.get('server')
+        if not server_address:
+            server_address = proxy.get('host')
+        
+        if not server_address:
+            print(f"Warning: Proxy {i+1} ('{proxy_name}'): Skipping proxy as it has no 'server' or 'host' key (secondary check).", file=sys.stderr)
+            continue
+
+        # --- 区域过滤逻辑 (根据 ENABLE_REGION_FILTERING 开关控制) ---
+        if ENABLE_REGION_FILTERING:
+            # 定义要排除的国内地区关键词（中文和拼音），以及常见的国内云服务商
+            keywords_to_exclude = [
+                'cn', 'china', '中国', '大陆', 'tencent', 'aliyun', '华为云', '移动', '联通', '电信', # 省份
+                '北京', '上海', '广东', '江苏', '浙江', '四川', '重庆', '湖北', '湖南', '福建', '山东',
+                '河南', '河北', '山西', '陕西', '辽宁', '吉林', '黑龙江', '安徽', '江西', '广西', '云南',
+                '贵州', '甘肃', '青海', '宁夏', '新疆', '西藏', '内蒙古', '天津', '海南', 'hk', 'tw', 'mo' # 港澳台也算排除
+            ]
+            
+            is_domestic_node = False
+            # 检查服务器地址是否包含排除关键词
+            for keyword in keywords_to_exclude:
+                if keyword.lower() in server_address.lower():
+                    is_domestic_node = True
+                    break
+            
+            # 如果服务器地址未匹配到，则检查节点名称是否包含排除关键词
+            if not is_domestic_node:
+                for keyword in keywords_to_exclude:
+                    if keyword.lower() in proxy_name.lower():
+                        is_domestic_node = True
+                        break
+
+            if is_domestic_node:
+                print(f"Info: Proxy {i+1} ('{proxy_name}'): Skipping proxy as it appears to be a domestic Chinese node or a region often considered domestic by VPN users (HK/TW/MO for some policies). Server/Host: {server_address}", file=sys.stderr)
+                continue # 跳过此代理
+
+
+            # 定义靠近中国的地区关键词，用于匹配服务器地址或节点名称 (这些是您希望保留的国际节点)
+            keywords_to_keep_near_china = ['sg', 'jp', 'kr', 'ru'] 
+
+            matched_region_to_keep = False
+            # 检查服务器地址是否包含保留关键词
+            for keyword in keywords_to_keep_near_china:
+                if keyword.lower() in server_address.lower():
+                    matched_region_to_keep = True
+                    break
+            
+            # 如果服务器地址未匹配到，则检查节点名称是否包含保留关键词
+            if not matched_region_to_keep:
+                for keyword in keywords_to_keep_near_china:
+                    if keyword.lower() in proxy_name.lower():
+                        matched_region_to_keep = True
+                        break
+
+            # 如果开启了过滤，但节点不属于要保留的区域，则跳过
+            if not matched_region_to_keep: 
+                print(f"Info: Proxy {i+1} ('{proxy_name}'): Skipping proxy as it does not match close-to-China international regions. Server/Host: {server_address}", file=sys.stderr)
+                continue # 跳过此代理
+        # --- 区域过滤逻辑结束 ---
+
+        # --- 处理重复名称：确保最终输出的节点名称唯一 ---
+        # 这里使用 original_proxy_name 来检查，然后更新字典中的实际名称
+        # 这里的 seen_proxy_names 应该是一个 defaultdict(int) 来更方便地计数
+        
+        # 确保 short-id 是字符串类型，以防在 YAML 导出时被误解析为数字
+        if 'short-id' in proxy and not isinstance(proxy['short-id'], str):
+            proxy['short-id'] = str(proxy['short-id'])
+
+        # 处理 'tls' 字段的类型转换 (字符串 "true" / "false" 到布尔值)
+        if 'tls' in proxy:
+            tls_value = proxy['tls']
+            if isinstance(tls_value, str):
+                proxy['tls'] = tls_value.lower() == 'true'
+            elif not isinstance(tls_value, bool):
+                proxy['tls'] = False # 如果不是字符串也不是布尔值，则设为 False
+
+        # 如果通过所有检查（包括可选的区域过滤和名称唯一性检查），则添加到过滤列表中
+        filtered_proxies.append(proxy) 
+    
+    # 在所有节点都被处理并添加到 filtered_proxies 之后，再进行名称唯一化
+    final_unique_proxies = []
+    seen_names_for_final = defaultdict(int)
+
+    for proxy in filtered_proxies:
+        original_name = proxy.get('name', 'unknown_node')
+        current_name = original_name
+        
+        suffix_counter = 0
+        while True:
+            test_name = original_name
+            if suffix_counter > 0:
+                test_name = f"{original_name} #{suffix_counter}"
+            
+            if seen_names_for_final[test_name] == 0:
+                current_name = test_name
+                break
+            suffix_counter += 1
+        
+        proxy['name'] = current_name
+        seen_names_for_final[current_name] += 1
+        final_unique_proxies.append(proxy)
+
+    print(f"Filtered down to {len(final_unique_proxies)} unique and valid nodes.")
+    return final_unique_proxies
+
 
 def get_output_filename(url: str) -> str:
     """根据 URL 路径确定输出文件名"""
@@ -525,63 +739,24 @@ def get_output_filename(url: str) -> str:
     return "default_nodes.yaml"
 
 def save_nodes_to_yaml(nodes: List[Dict[str, Any]], output_filepath: str):
-    """保存节点到 YAML 文件，处理重复名称并确保唯一性"""
+    """保存节点到 YAML 文件"""
     if not nodes:
         print(f"No valid nodes to save to {output_filepath}. Skipping file creation.")
         return
     
-    processed_nodes: List[Dict[str, Any]] = []
-    seen_names = defaultdict(int)
-
+    # 确保 short-id 是字符串类型
     for node in nodes:
-        original_name = node.get('name', 'unknown_node')
-        
-        suffix_counter = 0
-        current_name = original_name
-        while True:
-            test_name = original_name
-            if suffix_counter > 0:
-                test_name = f"{original_name} #{suffix_counter}"
-            
-            # 确保生成的名称在已处理节点中是唯一的
-            if test_name not in seen_names:
-                current_name = test_name
-                break
-            suffix_counter += 1
-        
-        node['name'] = current_name
-        seen_names[current_name] += 1
-        processed_nodes.append(node)
+        if 'short-id' in node and not isinstance(node['short-id'], str):
+            node['short-id'] = str(node['short-id']) 
 
     os.makedirs(os.path.dirname(output_filepath), exist_ok=True)
     
-    yaml_data = {'proxies': processed_nodes}
+    yaml_data = {'proxies': nodes}
     
-    # 定义 YAML 自定义 Dumper
-    # 2. 强制为 short-id 添加引号：通过自定义 representer 确保 short-id 被引用
-    class QuotingSafeDumper(yaml.SafeDumper):
-        def represent_scalar(self, tag, value, style=None):
-            if tag == 'tag:yaml.org,2002:str' and value.isdigit() and len(value) < 10: # 示例：短数字字符串
-                # 检查是否为 'short-id' 字段的值，如果是，强制使用引号
-                # 这个检查需要上下文信息，例如在 represent_mapping 或其他地方
-                # 对于通用 scalar，我们只能根据值本身判断是否需要引号
-                # 更精确的控制可能需要修改上层逻辑，在构建节点字典时就将 short-id 转为字符串类型
-                # 或者在保存时，检查 key 是否是 short-id，然后特殊处理 value。
-                # 由于 YAML 的 representer 是通用的，这里为了演示，可以假设如果一个数字字符串可能被误解析，就引用它。
-                if 'short-id' in self.ancestor_keys and isinstance(value, str): # 这是一个假设的检查
-                    return super().represent_scalar(tag, value, style='\'')
-            return super().represent_scalar(tag, value, style=style)
-
-    # 尝试更直接的控制 short-id 引用，确保它是字符串类型
-    for node in processed_nodes:
-        if 'short-id' in node and not isinstance(node['short-id'], str):
-            node['short-id'] = str(node['short-id']) # 确保 short-id 是字符串
-
     try:
         with open(output_filepath, 'w', encoding='utf-8') as f:
-            # 移除 QuotingSafeDumper，因为直接在节点处理时将其转换为字符串更可靠
             yaml.dump(yaml_data, f, allow_unicode=True, indent=2, sort_keys=False) 
-        print(f"Successfully saved {len(processed_nodes)} unique nodes to {output_filepath}")
+        print(f"Successfully saved {len(nodes)} unique nodes to {output_filepath}")
     except Exception as e:
         print(f"Error saving nodes to {output_filepath}: {e}", file=sys.stderr)
 
@@ -604,8 +779,13 @@ async def main():
         for nodes_from_url in results:
             all_fetched_nodes.extend(nodes_from_url)
     
+    print(f"\nTotal nodes fetched before filtering: {len(all_fetched_nodes)}")
+    
+    # --- 应用过滤逻辑 ---
+    filtered_and_unique_nodes = filter_nodes(all_fetched_nodes)
+    
     all_output_filepath = os.path.join('sc', 'all.yaml')
-    save_nodes_to_yaml(all_fetched_nodes, all_output_filepath)
+    save_nodes_to_yaml(filtered_and_unique_nodes, all_output_filepath)
 
 
 async def fetch_and_parse_nodes(session: aiohttp.ClientSession, url: str) -> List[Dict[str, Any]]:
