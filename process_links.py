@@ -1,16 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-增强版节点检测器 - 专门针对中国大陆翻墙优化
-功能：
-1. 多阶段检测策略 (连接 -> SSL -> HTTP请求)
-2. 真实翻墙场景模拟 (尝试访问境外网站)
-3. 智能评分系统
-4. 协议特定检测与验证
-5. 地理位置感知 (通过测试目标模拟)
-6. 全面支持主流协议解析 (Hysteria2, VMess, VLESS, Trojan, SS, SSR)
-7. 从多个远程链接获取节点并生成Clash YAML配置
-"""
+# 来源于https://github.com/xyfqzy
 
 import asyncio
 import aiohttp
