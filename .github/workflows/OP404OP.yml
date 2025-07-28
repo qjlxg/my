@@ -107,7 +107,7 @@ jobs:
             -min-speed 0.1 \
           #  -unlock \
           #  -risk
-            # -rename 
+             -rename 
           echo "OP404OP/clash-speedtest 测试完成，结果保存到 sc/OP404OP.yaml"
 
       - name: 验证 OP404OP/clash-speedtest 生成的文件
