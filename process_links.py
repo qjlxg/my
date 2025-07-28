@@ -1,977 +1,779 @@
-import aiohttp
-import asyncio
-import base64
-import json
-import yaml
 import os
+import requests
+import yaml
+import json
 import re
-import platform
-import sys
-from urllib.parse import urlparse, unquote, parse_qs
-from typing import List, Dict, Any, Optional
-from collections import defaultdict
+import base64 # Need for encoding/decoding in some parsers
+from urllib.parse import urlparse, parse_qs
 
-# --- 全局配置开关 ---
-# 将此设置为 True 启用区域过滤（排除国内节点和保留特定国际节点），
-# 设置为 False 关闭区域过滤，所有通过其他校验的节点都会被保留。
-ENABLE_REGION_FILTERING = False
-# ---
+# Configuration
+CONFIG = [
+    {"url": "https://raw.githubusercontent.com/qjlxg/my/refs/heads/main/sc/all.yaml", "type": "yaml_or_links"},
+    {"url": "https://raw.githubusercontent.com/qjlxg/aggregator/refs/heads/main/data/clash.yaml", "type": "clash_config"},
+    {"url": "https://raw.githubusercontent.com/qjlxg/hy2/refs/heads/main/configtg.txt", "type": "links_only"},
+    {"url": "https://raw.githubusercontent.com/qjlxg/collectSub/refs/heads/main/config_all_merged_nodes.txt", "type": "links_only"},
+]
+OUTPUT_FILE = "sc/all.yaml"
+USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
-# 定义支持的协议
-SUPPORTED_PROTOCOLS = {'hysteria2', 'vmess', 'trojan', 'ss', 'ssr', 'vless'}
+# Supported protocols and their parsing functions
+# Each function should return a dictionary representing the node, or None if parsing fails
+NODE_PARSERS = {
+    "ss": lambda url: parse_ss(url),
+    "ssr": lambda url: parse_ssr(url),
+    "vmess": lambda url: parse_vmess(url),
+    "trojan": lambda url: parse_trojan(url),
+    "vless": lambda url: parse_vless(url),
+    "hy2": lambda url: parse_hysteria2(url),
+    "tuic": lambda url: parse_tuic(url),
+    "hysteria": lambda url: parse_hysteria(url),
+}
 
-async def fetch_url(session: aiohttp.ClientSession, url: str) -> str:
-    """异步获取 URL 内容"""
-    print(f"Fetching from {url}")
+# Regex to find common proxy link patterns
+PROXY_LINK_REGEX = re.compile(r'(ss|ssr|vmess|trojan|vless|hy2|tuic|hysteria)://[^ ]+')
+
+
+def debug_log(message):
+    """Prints debug messages."""
+    print(f"Debug: {message}")
+
+def warning_log(message):
+    """Prints warning messages."""
+    print(f"Warning: {message}")
+
+def error_log(message):
+    """Prints error messages."""
+    print(f"Error: {message}")
+
+def fetch_content(url):
+    """Fetches content from a given URL."""
     try:
-        async with session.get(url, timeout=30) as response:
-            if response.status == 200:
-                print(f"Successfully fetched {url}")
-                content = await response.text()
-                # 1. 移除控制字符：在获取内容后立即清理，防止后续解析出错
-                clean_content = re.sub(r'[\x00-\x1F\x7F-\x9F]', '', content)
+        print(f"Fetching from {url}")
+        headers = {'User-Agent': USER_AGENT}
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()  # Raise an HTTPError for bad responses (4xx or 5xx)
+        return response.text
+    except requests.exceptions.RequestException as e:
+        error_log(f"Failed to fetch {url}: {e}")
+        return None
 
-                # --- 添加内容预览以帮助调试 ---
-                print("\n--- Fetched Content Preview (First 10 lines) ---")
-                preview_lines = clean_content.splitlines()
-                # If content is a single very long line, splitlines() will only have one element.
-                # In that case, we print a snippet of that single line.
-                if len(preview_lines) == 1 and len(preview_lines[0]) > 200:
-                    print(f"Line 1 (snippet): {preview_lines[0][:200]}...")
-                else:
-                    for i, line in enumerate(preview_lines[:10]):
-                        print(f"Line {i+1}: {line}")
-                print("--- End Content Preview ---\n")
-                # ---
+def preview_content(content):
+    """Prints a preview of the fetched content."""
+    lines = content.splitlines()
+    print("--- Fetched Content Preview (First 10 lines) ---")
+    for i, line in enumerate(lines[:10]):
+        # Limit snippet length for display
+        print(f"Line {i+1} (snippet): {line[:100]}...")
+    print("--- End Content Preview ---")
 
-                return clean_content
+def is_valid_yaml(content):
+    """Checks if the content is valid full YAML."""
+    try:
+        debug_log("Attempting to parse as full YAML")
+        # Use safe_load to prevent arbitrary code execution
+        yaml.safe_load(content)
+        return True
+    except yaml.YAMLError as e:
+        debug_log(f"Failed to parse as full YAML: {e}")
+        return False
+
+def is_valid_json(content):
+    """Checks if the content is valid full JSON."""
+    try:
+        debug_log("Attempting to parse as full JSON")
+        json.loads(content)
+        return True
+    except json.JSONDecodeError as e:
+        debug_log(f"Failed to parse as full JSON: {e}")
+        return False
+
+def parse_yaml_nodes(content):
+    """Parses YAML content and extracts proxy nodes."""
+    try:
+        data = yaml.safe_load(content)
+        nodes = []
+        # Handle Clash proxy-providers format
+        if isinstance(data, dict) and "proxy-providers" in data:
+            for provider_name, provider_info in data.get("proxy-providers", {}).items():
+                if "proxies" in provider_info and isinstance(provider_info["proxies"], list):
+                    nodes.extend(provider_info["proxies"])
+        # Handle direct proxies list in YAML
+        if isinstance(data, dict) and "proxies" in data:
+            nodes.extend(data["proxies"])
+        elif isinstance(data, list): # Direct list of proxy nodes
+            nodes.extend(data)
+        return nodes
+    except yaml.YAMLError as e:
+        warning_log(f"Could not parse YAML content: {e}")
+        return []
+
+def parse_clash_config(content):
+    """Parses a Clash configuration YAML and extracts proxy nodes."""
+    try:
+        config = yaml.safe_load(content)
+        nodes = []
+        if isinstance(config, dict):
+            # Extract from 'proxies' key
+            if 'proxies' in config and isinstance(config['proxies'], list):
+                nodes.extend(config['proxies'])
+            # Extract from 'proxy-providers'
+            if 'proxy-providers' in config and isinstance(config['proxy-providers'], dict):
+                for provider_name, provider_data in config['proxy-providers'].items():
+                    if 'proxies' in provider_data and isinstance(provider_data['proxies'], list):
+                        nodes.extend(provider_data['proxies'])
+        return nodes
+    except yaml.YAMLError as e:
+        warning_log(f"Could not parse Clash config (YAML): {e}")
+        return []
+
+def parse_single_proxy_link(link_str):
+    """Parses a single proxy link string."""
+    link_str = link_str.strip()
+    if not link_str:
+        return None
+
+    if "://" not in link_str:
+        return None # Not a valid link format
+
+    protocol, _ = link_str.split("://", 1)
+    protocol = protocol.lower()
+
+    if protocol in NODE_PARSERS:
+        try:
+            node = NODE_PARSERS[protocol](link_str)
+            if node:
+                return node
             else:
-                print(f"Failed to fetch {url}: Status {response.status}", file=sys.stderr)
-                return ""
-    except Exception as e:
-        print(f"Error fetching {url}: {str(e)}", file=sys.stderr)
-        return ""
+                warning_log(f"Skipping unparseable {protocol} node from link: {link_str[:80]}...")
+        except Exception as e:
+            error_log(f"Error parsing {protocol} data '{link_str[:50]}...': {e}")
+            warning_log(f"Skipping unparseable {protocol} node from link: {link_str[:80]}...")
+    else:
+        warning_log(f"Unsupported protocol '{protocol}' found in link: {link_str[:80]}...")
+    return None
 
-def generate_node_name(protocol: str, server: Optional[str] = None, port: Optional[int] = None) -> str:
-    """生成默认节点名称，处理 server 和 port 可能为 None 的情况"""
-    server_str = server if server else "unknown_server"
-    port_str = str(port) if port is not None else "unknown_port"
-    return f"{protocol}-{server_str}:{port_str}"
+def parse_line_for_multiple_links(line):
+    """
+    Attempts to find and parse multiple proxy links within a single line.
+    Returns a list of parsed nodes.
+    """
+    found_nodes = []
+    # Find all occurrences of known proxy link patterns
+    matches = list(PROXY_LINK_REGEX.finditer(line))
 
-def ensure_node_name(node: Dict[str, Any], protocol: str) -> Dict[str, Any]:
-    """确保节点字典中存在 'name' 字段，如果缺失则生成"""
-    if 'name' not in node or not node['name']:
-        server = node.get('server')
-        port = node.get('port')
-        node['name'] = generate_node_name(protocol, server, port)
-    return node
+    if not matches:
+        return found_nodes
 
-def parse_vmess(data: str) -> Optional[Dict[str, Any]]:
-    """解析 vmess 协议"""
+    # Extract each matched link and parse it
+    for match in matches:
+        link = match.group(0).strip()
+        node = parse_single_proxy_link(link)
+        if node:
+            found_nodes.append(node)
+    
+    if not found_nodes:
+        warning_log(f"No nodes found in line after attempting regex match: {line[:100]}...")
+
+    return found_nodes
+
+
+# --- Proxy Protocol Parsers (KEEP AS IS FROM PREVIOUS RESPONSE) ---
+# These functions should already be robust enough to parse individual, well-formed links.
+
+def parse_ss(url):
+    """Parses a Shadowsocks (SS) URL."""
     try:
-        # Base64 decode, padding might be needed
-        decoded_data_b64 = data.strip()
-        decoded_data_b64 += '=' * (-len(decoded_data_b64) % 4) # Add padding
-        decoded_data = base64.b64decode(decoded_data_b64).decode('utf-8')
-        config = json.loads(decoded_data)
-        
-        server = config.get('add')
-        port = int(config.get('port', 0))
+        parsed = urlparse(url)
+        # Decode base64 if it's there
+        if parsed.netloc:
+            try:
+                # Attempt base64 decode (common for ss links with method/password in netloc)
+                decoded_netloc = base64.urlsafe_b64decode(parsed.netloc + "==").decode('utf-8')
+                parts = decoded_netloc.split('@')
+                if len(parts) == 2:
+                    method_password, server_port_str = parts
+                    method, password = method_password.split(':', 1)
+                else: # Fallback if base64 doesn't contain method:password
+                    method, password = None, None
+                    server_port_str = decoded_netloc
+            except: # Not base64, direct parsing of netloc
+                method, password = None, None
+                server_port_str = parsed.netloc
+        else: # Handle ss://server:port#name format without userinfo in netloc
+            method, password = None, None
+            server_port_str = parsed.path.lstrip('/')
 
-        if not server or not port:
-            print(f"Invalid vmess node: missing server or port in {decoded_data[:50]}...", file=sys.stderr)
-            return None
-
-        uuid = config.get('id', "")
-        alter_id = int(config.get('aid', 0))
-        
-        cipher = config.get('type') 
-        if not cipher or not isinstance(cipher, str) or cipher.strip() == '':
-            cipher = 'auto'
+        server, port = server_port_str.rsplit(':', 1)
+        # Clean fragment from potential extra data after #
+        name = parsed.fragment.split(' ')[0].split(': ')[0].strip() if parsed.fragment else f"SS-{server}:{port}"
 
         node = {
-            'name': config.get('ps', generate_node_name('vmess', server, port)),
-            'type': 'vmess',
-            'server': server,
-            'port': port,
-            'uuid': uuid,
-            'alterId': alter_id,
-            'cipher': cipher 
+            "name": name,
+            "type": "ss",
+            "server": server,
+            "port": int(port),
+            "cipher": method if method else "auto", # Default or detect if possible
+            "password": password if password else "",
+            "udp": True # Common for SS
         }
-
-        if config.get('tls') == 'tls':
-            node['tls'] = True
-            node['skip-cert-verify'] = bool(config.get('scy', False))
-            if 'host' in config and config['host']:
-                node['sni'] = config['host']
-            
-            if 'fp' in config and config['fp']:
-                node['client-fingerprint'] = config['fp']
-            elif 'fingerprint' in config and config['fingerprint']:
-                node['client-fingerprint'] = config['fingerprint']
-
-        network = config.get('net')
-        if network:
-            node['network'] = network
-            if network == 'ws':
-                node['ws-path'] = config.get('path', '/')
-                if 'host' in config and config['host']:
-                    node['ws-headers'] = {'Host': config['host']}
-            elif network == 'grpc':
-                node['grpc-service-name'] = config.get('path', '')
-        
-        return ensure_node_name(node, 'vmess')
+        # Add plugin if present in query parameters
+        query_params = parse_qs(parsed.query)
+        if 'plugin' in query_params:
+            plugin_parts = query_params['plugin'][0].split(';')
+            node['plugin'] = plugin_parts[0]
+            if len(plugin_parts) > 1:
+                # Parse plugin-opts from the rest of the string
+                plugin_opts_str = ';'.join(plugin_parts[1:])
+                plugin_opts_dict = {}
+                for item in plugin_opts_str.split('&'):
+                    if '=' in item:
+                        k, v = item.split('=', 1)
+                        plugin_opts_dict[k] = v
+                node['plugin-opts'] = plugin_opts_dict
+        return node
     except Exception as e:
-        print(f"Error parsing vmess data '{data[:50]}...': {e}", file=sys.stderr)
+        error_log(f"Failed to parse SS link: {url} - {e}")
         return None
 
-def parse_trojan(data: str) -> Optional[Dict[str, Any]]:
-    """解析 trojan 协议"""
+def parse_ssr(url):
+    """Parses a ShadowsocksR (SSR) URL."""
     try:
-        parsed_url = urlparse("trojan://" + data.strip())
-        
-        password = parsed_url.username if parsed_url.username else ""
-        server = parsed_url.hostname
-        port = parsed_url.port if parsed_url.port else 443
-        name = unquote(parsed_url.fragment) if parsed_url.fragment else generate_node_name('trojan', server, port)
-        
-        if not server or not port or not password:
-            print(f"Invalid trojan node: missing server, port or password in {data[:50]}...", file=sys.stderr)
+        if not url.startswith("ssr://"):
             return None
+        encoded_part = url[len("ssr://"):]
+        missing_padding = len(encoded_part) % 4
+        if missing_padding:
+            encoded_part += '=' * (4 - missing_padding)
 
-        params = parse_qs(parsed_url.query)
+        decoded_params = base64.urlsafe_b64decode(encoded_part).decode('utf-8')
 
-        node = {
-            'name': name,
-            'type': 'trojan',
-            'server': server,
-            'port': port,
-            'password': password,
-            'tls': True
-        }
-        
-        node['skip-cert-verify'] = (params.get('allowInsecure', ['0'])[0] == '1')
-        if 'sni' in params:
-            node['sni'] = params['sni'][0]
-        
-        if 'fp' in params:
-            node['client-fingerprint'] = params['fp'][0]
-        
-        if 'alpn' in params:
-            node['alpn'] = params['alpn'][0].split(',')
-
-        return ensure_node_name(node, 'trojan')
-    except Exception as e:
-        print(f"Error parsing trojan data '{data[:50]}...': {e}", file=sys.stderr)
-        return None
-
-def parse_ss(data: str) -> Optional[Dict[str, Any]]:
-    """解析 ss 协议"""
-    try:
-        parts = data.strip().split('#', 1)
-        encoded_info = parts[0]
-        
-        decoded_info_b64 = encoded_info
-        decoded_info_b64 += '=' * (-len(decoded_info_b64) % 4) # Add padding
-        decoded_info = base64.b64decode(decoded_info_b64).decode('utf-8')
-        
-        match = re.match(r'(.+?):(.+?)@(.+?):(\d+)', decoded_info)
-        if match:
-            method, password, server, port_str = match.groups()
-            port = int(port_str)
-            node_name_from_fragment = unquote(parts[1]) if len(parts) > 1 else None
-            
-            if not server or not port or not method or not password:
-                print(f"Invalid ss node: missing server, port, method or password in {decoded_info[:50]}...", file=sys.stderr)
-                return None
-
-            method = method if method else 'auto' 
-
-            node = {
-                'name': node_name_from_fragment if node_name_from_fragment else generate_node_name('ss', server, port),
-                'type': 'ss',
-                'server': server,
-                'port': port,
-                'cipher': method, 
-                'password': password if password else "",
-            }
-            return ensure_node_name(node, 'ss')
-        else:
-            print(f"SS data format not recognized: {decoded_info[:50]}...", file=sys.stderr)
-            return None
-    except Exception as e:
-        print(f"Error parsing ss data '{data[:50]}...': {e}", file=sys.stderr)
-        return None
-
-def parse_vless(data: str) -> Optional[Dict[str, Any]]:
-    """解析 vless 协议"""
-    try:
-        parsed_url = urlparse("vless://" + data.strip())
-        
-        uuid = parsed_url.username if parsed_url.username else ""
-        server = parsed_url.hostname
-        port = parsed_url.port if parsed_url.port else 443
-        name = unquote(parsed_url.fragment) if parsed_url.fragment else generate_node_name('vless', server, port)
-        
-        if not server or not port or not uuid:
-            print(f"Invalid vless node: missing server, port or uuid in {data[:50]}...", file=sys.stderr)
-            return None
-
-        params = parse_qs(parsed_url.query)
-
-        node = {
-            'name': name,
-            'type': 'vless',
-            'server': server,
-            'port': port,
-            'uuid': uuid
-        }
-
-        security_param = params.get('security', [''])[0]
-        if security_param == 'tls':
-            node['tls'] = True
-            node['skip-cert-verify'] = (params.get('allowInsecure', ['0'])[0] == '1')
-            if 'sni' in params:
-                node['sni'] = params['sni'][0]
-            
-            if 'fp' in params:
-                node['client-fingerprint'] = params['fp'][0]
-            elif 'fingerprint' in params:
-                node['fingerprint'] = params['fingerprint'][0] # Use fingerprint directly for VLESS as Clash supports it
-        elif security_param and security_param != 'none':
-            print(f"Warning: Vless node '{name}' has unknown security type: '{security_param}'", file=sys.stderr)
-
-
-        network = params.get('type', [''])[0]
-        if network:
-            node['network'] = network
-            if network == 'ws':
-                node['ws-path'] = params.get('path', ['/'])[0]
-                if 'host' in params and params['host'][0]:
-                    node['ws-headers'] = {'Host': params['host'][0]}
-            elif network == 'grpc':
-                node['grpc-service-name'] = params.get('serviceName', [''])[0]
-        
-        if 'flow' in params:
-            node['flow'] = params['flow'][0]
-
-        return ensure_node_name(node, 'vless')
-    except Exception as e:
-        print(f"Error parsing vless data '{data[:50]}...': {e}", file=sys.stderr)
-        return None
-
-def parse_hysteria2(data: str) -> Optional[Dict[str, Any]]:
-    """解析 hysteria2 协议"""
-    try:
-        parsed_url = urlparse("hysteria2://" + data.strip())
-        
-        password = parsed_url.username if parsed_url.username else ""
-        server = parsed_url.hostname
-        port = parsed_url.port if parsed_url.port else 443
-        name = unquote(parsed_url.fragment) if parsed_url.fragment else generate_node_name('hysteria2', server, port)
-        
-        if not server or not port or not password:
-            print(f"Invalid hysteria2 node: missing server, port or password in {data[:50]}...", file=sys.stderr)
-            return None
-
-        params = parse_qs(parsed_url.query)
-
-        node = {
-            'name': name,
-            'type': 'hysteria2',
-            'server': server,
-            'port': port,
-            'password': password,
-            'tls': True
-        }
-        
-        node['skip-cert-verify'] = (params.get('insecure', ['0'])[0] == '1')
-        if 'sni' in params:
-            node['sni'] = params['sni'][0]
-        if 'alpn' in params:
-            node['alpn'] = params['alpn'][0].split(',')
-        if 'fastopen' in params:
-            node['fast-open'] = (params.get('fastopen', ['0'])[0] == '1')
-        
-        if 'fingerprint' in params:
-            node['client-fingerprint'] = params['fingerprint'][0]
-        
-        if 'short-id' in params:
-            node['short-id'] = str(params['short-id'][0]) # 确保 short-id 是字符串
-            
-        return ensure_node_name(node, 'hysteria2')
-    except Exception as e:
-        print(f"Error parsing hysteria2 data '{data[:50]}...': {e}", file=sys.stderr)
-        return None
-
-def parse_ssr(data: str) -> Optional[Dict[str, Any]]:
-    """解析 ssr 协议"""
-    try:
-        decoded_data_b64 = data.strip().replace('-', '+').replace('_', '/')
-        decoded_data_b64 += '=' * (-len(decoded_data_b64) % 4) # Add padding
-        decoded_data = base64.b64decode(decoded_data_b64).decode('utf-8')
-        
-        parts = decoded_data.split(':')
+        parts = decoded_params.split(':')
         if len(parts) < 6:
-            print(f"SSR data has too few parts: {decoded_data[:50]}...", file=sys.stderr)
-            return None
+            raise ValueError("SSR link missing components")
 
         server = parts[0]
         port = int(parts[1])
-        protocol_type = parts[2]
+        protocol = parts[2]
         method = parts[3]
         obfs = parts[4]
-        
-        password_encoded_and_params = parts[5]
-        password_base64_part = password_encoded_and_params.split('/?')[0]
-        
-        try:
-            password_b64 = password_base64_part.replace('-', '+').replace('_', '/')
-            password_b64 += '=' * (-len(password_b64) % 4) # Add padding
-            password = base64.b64decode(password_b64).decode('utf-8')
-        except Exception:
-            password = ""
+        password_base64_part = parts[5]
 
-        params = {}
-        if '/?' in password_encoded_and_params:
-            query_string = password_encoded_and_params.split('/?')[1]
-            params = parse_qs(query_string)
-        
-        name_encoded = params.get('remarks', [''])[0]
-        name_b64 = name_encoded.replace('-', '+').replace('_', '/')
-        name_b64 += '=' * (-len(name_b64) % 4) # Add padding
-        node_name = unquote(base64.b64decode(name_b64).decode('utf-8')) if name_encoded else generate_node_name('ssr', server, port)
-        
-        obfs_param_encoded = params.get('obfsparam', [''])[0]
-        obfs_param_b64 = obfs_param_encoded.replace('-', '+').replace('_', '/')
-        obfs_param_b64 += '=' * (-len(obfs_param_b64) % 4) # Add padding
-        obfs_param = unquote(base64.b64decode(obfs_param_b64).decode('utf-8')) if obfs_param_encoded else ''
-        
-        protocol_param_encoded = params.get('protoparam', [''])[0]
-        protocol_param_b64 = protocol_param_encoded.replace('-', '+').replace('_', '/')
-        protocol_param_b64 += '=' * (-len(protocol_param_b64) % 4) # Add padding
-        protocol_param = unquote(base64.b64decode(protocol_param_b64).decode('utf-8')) if protocol_param_encoded else ''
+        password = ""
+        query_fragment = ""
+        if '?' in password_base64_part:
+            password_encoded, query_fragment = password_base64_part.split('?', 1)
+            try:
+                password = base64.urlsafe_b64decode(password_encoded + "==").decode('utf-8')
+            except:
+                password = password_encoded
+        else:
+            query_fragment = password_base64_part
+            # In some SSR links, password might be directly in the 6th part if no query
+            try:
+                password = base64.urlsafe_b64decode(password_base64_part + "==").decode('utf-8')
+            except:
+                password = password_base64_part
 
-        if not server or not port or not method or not password:
-            print(f"Invalid ssr node: missing server, port, method or password in {decoded_data[:50]}...", file=sys.stderr)
-            return None
 
-        method = method if method else 'auto' 
+        name = f"SSR-{server}:{port}"
+        query_params = {}
+        if '#' in query_fragment:
+            query_part, fragment_part = query_fragment.split('#', 1)
+            query_params = parse_qs(query_part)
+            try:
+                name = base64.urlsafe_b64decode(fragment_part + "==").decode('utf-8')
+            except:
+                name = fragment_part
+        else:
+            query_params = parse_qs(query_fragment)
+
+        obfs_param = query_params.get('obfsparam', [''])[0]
+        protocol_param = query_params.get('protoparam', [''])[0]
 
         node = {
-            'name': node_name,
-            'type': 'ssr',
-            'server': server,
-            'port': port,
-            'cipher': method, 
-            'password': password,
-            'protocol': protocol_type,
-            'protocol-param': protocol_param,
-            'obfs': obfs,
-            'obfs-param': obfs_param
+            "name": name,
+            "type": "ssr",
+            "server": server,
+            "port": port,
+            "password": password,
+            "cipher": method,
+            "obfs": obfs,
+            "obfs-param": obfs_param,
+            "protocol": protocol,
+            "protocol-param": protocol_param,
+            "udp": True
         }
-        return ensure_node_name(node, 'ssr')
+        return node
     except Exception as e:
-        print(f"Error parsing ssr data '{data[:50]}...': {e}", file=sys.stderr)
+        error_log(f"Failed to parse SSR link: {url} - {e}")
         return None
 
-def parse_line_as_node(line: str) -> List[Dict[str, Any]]:
-    """尝试将单行字符串解析为一个或多个节点"""
+def parse_vmess(url):
+    """Parses a Vmess URL."""
+    try:
+        if not url.startswith("vmess://"):
+            return None
+        encoded_json = url[len("vmess://"):]
+        decoded_json_str = base64.b64decode(encoded_json).decode('utf-8')
+        config = json.loads(decoded_json_str)
+
+        node = {
+            "name": config.get("ps", f"Vmess-{config.get('add')}:{config.get('port')}"),
+            "type": "vmess",
+            "server": config.get("add"),
+            "port": int(config.get("port")),
+            "uuid": config.get("id"),
+            "alterId": int(config.get("aid", 0)),
+            "cipher": "auto",
+            "udp": True,
+            "network": config.get("net", "tcp"),
+        }
+
+        if config.get("tls") == "tls":
+            node["tls"] = True
+            node["servername"] = config.get("sni", config.get("host"))
+            if config.get("allowInsecure"):
+                node["skip-cert-verify"] = True
+
+        if node["network"] == "ws":
+            ws_opts = {}
+            if config.get("path"):
+                ws_opts["path"] = config["path"]
+            if config.get("headers"):
+                ws_opts["headers"] = config["headers"]
+            elif config.get("host"): # Older Vmess links might use host for WS header
+                ws_opts["headers"] = {"Host": config["host"]}
+            if ws_opts:
+                node["ws-opts"] = ws_opts
+        elif node["network"] == "http":
+            http_opts = {}
+            if config.get("path"):
+                http_opts["path"] = config["path"].split(',')
+            if config.get("headers"):
+                http_opts["headers"] = config["headers"]
+            elif config.get("host"):
+                http_opts["headers"] = {"Host": config["host"].split(',')}
+            if http_opts:
+                node["http-opts"] = http_opts
+        elif node["network"] == "grpc":
+            grpc_opts = {}
+            if config.get("serviceName"):
+                grpc_opts["serviceName"] = config["serviceName"]
+            if grpc_opts:
+                node["grpc-opts"] = grpc_opts
+        elif node["network"] == "h2":
+            h2_opts = {}
+            if config.get("path"):
+                h2_opts["path"] = config["path"]
+            if config.get("host"):
+                h2_opts["host"] = config["host"].split(',')
+            if h2_opts:
+                node["h2-opts"] = h2_opts
+
+        return node
+    except Exception as e:
+        error_log(f"Failed to parse Vmess link: {url} - {e}")
+        return None
+
+def parse_trojan(url):
+    """Parses a Trojan URL."""
+    try:
+        parsed = urlparse(url)
+        password = parsed.username or ""
+        server = parsed.hostname
+        port = parsed.port
+        name = parsed.fragment.split(' ')[0].split(': ')[0].strip() if parsed.fragment else f"Trojan-{server}:{port}" # Clean fragment
+
+        node = {
+            "name": name,
+            "type": "trojan",
+            "server": server,
+            "port": port,
+            "password": password,
+            "udp": True,
+            "network": "tcp",
+        }
+
+        query_params = parse_qs(parsed.query)
+
+        node["tls"] = True
+        node["servername"] = query_params.get("sni", [server])[0]
+        if "allowInsecure" in query_params:
+            node["skip-cert-verify"] = True
+
+        transport_type = query_params.get("type", ["tcp"])[0]
+        node["network"] = transport_type
+
+        if transport_type == "ws":
+            ws_opts = {}
+            if "path" in query_params:
+                ws_opts["path"] = query_params["path"][0]
+            if "host" in query_params:
+                ws_opts["headers"] = {"Host": query_params["host"][0]}
+            if ws_opts:
+                node["ws-opts"] = ws_opts
+        elif transport_type == "grpc":
+            grpc_opts = {}
+            if "serviceName" in query_params:
+                grpc_opts["serviceName"] = query_params["serviceName"][0]
+            if grpc_opts:
+                node["grpc-opts"] = grpc_opts
+        elif transport_type == "h2":
+            h2_opts = {}
+            if "path" in query_params:
+                h2_opts["path"] = query_params["path"][0]
+            if "host" in query_params:
+                h2_opts["host"] = query_params["host"][0]
+            if h2_opts:
+                node["h2-opts"] = h2_opts
+
+        return node
+    except Exception as e:
+        error_log(f"Failed to parse Trojan link: {url} - {e}")
+        return None
+
+def parse_vless(url):
+    """Parses a VLESS URL."""
+    try:
+        parsed = urlparse(url)
+        uuid = parsed.username or ""
+        server = parsed.hostname
+        port = parsed.port
+        name = parsed.fragment.split(' ')[0].split(': ')[0].strip() if parsed.fragment else f"Vless-{server}:{port}"
+
+        node = {
+            "name": name,
+            "type": "vless",
+            "server": server,
+            "port": port,
+            "uuid": uuid,
+            "udp": True,
+            "network": "tcp",
+        }
+
+        query_params = parse_qs(parsed.query)
+
+        security = query_params.get("security", ["none"])[0]
+        if security == "tls":
+            node["tls"] = True
+            node["servername"] = query_params.get("sni", [server])[0]
+            if "flow" in query_params:
+                node["flow"] = query_params["flow"][0]
+            if "allowInsecure" in query_params:
+                node["skip-cert-verify"] = True
+        elif security == "reality":
+            node["tls"] = True
+            node["servername"] = query_params.get("sni", [server])[0]
+            node["reality-opts"] = {
+                "publicKey": query_params.get("pbk", [""])[0],
+                "shortId": query_params.get("sid", [""])[0],
+                "spiderX": query_params.get("spx", [""])[0]
+            }
+            if "fp" in query_params:
+                node["reality-opts"]["fingerprint"] = query_params["fp"][0]
+            if "flow" in query_params:
+                node["flow"] = query_params["flow"][0]
+            if "allowInsecure" in query_params: # Although Reality generally handles this
+                node["skip-cert-verify"] = True
+
+        transport_type = query_params.get("type", ["tcp"])[0]
+        node["network"] = transport_type
+
+        if transport_type == "ws":
+            ws_opts = {}
+            if "path" in query_params:
+                ws_opts["path"] = query_params["path"][0]
+            if "host" in query_params:
+                ws_opts["headers"] = {"Host": query_params["host"][0]}
+            if ws_opts:
+                node["ws-opts"] = ws_opts
+        elif transport_type == "grpc":
+            grpc_opts = {}
+            if "serviceName" in query_params:
+                grpc_opts["serviceName"] = query_params["serviceName"][0]
+            if grpc_opts:
+                node["grpc-opts"] = grpc_opts
+        elif transport_type == "h2":
+            h2_opts = {}
+            if "path" in query_params:
+                h2_opts["path"] = query_params["path"][0]
+            if "host" in query_params:
+                h2_opts["host"] = query_params["host"][0]
+            if h2_opts:
+                node["h2-opts"] = h2_opts
+
+        return node
+    except Exception as e:
+        error_log(f"Failed to parse VLESS link: {url} - {e}")
+        return None
+
+def parse_hysteria2(url):
+    """Parses a Hysteria2 (hy2) URL."""
+    try:
+        parsed = urlparse(url)
+        server = parsed.hostname
+        try:
+            port = int(parsed.port)
+        except (ValueError, TypeError):
+            raise ValueError(f"Port could not be cast to integer value as '{parsed.port}'")
+
+        name = parsed.fragment.split(' ')[0].split(': ')[0].strip() if parsed.fragment else f"Hysteria2-{server}:{port}"
+
+        node = {
+            "name": name,
+            "type": "hysteria2",
+            "server": server,
+            "port": port,
+            "udp": True,
+        }
+
+        query_params = parse_qs(parsed.query)
+
+        node["password"] = query_params.get("password", [""])[0]
+        node["obfs"] = query_params.get("obfs", ["none"])[0]
+        if node["obfs"] == "salamander":
+            node["obfs-password"] = query_params.get("obfsParam", [""])[0]
+        
+        node["tls"] = True
+        node["servername"] = query_params.get("sni", [server])[0]
+        if query_params.get("insecure", ["0"])[0] == "1":
+            node["skip-cert-verify"] = True
+        
+        node["alpn"] = query_params.get("alpn", ["h3"])[0].split(',')
+        node["fast-open"] = query_params.get("fastopen", ["1"])[0] == "1"
+        node["mptcp"] = query_params.get("mptcp", ["0"])[0] == "1"
+        
+        if "up" in query_params:
+            node["up"] = int(query_params["up"][0])
+        if "down" in query_params:
+            node["down"] = int(query_params["down"][0])
+
+        return node
+    except Exception as e:
+        error_log(f"Error parsing hysteria2 data '{url[:50]}...': {e}")
+        return None
+
+def parse_tuic(url):
+    """Parses a TUIC URL."""
+    try:
+        parsed = urlparse(url)
+        
+        auth_part = parsed.netloc.split('@')[0]
+        uuid = ""
+        password = ""
+        if ':' in auth_part:
+            uuid, password = auth_part.split(':', 1)
+        elif auth_part:
+            try:
+                decoded_auth = base64.urlsafe_b64decode(auth_part + "==").decode('utf-8')
+                if ':' in decoded_auth:
+                    uuid, password = decoded_auth.split(':', 1)
+                else:
+                    uuid = decoded_auth
+            except:
+                uuid = auth_part
+
+        server = parsed.hostname
+        port = parsed.port
+        name = parsed.fragment.split(' ')[0].split(': ')[0].strip() if parsed.fragment else f"Tuic-{server}:{port}"
+
+        node = {
+            "name": name,
+            "type": "tuic",
+            "server": server,
+            "port": port,
+            "uuid": uuid,
+            "password": password,
+            "udp": True,
+        }
+
+        query_params = parse_qs(parsed.query)
+
+        node["tls"] = True
+        node["servername"] = query_params.get("sni", [server])[0]
+        node["alpn"] = query_params.get("alpn", ["h3"])[0].split(',')
+        if query_params.get("insecure", ["0"])[0] == "1":
+            node["skip-cert-verify"] = True
+
+        node["congestion-controller"] = query_params.get("cc", ["bbr"])[0]
+        node["enable-fast-open"] = query_params.get("fo", ["1"])[0] == "1"
+        node["reduce-rtt"] = query_params.get("rr", ["0"])[0] == "1"
+        node["max-udp-relay-datagram-size"] = int(query_params.get("mudp", ["1500"])[0])
+
+        return node
+    except Exception as e:
+        error_log(f"Failed to parse TUIC link: {url} - {e}")
+        return None
+
+def parse_hysteria(url):
+    """Parses a Hysteria (v1) URL."""
+    try:
+        parsed = urlparse(url)
+        server = parsed.hostname
+        port = parsed.port
+        name = parsed.fragment.split(' ')[0].split(': ')[0].strip() if parsed.fragment else f"Hysteria-{server}:{port}"
+
+        node = {
+            "name": name,
+            "type": "hysteria",
+            "server": server,
+            "port": port,
+            "udp": True,
+        }
+
+        query_params = parse_qs(parsed.query)
+
+        node["auth"] = query_params.get("auth", [""])[0]
+        
+        node["tls"] = True
+        node["servername"] = query_params.get("sni", [server])[0]
+        if query_params.get("insecure", ["0"])[0] == "1":
+            node["skip-cert-verify"] = True
+        
+        node["alpn"] = query_params.get("alpn", ["hy2"])[0].split(',')
+        
+        node["up"] = int(query_params.get("up", ["100"])[0])
+        node["down"] = int(query_params.get("down", ["100"])[0])
+        node["obfs"] = query_params.get("obfs", ["none"])[0]
+        node["obfs-uri"] = query_params.get("obfsParam", [""])[0]
+        
+        return node
+    except Exception as e:
+        error_log(f"Failed to parse Hysteria link: {url} - {e}")
+        return None
+
+# --- End Proxy Protocol Parsers ---
+
+
+def process_content(content, content_type):
+    """Processes fetched content based on its type."""
     nodes = []
-    line = line.strip()
-    if not line:
+
+    if not content:
         return nodes
 
-    # Try direct protocol links
-    for protocol in SUPPORTED_PROTOCOLS:
-        if line.startswith(f"{protocol}://"):
-            data_part = line[len(protocol) + 3:]
-            
-            parser = {
-                'vmess': parse_vmess,
-                'trojan': parse_trojan,
-                'ss': parse_ss,
-                'vless': parse_vless,
-                'hysteria2': parse_hysteria2,
-                'ssr': parse_ssr
-            }.get(protocol)
+    preview_content(content)
 
-            if parser:
-                node = parser(data_part)
-                if node:
-                    nodes.append(node)
-                else:
-                    print(f"Skipping unparseable {protocol} node from line: {line[:100]}...", file=sys.stderr)
-                return nodes # Return after first successful protocol match
-
-    # Try multi-layer base64 decoding if no direct protocol match
-    decoded_content = line
-    for _ in range(5): # Try up to 5 times for multi-layer base64
+    # Try to parse as full YAML or JSON first for structured configs
+    if is_valid_yaml(content) and content_type in ["yaml_or_links", "clash_config"]:
+        print("Content is valid full YAML.")
+        if content_type == "clash_config":
+            nodes.extend(parse_clash_config(content))
+        else:
+            nodes.extend(parse_yaml_nodes(content))
+    elif is_valid_json(content) and content_type in ["yaml_or_links"]:
+        print("Content is valid full JSON.")
         try:
-            temp_decoded_b64 = decoded_content
-            temp_decoded_b64 += '=' * (-len(temp_decoded_b64) % 4) # Add padding
-            temp_decoded = base64.b64decode(temp_decoded_b64).decode('utf-8')
-            
-            # If the decoded content starts with any supported protocol, parse it
-            for protocol in SUPPORTED_PROTOCOLS:
-                if temp_decoded.startswith(f"{protocol}://"):
-                    # Recursively call to handle potentially multiple links in a decoded string
-                    nodes.extend(parse_line_as_node(temp_decoded))
+            json_data = json.loads(content)
+            if isinstance(json_data, list):
+                nodes.extend(json_data)
+            elif isinstance(json_data, dict) and "proxies" in json_data and isinstance(json_data["proxies"], list):
+                nodes.extend(json_data["proxies"])
+            else:
+                warning_log("JSON content is not a direct list of nodes or a Clash-like config. Attempting line-by-line.")
+                # Fallback to line-by-line if JSON structure is unexpected
+                print("Content is neither valid full YAML nor JSON, attempting line-by-line parsing for individual node links.")
+                for line in content.splitlines():
+                    nodes.extend(parse_line_for_multiple_links(line)) # Use the new function
+        except json.JSONDecodeError:
+            warning_log("Could not parse JSON content. Attempting line-by-line.")
+            print("Content is neither valid full YAML nor JSON, attempting line-by-line parsing for individual node links.")
+            for line in content.splitlines():
+                nodes.extend(parse_line_for_multiple_links(line)) # Use the new function
+    else:
+        # Fallback for when content is not a full YAML/JSON config, or for link-only types
+        print("Content is neither valid full YAML nor JSON, attempting line-by-line parsing for individual node links.")
+        # Some config files might be a single-line flattened YAML/JSON for proxies
+        if content_type in ["yaml_or_links", "clash_config"] and (content.startswith("proxies:") or content.startswith("proxy-providers:")):
+            warning_log("Attempting to parse content as a single-line (flattened) YAML-like string.")
+            try:
+                single_line_yaml_content = f"top_level:\n  {content}"
+                parsed_single = yaml.safe_load(single_line_yaml_content)
+                if isinstance(parsed_single, dict) and 'top_level' in parsed_single:
+                    potential_nodes = parsed_single['top_level']
+                    if 'proxies' in potential_nodes and isinstance(potential_nodes['proxies'], list):
+                        nodes.extend(potential_nodes['proxies'])
+                    elif 'proxy-providers' in potential_nodes and isinstance(potential_nodes['proxy-providers'], dict):
+                        for provider_name, provider_data in potential_nodes['proxy-providers'].items():
+                            if 'proxies' in provider_data and isinstance(provider_data['proxies'], list):
+                                nodes.extend(provider_data['proxies'])
+                if nodes:
                     return nodes
-            decoded_content = temp_decoded # Continue decoding if not a direct protocol link
-        except Exception:
-            break
-    
+                else:
+                    warning_log("Could not parse line 1 as a node: " + content[:100] + "...")
+            except yaml.YAMLError as e:
+                warning_log(f"Failed to parse as single-line YAML: {e}")
+                warning_log("Could not parse line 1 as a node: " + content[:100] + "...")
+        else:
+            warning_log("No nodes found after attempting all parsing methods.")
+
+        # Always attempt line-by-line parsing as a final fallback
+        for line in content.splitlines():
+            nodes.extend(parse_line_for_multiple_links(line)) # Use the new function
     return nodes
 
-def parse_content(content: str) -> List[Dict[str, Any]]:
-    """解析内容，可能包含多行节点、YAML 或 JSON"""
-    nodes: List[Dict[str, Any]] = []
-    
-    # 移除控制字符：在获取内容后立即清理，防止后续解析出错
-    content = re.sub(r'[\x00-\x1F\x7F-\x9F]', '', content)
+def filter_unique_nodes(nodes):
+    """Filters out duplicate nodes based on a simplified representation."""
+    unique_nodes = []
+    seen_nodes = set()
 
-    # 1. 尝试作为完整的 YAML 加载
-    try:
-        data = yaml.safe_load(content)
-        if isinstance(data, dict) and 'proxies' in data and isinstance(data['proxies'], list):
-            for proxy in data['proxies']:
-                if isinstance(proxy, dict) and 'type' in proxy:
-                    # 检查必要的字段，避免添加不完整的代理
-                    if all(k in proxy for k in ['type', 'server', 'port']):
-                        nodes.append(ensure_node_name(proxy, proxy.get('type', 'unknown')))
-                    else:
-                        print(f"Warning: Skipping invalid YAML proxy (missing type, server or port): {str(proxy)[:100]}", file=sys.stderr)
-                else:
-                    print(f"Warning: Skipping non-dict or missing 'type' item found in YAML proxies: {str(proxy)[:100]}", file=sys.stderr)
-            if nodes:
-                print(f"Content parsed as YAML with 'proxies' key, found {len(nodes)} valid nodes.")
-                return nodes
-        elif isinstance(data, list):
-            # 如果是 YAML 列表，尝试将每个元素作为节点
-            for item in data:
-                if isinstance(item, dict) and 'type' in item:
-                    if all(k in item for k in ['type', 'server', 'port']):
-                        nodes.append(ensure_node_name(item, item.get('type', 'unknown')))
-                    else:
-                        print(f"Warning: Skipping invalid YAML list item (missing type, server or port): {str(item)[:100]}", file=sys.stderr)
-                elif isinstance(item, str): # 尝试解析可能是节点链接的字符串
-                    parsed_from_line = parse_line_as_node(item)
-                    for node in parsed_from_line:
-                        nodes.append(ensure_node_name(node, node.get('type', 'unknown')))
-                else:
-                    print(f"Warning: Skipping non-dict/non-str item in YAML list: {str(item)[:100]}", file=sys.stderr)
-            if nodes:
-                print(f"Content parsed as YAML list, found {len(nodes)} valid nodes.")
-                return nodes
-        elif isinstance(data, dict) and 'type' in data: # Single YAML node
-            if all(k in data for k in ['type', 'server', 'port']):
-                nodes.append(ensure_node_name(data, data.get('type', 'unknown')))
-                print(f"Content parsed as single YAML node, found 1 valid node.")
-                return nodes
-            else:
-                print(f"Warning: Skipping invalid single YAML node (missing type, server or port): {str(data)[:100]}", file=sys.stderr)
-
-    except yaml.YAMLError as e:
-        print(f"Debug: Failed to parse as full YAML: {e}", file=sys.stderr)
-        pass # Not a valid full YAML or not the expected structure, try next
-
-    # 2. 尝试作为完整的 JSON 加载
-    try:
-        data = json.loads(content)
-        if isinstance(data, dict) and 'proxies' in data and isinstance(data['proxies'], list):
-            for proxy in data['proxies']:
-                if isinstance(proxy, dict) and 'type' in proxy:
-                    if all(k in proxy for k in ['type', 'server', 'port']):
-                        nodes.append(ensure_node_name(proxy, proxy.get('type', 'unknown')))
-                    else:
-                        print(f"Warning: Skipping invalid JSON proxy (missing type, server or port): {str(proxy)[:100]}", file=sys.stderr)
-                else:
-                    print(f"Warning: Skipping non-dict or missing 'type' item found in JSON proxies: {str(proxy)[:100]}", file=sys.stderr)
-            if nodes:
-                print(f"Content parsed as JSON with 'proxies' key, found {len(nodes)} valid nodes.")
-                return nodes
-        elif isinstance(data, list):
-            for item in data:
-                if isinstance(item, dict) and 'type' in item:
-                    if all(k in item for k in ['type', 'server', 'port']):
-                        nodes.append(ensure_node_name(item, item.get('type', 'unknown')))
-                    else:
-                        print(f"Warning: Skipping invalid JSON list item (missing type, server or port): {str(item)[:100]}", file=sys.stderr)
-                elif isinstance(item, str): # 尝试解析可能是节点链接的字符串
-                    parsed_from_line = parse_line_as_node(item)
-                    for node in parsed_from_line:
-                        nodes.append(ensure_node_name(node, node.get('type', 'unknown')))
-                else:
-                    print(f"Warning: Skipping non-dict/non-str item in JSON list: {str(item)[:100]}", file=sys.stderr)
-            if nodes:
-                print(f"Content parsed as JSON list, found {len(nodes)} valid nodes.")
-                return nodes
-        elif isinstance(data, dict) and 'type' in data: # Single JSON node
-            if all(k in data for k in ['type', 'server', 'port']):
-                nodes.append(ensure_node_name(data, data.get('type', 'unknown')))
-                print(f"Content parsed as single JSON node, found 1 valid node.")
-                return nodes
-            else:
-                print(f"Warning: Skipping invalid single JSON node (missing type, server or port): {str(data)[:100]}", file=sys.stderr)
-    except json.JSONDecodeError as e:
-        print(f"Debug: Failed to parse as full JSON: {e}", file=sys.stderr)
-        pass # Not a valid full JSON, try next
-
-    # --- 新增：处理被压扁的 YAML 内容 ---
-    # 如果内容是单行且包含 'proxies:' 和 '- name:' 的模式，尝试按此模式分割
-    if "\n" not in content and "proxies:- name:" in content:
-        print("Attempting to parse content as a single-line (flattened) YAML-like string.")
-        # 尝试通过正则表达式分割出每个代理的完整部分
-        # 这个正则表达式尝试匹配从 '- name:' 开始到下一个 '- ' 或字符串末尾的部分
-        # 注意：这是一种启发式方法，不保证100%准确，但能处理常见压扁格式
-        # 针对您给出的预览，第一个 '- name:' 应该被 'proxies:' 包含
-        # 我们寻找 ' - name:' 作为每个代理的开始
-        raw_proxies = re.split(r' - name:', content)
-        
-        # 移除第一个元素（通常是 'proxies:' 或其之前的部分）
-        if raw_proxies and raw_proxies[0].startswith('proxies:'):
-            raw_proxies = raw_proxies[1:] # Skip the 'proxies:' part
-        else: # Handle cases where 'proxies:' might not be at the very start or if it's just a list of items
-             if raw_proxies:
-                # If the first element doesn't start cleanly with 'name:', it might be part of the first item
-                # Or it could be junk before the first actual item.
-                # Let's try to infer if it's a valid first item or junk.
-                if raw_proxies[0].strip().startswith('name:'):
-                    pass # It's okay, the first element looks like a node
-                else:
-                    # If it's not a node, try to see if the content starts with 'proxies:'
-                    # If it does, we assume the first part until the first '- name:' is junk
-                    if content.strip().startswith('proxies:'):
-                        # Find the first real '- name:' and take content from there
-                        match_first_node_start = re.search(r' - name:', content)
-                        if match_first_node_start:
-                            content = content[match_first_node_start.start() + 1:].strip()
-                            raw_proxies = re.split(r' - name:', content) # Resplit from the cleaned content
-                    
-                    if raw_proxies and not raw_proxies[0].strip().startswith('name:'):
-                         # If after all attempts the first element still doesn't look like 'name:', it's likely junk
-                         raw_proxies = raw_proxies[1:] # Remove it as junk
-        
-        for i, item_str_raw in enumerate(raw_proxies):
-            item_str = item_str_raw.strip()
-            if not item_str:
-                continue
-
-            # Reconstruct as a valid YAML block for safe_load.
-            # Replace spaces after colon with a single space to avoid multiple spaces breaking YAML
-            # Add a name prefix back for the first item
-            if not item_str.startswith('name:'):
-                 item_str = 'name:' + item_str
-
-            # Now, try to make it a valid YAML string with proper indentation for a single item
-            # Replace multiple spaces after ':' with a single space if it's a key-value pair
-            clean_item_str = re.sub(r'([a-zA-Z0-9_-]+):(\s+)', r'\1: ', item_str)
-            
-            # For properties that might be concatenated, like 'type:trojan-sni:example.com', convert to standard YAML
-            # This is hard to do reliably with regex alone.
-            # The best approach is to re-parse each fragment as a standalone YAML dict.
-            
-            # Convert single-line "key: value key2: value2" to multi-line "key: value\nkey2: value2"
-            # This is still very challenging for a general solution without full YAML parser.
-            # A more robust approach:
-            
-            # Let's try to convert `key:val key2:val2` to `key: val\nkey2: val2`
-            # This is still a heuristic.
-            
-            # Simple heuristic: Split by spaces, then rejoin if it's not a 'key:'
-            # This is likely to fail given the complexity.
-            # The most reliable way for flattened YAML is to assume it's a list of dicts.
-            # We'll try to reconstruct each segment into a dictionary.
-
-            # We need to treat each 'name: ... ' as a starting point of a node.
-            # The structure appears to be `key:value key2:value2 key3:value3`
-            
-            # Reconstruct as a valid YAML dictionary string
-            # This is highly dependent on the exact structure of the "flattened" YAML.
-            # Based on the provided example, each entry seems to be a list of `key: value` pairs separated by spaces.
-            
-            # Let's try to convert it into a proper YAML dictionary string for each segment
-            # e.g., "name: foo password: bar" => "name: foo\n  password: bar"
-            
-            yaml_format_item = ""
-            parts = re.findall(r'(\w+:\s*[^ ]+)', item_str) # Find key:value pairs, roughly
-            if not parts:
-                 parts = re.findall(r'(\w+:[^ ]+)', item_str) # Try without space after colon
-
-            if parts:
-                yaml_format_item += "  " + "\n  ".join(parts) # Indent each part
-                try:
-                    single_node = yaml.safe_load(yaml_format_item)
-                    if isinstance(single_node, dict) and 'type' in single_node:
-                        # Correct "type" and ensure "name"
-                        nodes.append(ensure_node_name(single_node, single_node.get('type', 'unknown')))
-                    else:
-                        print(f"Warning: Skipping malformed flattened YAML segment (not a dict or missing type) {i+1}: '{item_str[:100]}...'", file=sys.stderr)
-                except yaml.YAMLError as e:
-                    print(f"Warning: Failed to parse flattened YAML segment {i+1} as YAML: {e} - '{item_str[:100]}...'", file=sys.stderr)
-                except Exception as e:
-                    print(f"Error processing flattened YAML segment {i+1}: {e} - '{item_str[:100]}...'", file=sys.stderr)
-            else:
-                 print(f"Warning: Could not extract key-value pairs from flattened YAML segment {i+1}: '{item_str[:100]}...'", file=sys.stderr)
-
-        if nodes:
-            print(f"Content parsed as flattened YAML, found {len(nodes)} valid nodes.")
-            return nodes
-    # --- 结束处理被压扁的 YAML 内容 ---
-
-
-    # 3. 如果以上失败，则逐行解析（用于 vmess:// 等格式）
-    # This block will still catch standard base64 encoded links or direct protocol links
-    print("Content is neither valid full YAML nor JSON, attempting line-by-line parsing for individual node links.")
-    for i, line in enumerate(content.splitlines()):
-        line_nodes = parse_line_as_node(line)
-        if line_nodes:
-            for node in line_nodes:
-                nodes.append(ensure_node_name(node, node.get('type', 'unknown')))
-        else:
-            if line.strip(): # Only print warning for non-empty lines
-                print(f"Warning: Could not parse line {i+1} as a node: {line.strip()[:100]}...", file=sys.stderr)
-
-    if not nodes:
-        print("Warning: No nodes found after attempting all parsing methods.", file=sys.stderr)
-    return nodes
-
-def filter_nodes(proxies: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """
-    根据给定的规则过滤代理节点：
-    - 校验必填字段
-    - 校验特定协议的特殊字段（如 VMess cipher, VLESS security, SS cipher, SSR obfs-param）
-    - 可选的区域过滤
-    """
-    filtered_proxies = []
-    
-    for i, proxy in enumerate(proxies):
-        # --- 确保代理是字典类型且包含 'type' 字段 ---
-        if not isinstance(proxy, dict) or 'type' not in proxy:
-            print(f"Warning: Proxy {i+1}: Skipping malformed proxy entry or entry without 'type' key: {proxy.get('name', 'Unnamed') if isinstance(proxy, dict) else str(proxy)[:50]}...", file=sys.stderr)
-            continue
-
-        proxy_type = proxy['type']
-        original_proxy_name = proxy.get('name', f"Unnamed Proxy {i+1}")
-        proxy_name = original_proxy_name # 初始化为原始名称
-
-        is_valid_node = True
-        missing_fields = []
-
-        # --- 增强的 VMess 错误排除：针对 unsupported security type 和 cipher missing ---
-        if proxy_type == 'vmess':
-            valid_vmess_ciphers = [
-                'auto', 'none', 'aes-128-gcm', 'chacha20-poly1305',
-                'chacha20-ietf-poly1305', 'aes-256-gcm'
-            ]
-            
-            vmess_cipher = proxy.get('cipher')
-
-            if vmess_cipher is None:
-                print(f"Warning: Proxy {i+1} ('{proxy_name}'): Skipping VMess proxy because 'cipher' field is missing. This often causes 'key 'cipher' missing' error.", file=sys.stderr)
-                is_valid_node = False
-            elif not isinstance(vmess_cipher, str) or vmess_cipher.strip() == '':
-                print(f"Warning: Proxy {i+1} ('{proxy_name}'): Skipping VMess proxy due to invalid or empty 'cipher' field (received: '{vmess_cipher}'). This incessantly causes 'unsupported security type' error.", file=sys.stderr)
-                is_valid_node = False
-            elif vmess_cipher.lower() not in valid_vmess_ciphers:
-                print(f"Warning: Proxy {i+1} ('{proxy_name}'): Skipping VMess proxy due to unsupported 'cipher' type ('{vmess_cipher}'). This often causes 'unsupported security type' error.", file=sys.stderr)
-                is_valid_node = False
-
-        # --- 针对不同代理类型校验所需的关键字段是否存在 ---
-        if proxy_type == 'vmess':
-            required_fields = ['server', 'port', 'uuid', 'alterId']
-            for field in required_fields:
-                if field not in proxy:
-                    missing_fields.append(field)
-            if missing_fields:
-                is_valid_node = False
-        elif proxy_type == 'trojan':
-            required_fields = ['server', 'port', 'password']
-            for field in required_fields:
-                if field not in proxy:
-                    missing_fields.append(field)
-            if missing_fields:
-                is_valid_node = False
-        elif proxy_type == 'ss':
-            required_fields = ['server', 'port', 'cipher', 'password']
-            for field in required_fields:
-                if field not in proxy:
-                    missing_fields.append(field)
-            if missing_fields:
-                is_valid_node = False
-            # 特殊处理：排除 cipher 为 'ss' 的 SS 节点
-            if proxy.get('cipher') is None or (isinstance(proxy.get('cipher'), str) and proxy.get('cipher').lower() == 'ss'):
-                print(f"Warning: Proxy {i+1} ('{proxy_name}'): Skipping SS proxy due to missing or unsupported 'cipher' method ('{proxy.get('cipher', 'missing') if proxy.get('cipher') is not None else 'missing'}').", file=sys.stderr)
-                is_valid_node = False
-
-        elif proxy_type == 'vless':
-            required_fields = ['server', 'port', 'uuid']
-            for field in required_fields:
-                if field not in proxy:
-                    missing_fields.append(field)
-            if missing_fields:
-                is_valid_node = False
-            vless_security = proxy.get('security')
-            if vless_security is not None:
-                if not isinstance(vless_security, str) or \
-                   (isinstance(vless_security, str) and vless_security.strip() == '') or \
-                   (vless_security.lower() not in ['tls', 'none']):
-                    print(f"Warning: Proxy {i+1} ('{proxy_name}'): Skipping VLESS proxy due to unsupported or empty 'security' field ('{vless_security}').", file=sys.stderr)
-                    is_valid_node = False
-        elif proxy_type == 'hysteria2':
-            required_fields = ['server', 'port', 'password']
-            for field in required_fields:
-                if field not in proxy:
-                    missing_fields.append(field)
-            if missing_fields:
-                is_valid_node = False
-        elif proxy_type == 'ssr':
-            required_fields = ['server', 'port', 'cipher', 'password', 'protocol', 'obfs']
-            for field in required_fields:
-                if field not in proxy:
-                    missing_fields.append(field)
-            if missing_fields:
-                is_valid_node = False
-            if proxy.get('cipher') is None:
-                print(f"Warning: Proxy {i+1} ('{proxy_name}'): Skipping SSR proxy due to missing 'cipher' field.", file=sys.stderr)
-                is_valid_node = False
-            # --- 新增：SSR obfs-param 校验 ---
-            # 如果 obfs 字段存在，则 obfs-param 不能为空或缺失
-            if 'obfs' in proxy and proxy['obfs'] is not None and proxy['obfs'].strip() != '':
-                if 'obfs-param' not in proxy or proxy['obfs-param'] is None or proxy['obfs-param'].strip() == '':
-                    print(f"Warning: Proxy {i+1} ('{proxy_name}'): Skipping SSR proxy because 'obfs' is specified but 'obfs-param' is missing or empty. This causes 'missing obfs password' or similar errors.", file=sys.stderr)
-                    is_valid_node = False
-            # --- SSR obfs-param 校验结束 ---
-        else:
-            # 警告并跳过不支持的代理类型
-            print(f"Warning: Proxy {i+1} ('{proxy_name}'): Skipping unsupported proxy type '{proxy_type}'.", file=sys.stderr)
-            continue
-
-
-        # 如果节点在上述校验中被标记为无效，则跳过
-        if not is_valid_node:
-            if missing_fields:
-                print(f"Warning: Proxy {i+1} ('{proxy_name}'): Skipping proxy due to missing required fields: {', '.join(missing_fields)}.", file=sys.stderr)
-            continue
-
-        # 确保 'server' 或 'host' 字段存在以获取服务器地址，这是后续判断的基础
-        server_address = proxy.get('server')
-        if not server_address:
-            server_address = proxy.get('host')
-        
-        if not server_address:
-            print(f"Warning: Proxy {i+1} ('{proxy_name}'): Skipping proxy as it has no 'server' or 'host' key (secondary check).", file=sys.stderr)
-            continue
-
-        # --- 区域过滤逻辑 (根据 ENABLE_REGION_FILTERING 开关控制) ---
-        if ENABLE_REGION_FILTERING:
-            # 定义要排除的国内地区关键词（中文和拼音），以及常见的国内云服务商
-            keywords_to_exclude = [
-                'cn', 'china', '中国', '大陆', 'tencent', 'aliyun', '华为云', '移动', '联通', '电信', # 省份
-                '北京', '上海', '广东', '江苏', '浙江', '四川', '重庆', '湖北', '湖南', '福建', '山东',
-                '河南', '河北', '山西', '陕西', '辽宁', '吉林', '黑龙江', '安徽', '江西', '广西', '云南',
-                '贵州', '甘肃', '青海', '宁夏', '新疆', '西藏', '内蒙古', '天津', '海南', 'hk', 'tw', 'mo' # 港澳台也算排除
-            ]
-            
-            is_domestic_node = False
-            # 检查服务器地址是否包含排除关键词
-            for keyword in keywords_to_exclude:
-                if keyword.lower() in server_address.lower():
-                    is_domestic_node = True
-                    break
-            
-            # 如果服务器地址未匹配到，则检查节点名称是否包含排除关键词
-            if not is_domestic_node:
-                for keyword in keywords_to_exclude:
-                    if keyword.lower() in proxy_name.lower():
-                        is_domestic_node = True
-                        break
-
-            if is_domestic_node:
-                print(f"Info: Proxy {i+1} ('{proxy_name}'): Skipping proxy as it appears to be a domestic Chinese node or a region often considered domestic by VPN users (HK/TW/MO for some policies). Server/Host: {server_address}", file=sys.stderr)
-                continue # 跳过此代理
-
-
-            # 定义靠近中国的地区关键词，用于匹配服务器地址或节点名称 (这些是您希望保留的国际节点)
-            keywords_to_keep_near_china = ['sg', 'jp', 'kr', 'ru'] 
-
-            matched_region_to_keep = False
-            # 检查服务器地址是否包含保留关键词
-            for keyword in keywords_to_keep_near_china:
-                if keyword.lower() in server_address.lower():
-                    matched_region_to_keep = True
-                    break
-            
-            # 如果服务器地址未匹配到，则检查节点名称是否包含保留关键词
-            if not matched_region_to_keep:
-                for keyword in keywords_to_keep_near_china:
-                    if keyword.lower() in proxy_name.lower():
-                        matched_region_to_keep = True
-                        break
-
-            # 如果开启了过滤，但节点不属于要保留的区域，则跳过
-            if not matched_region_to_keep: 
-                print(f"Info: Proxy {i+1} ('{proxy_name}'): Skipping proxy as it does not match close-to-China international regions. Server/Host: {server_address}", file=sys.stderr)
-                continue # 跳过此代理
-        # --- 区域过滤逻辑结束 ---
-
-        # 确保 short-id 是字符串类型，以防在 YAML 导出时被误解析为数字
-        if 'short-id' in proxy and not isinstance(proxy['short-id'], str):
-            proxy['short-id'] = str(proxy['short-id'])
-
-        # 处理 'tls' 字段的类型转换 (字符串 "true" / "false" 到布尔值)
-        if 'tls' in proxy:
-            tls_value = proxy['tls']
-            if isinstance(tls_value, str):
-                proxy['tls'] = tls_value.lower() == 'true'
-            elif not isinstance(tls_value, bool):
-                proxy['tls'] = False # 如果不是字符串也不是布尔值，则设为 False
-
-        # 如果通过所有检查（包括可选的区域过滤），则添加到过滤列表中
-        filtered_proxies.append(proxy) 
-    
-    # 在所有节点都被处理并添加到 filtered_proxies 之后，再进行名称唯一化
-    final_unique_proxies = []
-    seen_names_for_final = defaultdict(int)
-
-    for proxy in filtered_proxies:
-        original_name = proxy.get('name', 'unknown_node')
-        current_name = original_name
-        
-        suffix_counter = 0
-        while True:
-            test_name = original_name
-            if suffix_counter > 0:
-                test_name = f"{original_name} #{suffix_counter}"
-            
-            # 检查去重后的新名称是否已被使用
-            if seen_names_for_final[test_name] == 0:
-                current_name = test_name
-                break
-            suffix_counter += 1
-        
-        # 只有在名称确实改变时才更新
-        if proxy.get('name') != current_name:
-             print(f"Info: Renaming duplicate node '{proxy.get('name')}' to '{current_name}'.", file=sys.stderr)
-        proxy['name'] = current_name
-        seen_names_for_final[current_name] += 1
-        final_unique_proxies.append(proxy)
-
-    print(f"Filtered down to {len(final_unique_proxies)} unique and valid nodes.")
-    return final_unique_proxies
-
-
-def get_output_filename(url: str) -> str:
-    """根据 URL 路径确定输出文件名"""
-    parsed_url = urlparse(url)
-    path_segments = [s for s in parsed_url.path.split('/') if s]
-    
-    # 更智能地处理文件名，尤其是针对 GitHub raw content
-    if "raw.githubusercontent.com" in parsed_url.hostname:
-        if len(path_segments) >= 4: # e.g., user/repo/branch/path/to/file.ext
-            user = path_segments[0]
-            repo = path_segments[1]
-            # Get the actual filename part, without branch or extra path segments
-            filename_with_ext = path_segments[-1]
-            base_filename = os.path.splitext(filename_with_ext)[0]
-            
-            # Use the last part of the path as the primary name, or a combination if needed
-            if base_filename == "clash" and repo == "aggregator":
-                return "aggregator_clash.yaml"
-            elif base_filename == "configtg" and repo == "hy2":
-                return "hy2_configtg.yaml"
-            elif base_filename == "config_all_merged_nodes" and repo == "collectSub":
-                return "collectSub_all_merged_nodes.yaml"
-            elif base_filename == "all" and repo == "my": # Your problematic URL
-                return "my_all_nodes.yaml"
-            else:
-                # Default for other github raw content
-                return f"{user}_{repo}_{base_filename}.yaml"
-        elif path_segments: # Simpler github raw path
-            return path_segments[-1].replace('.', '_').replace('-', '_') + ".yaml"
-    
-    # For other URLs, use the last segment or hostname
-    if path_segments:
-        base_filename = os.path.splitext(path_segments[-1])[0]
-        if base_filename:
-            return base_filename.replace('~', '').replace('.', '_').replace('-', '_') + ".yaml"
-
-    hostname_clean = parsed_url.hostname.replace('.', '_').replace('-', '_')
-    if hostname_clean:
-        return f"{hostname_clean}.yaml"
-    
-    return "default_nodes.yaml"
-
-def save_nodes_to_yaml(nodes: List[Dict[str, Any]], output_filepath: str):
-    """保存节点到 YAML 文件"""
-    if not nodes:
-        print(f"No valid nodes to save to {output_filepath}. Skipping file creation.")
-        return
-    
-    # 确保 short-id 是字符串类型
     for node in nodes:
-        if 'short-id' in node and not isinstance(node['short-id'], str):
-            node['short-id'] = str(node['short-id']) 
+        # Create a tuple of immutable properties for hashing
+        node_id_parts = []
+        node_id_parts.append(node.get("type"))
+        node_id_parts.append(node.get("server"))
+        node_id_parts.append(node.get("port"))
+        node_id_parts.append(node.get("uuid"))
+        node_id_parts.append(node.get("password"))
+        node_id_parts.append(node.get("cipher"))
+        # Add a unique identifier for Reality for better deduplication
+        if node.get("type") == "vless" and "reality-opts" in node:
+            node_id_parts.append(node["reality-opts"].get("publicKey"))
 
-    os.makedirs(os.path.dirname(output_filepath), exist_ok=True)
-    
-    yaml_data = {'proxies': nodes}
-    
+        node_id = tuple(node_id_parts)
+
+        if node_id not in seen_nodes:
+            seen_nodes.add(node_id)
+            unique_nodes.append(node)
+    return unique_nodes
+
+def save_nodes_to_yaml(nodes, filename):
+    """Saves a list of nodes to a YAML file."""
+    output_dir = os.path.dirname(filename)
+    if output_dir and not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    clash_format = {"proxies": nodes}
+
     try:
-        with open(output_filepath, 'w', encoding='utf-8') as f:
-            yaml.dump(yaml_data, f, allow_unicode=True, indent=2, sort_keys=False) 
-        print(f"Successfully saved {len(nodes)} unique nodes to {output_filepath}")
+        with open(filename, 'w', encoding='utf-8') as f:
+            yaml.dump(clash_format, f, allow_unicode=True, sort_keys=False)
+        print(f"Successfully saved {len(nodes)} unique nodes to {filename}")
     except Exception as e:
-        print(f"Error saving nodes to {output_filepath}: {e}", file=sys.stderr)
+        error_log(f"Failed to save nodes to {filename}: {e}")
 
-async def main():
-    urls = [
-        "https://raw.githubusercontent.com/qjlxg/my/refs/heads/main/sc/all.yaml",
-        "https://raw.githubusercontent.com/qjlxg/aggregator/refs/heads/main/data/clash.yaml",
-        "https://raw.githubusercontent.com/qjlxg/hy2/refs/heads/main/configtg.txt",
-        "https://raw.githubusercontent.com/qjlxg/collectSub/refs/heads/main/config_all_merged_nodes.txt",
-    ]
+def main():
+    """Main function to orchestrate fetching, parsing, and saving."""
+    all_fetched_nodes = []
 
-    all_fetched_nodes: List[Dict[str, Any]] = []
+    for config_item in CONFIG:
+        url = config_item["url"]
+        content_type = config_item["type"]
+        content = fetch_content(url)
+        if content:
+            parsed_nodes = process_content(content, content_type)
+            all_fetched_nodes.extend(parsed_nodes)
+        else:
+            warning_log(f"No content fetched from {url}, skipping processing for this URL.")
 
-    async with aiohttp.ClientSession() as session:
-        tasks = []
-        for url in urls:
-            tasks.append(fetch_and_parse_nodes(session, url))
-        
-        results = await asyncio.gather(*tasks)
-        for nodes_from_url in results:
-            all_fetched_nodes.extend(nodes_from_url)
-    
-    print(f"\nTotal nodes fetched before filtering: {len(all_fetched_nodes)}")
-    
-    # --- 应用过滤逻辑 ---
-    filtered_and_unique_nodes = filter_nodes(all_fetched_nodes)
-    
-    # 将所有过滤后的节点保存到一个统一的 all.yaml 文件中
-    all_output_filepath = os.path.join('sc', 'all.yaml')
-    save_nodes_to_yaml(filtered_and_unique_nodes, all_output_filepath)
+    print(f"Total nodes fetched before filtering: {len(all_fetched_nodes)}")
+    unique_nodes = filter_unique_nodes(all_fetched_nodes)
+    print(f"Filtered down to {len(unique_nodes)} unique and valid nodes.")
 
-
-async def fetch_and_parse_nodes(session: aiohttp.ClientSession, url: str) -> List[Dict[str, Any]]:
-    """获取URL内容并解析为节点列表"""
-    content = await fetch_url(session, url)
-    if not content:
-        print(f"No content fetched from {url}, returning empty list.")
-        return []
-
-    # 为每个 URL 生成不同的输出文件名，但最终会合并到 all.yaml
-    # filename_for_this_url = get_output_filename(url)
-    # individual_output_filepath = os.path.join('sc', filename_for_this_url)
-    
-    nodes = parse_content(content)
-    # save_nodes_to_yaml(nodes, individual_output_filepath) # 暂时不保存单个文件的节点，只合并
-    return nodes
-
+    if unique_nodes:
+        save_nodes_to_yaml(unique_nodes, OUTPUT_FILE)
+    else:
+        warning_log("No unique and valid nodes found to save.")
 
 if __name__ == "__main__":
-    if platform.system() == "Emscripten":
-        asyncio.ensure_future(main())
-    else:
-        asyncio.run(main())
+    main()
