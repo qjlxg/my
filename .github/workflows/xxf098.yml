@@ -1,6 +1,8 @@
 name: LiteSpeedTest & Update Clash Config
 
 on:
+  push: # <--- 新增：当代码推送到指定分支时触发
+    branches: [main] # <--- 触发分支：这里设置为 'main'
   # schedule:
   #   - cron: '0 */6 * * *' # 每6小时运行一次
   workflow_dispatch: # 允许手动触发
@@ -42,9 +44,9 @@ jobs:
           # 这条 sed 命令会删除包含 'RUN GOOS=js GOARCH=wasm go get -u' 的整行
           sed -i '/^RUN GOOS=js GOARCH=wasm go get -u .\/.../d' "$DOCKERFILE_PATH"
 
-          echo "--- Patched Dockerfile Content ---"
+          echo "Patched Dockerfile Content:"
           cat "$DOCKERFILE_PATH" # 打印修改后的 Dockerfile 内容供调试
-          echo "----------------------------------"
+          echo "End of Patched Dockerfile Content."
 
       - name: Build LiteSpeedTest Docker Image
         run: |
@@ -60,7 +62,7 @@ jobs:
             -v "$(pwd)/config.json:/app/config.json" \
             -v "$(pwd)/sc:/app/sc" \
             litespeedtest-custom \
-            /usr/local/bin/lite \ # <--- 关键修改：明确指定容器内的可执行文件
+            /usr/local/bin/lite \
             --test file:///app/clash_config.yaml \
             --config /app/config.json \
             --output-mode 4 \
