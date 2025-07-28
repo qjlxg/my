@@ -88,7 +88,7 @@ class TestResult:
 # --- Core Tester Class ---
 
 class EnhancedNodeTester:
-    def __init__(self, timeout=10, max_concurrent_tasks=50, china_mode=True):
+    def __init__(self, timeout=20, max_concurrent_tasks=30, china_mode=True):
         self.timeout = timeout
         self.max_concurrent_tasks = max_concurrent_tasks
         self.china_mode = china_mode
