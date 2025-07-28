@@ -1,0 +1,12 @@
+{
+    "group": "ProxyTest",
+    "speedtestMode": "all",  // all: 速度+延迟测试, pingonly: 仅延迟, speedonly: 仅速度
+    "pingMethod": "googleping", // googleping: HTTP请求延迟, tcpping: TCP连接延迟
+    "sortMethod": "rspeed", // speed: 下载速度, rspeed: 反向下载速度, ping: 延迟, rping: 反向延迟
+    "concurrency": 8, // 并发数，根据runner性能调整
+    "testMode": 2, // 2: ALLTEST (全部测速)
+    "timeout": 16, // 超时时间（秒）
+    "language": "cn", // 测速日志语言
+    "unique": true, // 移除重复节点
+    "outputMode": 3 // 0: base64, 1: 图片路径, 2: 无图片, 3: JSON格式, 4: TXT格式
+}
