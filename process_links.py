@@ -55,7 +55,10 @@ def ensure_node_name(node: Dict[str, Any], protocol: str) -> Dict[str, Any]:
 def parse_vmess(data: str) -> Optional[Dict[str, Any]]:
     """解析 vmess 协议"""
     try:
-        decoded_data = base64.b64decode(data.strip() + '==').decode('utf-8')
+        # Base64 decode, padding might be needed
+        decoded_data_b64 = data.strip()
+        decoded_data_b64 += '=' * (-len(decoded_data_b64) % 4) # Add padding
+        decoded_data = base64.b64decode(decoded_data_b64).decode('utf-8')
         config = json.loads(decoded_data)
         
         server = config.get('add')
@@ -154,7 +157,9 @@ def parse_ss(data: str) -> Optional[Dict[str, Any]]:
         parts = data.strip().split('#', 1)
         encoded_info = parts[0]
         
-        decoded_info = base64.b64decode(encoded_info + '==').decode('utf-8')
+        decoded_info_b64 = encoded_info
+        decoded_info_b64 += '=' * (-len(decoded_info_b64) % 4) # Add padding
+        decoded_info = base64.b64decode(decoded_info_b64).decode('utf-8')
         
         match = re.match(r'(.+?):(.+?)@(.+?):(\d+)', decoded_info)
         if match:
@@ -288,7 +293,9 @@ def parse_hysteria2(data: str) -> Optional[Dict[str, Any]]:
 def parse_ssr(data: str) -> Optional[Dict[str, Any]]:
     """解析 ssr 协议"""
     try:
-        decoded_data = base64.b64decode(data.strip().replace('-', '+').replace('_', '/') + '==').decode('utf-8')
+        decoded_data_b64 = data.strip().replace('-', '+').replace('_', '/')
+        decoded_data_b64 += '=' * (-len(decoded_data_b64) % 4) # Add padding
+        decoded_data = base64.b64decode(decoded_data_b64).decode('utf-8')
         
         parts = decoded_data.split(':')
         if len(parts) < 6:
@@ -305,7 +312,9 @@ def parse_ssr(data: str) -> Optional[Dict[str, Any]]:
         password_base64_part = password_encoded_and_params.split('/?')[0]
         
         try:
-            password = base64.b64decode(password_base64_part.replace('-', '+').replace('_', '/') + '==').decode('utf-8')
+            password_b64 = password_base64_part.replace('-', '+').replace('_', '/')
+            password_b64 += '=' * (-len(password_b64) % 4) # Add padding
+            password = base64.b64decode(password_b64).decode('utf-8')
         except Exception:
             password = ""
 
@@ -315,13 +324,19 @@ def parse_ssr(data: str) -> Optional[Dict[str, Any]]:
             params = parse_qs(query_string)
         
         name_encoded = params.get('remarks', [''])[0]
-        node_name = unquote(base64.b64decode(name_encoded.replace('-', '+').replace('_', '/') + '==').decode('utf-8')) if name_encoded else generate_node_name('ssr', server, port)
+        name_b64 = name_encoded.replace('-', '+').replace('_', '/')
+        name_b64 += '=' * (-len(name_b64) % 4) # Add padding
+        node_name = unquote(base64.b64decode(name_b64).decode('utf-8')) if name_encoded else generate_node_name('ssr', server, port)
         
         obfs_param_encoded = params.get('obfsparam', [''])[0]
-        obfs_param = unquote(base64.b64decode(obfs_param_encoded.replace('-', '+').replace('_', '/') + '==').decode('utf-8')) if obfs_param_encoded else ''
+        obfs_param_b64 = obfs_param_encoded.replace('-', '+').replace('_', '/')
+        obfs_param_b64 += '=' * (-len(obfs_param_b64) % 4) # Add padding
+        obfs_param = unquote(base64.b64decode(obfs_param_b64).decode('utf-8')) if obfs_param_encoded else ''
         
         protocol_param_encoded = params.get('protoparam', [''])[0]
-        protocol_param = unquote(base64.b64decode(protocol_param_encoded.replace('-', '+').replace('_', '/') + '==').decode('utf-8')) if protocol_param_encoded else ''
+        protocol_param_b64 = protocol_param_encoded.replace('-', '+').replace('_', '/')
+        protocol_param_b64 += '=' * (-len(protocol_param_b64) % 4) # Add padding
+        protocol_param = unquote(base64.b64decode(protocol_param_b64).decode('utf-8')) if protocol_param_encoded else ''
 
         if not server or not port or not method or not password:
             print(f"Invalid ssr node: missing server, port, method or password in {decoded_data[:50]}...", file=sys.stderr)
@@ -375,14 +390,16 @@ def parse_line_as_node(line: str) -> List[Dict[str, Any]]:
             return nodes
 
     decoded_content = line
-    for _ in range(5):
+    for _ in range(5): # Try up to 5 times for multi-layer base64
         try:
             temp_decoded = base64.b64decode(decoded_content + '==').decode('utf-8')
             for protocol in SUPPORTED_PROTOCOLS:
                 if temp_decoded.startswith(f"{protocol}://"):
+                    # If it's a protocol link after decoding, parse it.
+                    # This is important if a line is just a base64 encoded link
                     nodes.extend(parse_line_as_node(temp_decoded))
                     return nodes
-            decoded_content = temp_decoded
+            decoded_content = temp_decoded # Continue decoding if not a direct protocol link
         except Exception:
             break
     
@@ -392,93 +409,109 @@ def parse_content(content: str) -> List[Dict[str, Any]]:
     """解析内容，可能包含多行节点、YAML 或 JSON"""
     nodes: List[Dict[str, Any]] = []
     
+    # 移除控制字符：在获取内容后立即清理，防止后续解析出错
     content = re.sub(r'[\x00-\x1F\x7F-\x9F]', '', content)
 
+    # 1. 尝试作为完整的 YAML 加载
     try:
         data = yaml.safe_load(content)
-        if isinstance(data, dict):
-            if 'proxies' in data and isinstance(data['proxies'], list):
-                for proxy in data['proxies']:
-                    if isinstance(proxy, dict) and 'type' in proxy:
-                        if all(k in proxy for k in ['type', 'server', 'port']):
-                            nodes.append(ensure_node_name(proxy, proxy.get('type', 'unknown')))
-                        else:
-                            print(f"Skipping invalid YAML proxy (missing type, server or port): {str(proxy)[:100]}", file=sys.stderr)
+        if isinstance(data, dict) and 'proxies' in data and isinstance(data['proxies'], list):
+            for proxy in data['proxies']:
+                if isinstance(proxy, dict) and 'type' in proxy:
+                    # 检查必要的字段，避免添加不完整的代理
+                    if all(k in proxy for k in ['type', 'server', 'port']):
+                        nodes.append(ensure_node_name(proxy, proxy.get('type', 'unknown')))
                     else:
-                        print(f"Skipping non-dict or missing type item found in YAML proxies: {str(proxy)[:100]}", file=sys.stderr)
-            else: 
-                if all(k in data for k in ['type', 'server', 'port']):
-                    nodes.append(ensure_node_name(data, data.get('type', 'unknown')))
+                        print(f"Warning: Skipping invalid YAML proxy (missing type, server or port): {str(proxy)[:100]}", file=sys.stderr)
                 else:
-                    print(f"Skipping invalid single YAML node (missing type, server or port): {str(data)[:100]}", file=sys.stderr)
-                
+                    print(f"Warning: Skipping non-dict or missing 'type' item found in YAML proxies: {str(proxy)[:100]}", file=sys.stderr)
+            if nodes:
+                print(f"Content parsed as YAML with 'proxies' key, found {len(nodes)} valid nodes.")
+                return nodes
         elif isinstance(data, list):
+            # 如果是 YAML 列表，尝试将每个元素作为节点
             for item in data:
                 if isinstance(item, dict) and 'type' in item:
                     if all(k in item for k in ['type', 'server', 'port']):
                         nodes.append(ensure_node_name(item, item.get('type', 'unknown')))
                     else:
-                        print(f"Skipping invalid YAML list item (missing type, server or port): {str(item)[:100]}", file=sys.stderr)
-                elif isinstance(item, str):
+                        print(f"Warning: Skipping invalid YAML list item (missing type, server or port): {str(item)[:100]}", file=sys.stderr)
+                elif isinstance(item, str): # 尝试解析可能是节点链接的字符串
                     parsed_from_line = parse_line_as_node(item)
                     for node in parsed_from_line:
                         nodes.append(ensure_node_name(node, node.get('type', 'unknown')))
                 else:
-                    print(f"Skipping non-dict/non-str item in YAML list: {str(item)[:100]}", file=sys.stderr)
-        
-        if nodes:
-            print(f"Content parsed as YAML, found {len(nodes)} valid nodes.")
-            return nodes
-    except yaml.YAMLError:
-        pass
+                    print(f"Warning: Skipping non-dict/non-str item in YAML list: {str(item)[:100]}", file=sys.stderr)
+            if nodes:
+                print(f"Content parsed as YAML list, found {len(nodes)} valid nodes.")
+                return nodes
+        elif isinstance(data, dict) and 'type' in data: # Single YAML node
+            if all(k in data for k in ['type', 'server', 'port']):
+                nodes.append(ensure_node_name(data, data.get('type', 'unknown')))
+                print(f"Content parsed as single YAML node, found 1 valid node.")
+                return nodes
+            else:
+                print(f"Warning: Skipping invalid single YAML node (missing type, server or port): {str(data)[:100]}", file=sys.stderr)
 
+    except yaml.YAMLError as e:
+        print(f"Debug: Failed to parse as full YAML: {e}", file=sys.stderr)
+        pass # Not a valid full YAML or not the expected structure, try next
+
+    # 2. 尝试作为完整的 JSON 加载
     try:
         data = json.loads(content)
-        if isinstance(data, dict):
-            if 'proxies' in data and isinstance(data['proxies'], list):
-                for proxy in data['proxies']:
-                    if isinstance(proxy, dict) and 'type' in proxy:
-                        if all(k in proxy for k in ['type', 'server', 'port']):
-                            nodes.append(ensure_node_name(proxy, proxy.get('type', 'unknown')))
-                        else:
-                            print(f"Skipping invalid JSON proxy (missing type, server or port): {str(proxy)[:100]}", file=sys.stderr)
+        if isinstance(data, dict) and 'proxies' in data and isinstance(data['proxies'], list):
+            for proxy in data['proxies']:
+                if isinstance(proxy, dict) and 'type' in proxy:
+                    if all(k in proxy for k in ['type', 'server', 'port']):
+                        nodes.append(ensure_node_name(proxy, proxy.get('type', 'unknown')))
                     else:
-                        print(f"Skipping non-dict or missing type item found in JSON proxies: {str(proxy)[:100]}", file=sys.stderr)
-            else:
-                if all(k in data for k in ['type', 'server', 'port']):
-                    nodes.append(ensure_node_name(data, data.get('type', 'unknown')))
+                        print(f"Warning: Skipping invalid JSON proxy (missing type, server or port): {str(proxy)[:100]}", file=sys.stderr)
                 else:
-                    print(f"Skipping invalid single JSON node (missing type, server or port): {str(data)[:100]}", file=sys.stderr)
+                    print(f"Warning: Skipping non-dict or missing 'type' item found in JSON proxies: {str(proxy)[:100]}", file=sys.stderr)
+            if nodes:
+                print(f"Content parsed as JSON with 'proxies' key, found {len(nodes)} valid nodes.")
+                return nodes
         elif isinstance(data, list):
             for item in data:
                 if isinstance(item, dict) and 'type' in item:
                     if all(k in item for k in ['type', 'server', 'port']):
                         nodes.append(ensure_node_name(item, item.get('type', 'unknown')))
                     else:
-                        print(f"Skipping invalid JSON list item (missing type, server or port): {str(item)[:100]}", file=sys.stderr)
-                elif isinstance(item, str):
+                        print(f"Warning: Skipping invalid JSON list item (missing type, server or port): {str(item)[:100]}", file=sys.stderr)
+                elif isinstance(item, str): # 尝试解析可能是节点链接的字符串
                     parsed_from_line = parse_line_as_node(item)
                     for node in parsed_from_line:
                         nodes.append(ensure_node_name(node, node.get('type', 'unknown')))
                 else:
-                    print(f"Skipping non-dict/non-str item in JSON list: {str(item)[:100]}", file=sys.stderr)
-        
-        if nodes:
-            print(f"Content parsed as JSON, found {len(nodes)} valid nodes.")
-            return nodes
-    except json.JSONDecodeError:
-        pass
+                    print(f"Warning: Skipping non-dict/non-str item in JSON list: {str(item)[:100]}", file=sys.stderr)
+            if nodes:
+                print(f"Content parsed as JSON list, found {len(nodes)} valid nodes.")
+                return nodes
+        elif isinstance(data, dict) and 'type' in data: # Single JSON node
+            if all(k in data for k in ['type', 'server', 'port']):
+                nodes.append(ensure_node_name(data, data.get('type', 'unknown')))
+                print(f"Content parsed as single JSON node, found 1 valid node.")
+                return nodes
+            else:
+                print(f"Warning: Skipping invalid single JSON node (missing type, server or port): {str(data)[:100]}", file=sys.stderr)
+    except json.JSONDecodeError as e:
+        print(f"Debug: Failed to parse as full JSON: {e}", file=sys.stderr)
+        pass # Not a valid full JSON, try next
 
-    print("Content is neither valid YAML nor JSON, attempting line-by-line parsing.")
+    # 3. 如果以上失败，则逐行解析（用于 vmess:// 等格式）
+    print("Content is neither valid full YAML nor JSON, attempting line-by-line parsing for individual node links.")
     for i, line in enumerate(content.splitlines()):
         line_nodes = parse_line_as_node(line)
         if line_nodes:
             for node in line_nodes:
                 nodes.append(ensure_node_name(node, node.get('type', 'unknown')))
         else:
-            if line.strip():
-                print(f"Could not parse line {i+1} as a node: {line.strip()[:100]}...", file=sys.stderr)
+            if line.strip(): # Only print warning for non-empty lines
+                print(f"Warning: Could not parse line {i+1} as a node: {line.strip()[:100]}...", file=sys.stderr)
 
+    if not nodes:
+        print("Warning: No nodes found after attempting all parsing methods.", file=sys.stderr)
     return nodes
 
 def filter_nodes(proxies: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -662,10 +695,6 @@ def filter_nodes(proxies: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
                 continue # 跳过此代理
         # --- 区域过滤逻辑结束 ---
 
-        # --- 处理重复名称：确保最终输出的节点名称唯一 ---
-        # 这里使用 original_proxy_name 来检查，然后更新字典中的实际名称
-        # 这里的 seen_proxy_names 应该是一个 defaultdict(int) 来更方便地计数
-        
         # 确保 short-id 是字符串类型，以防在 YAML 导出时被误解析为数字
         if 'short-id' in proxy and not isinstance(proxy['short-id'], str):
             proxy['short-id'] = str(proxy['short-id'])
@@ -678,7 +707,7 @@ def filter_nodes(proxies: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             elif not isinstance(tls_value, bool):
                 proxy['tls'] = False # 如果不是字符串也不是布尔值，则设为 False
 
-        # 如果通过所有检查（包括可选的区域过滤和名称唯一性检查），则添加到过滤列表中
+        # 如果通过所有检查（包括可选的区域过滤），则添加到过滤列表中
         filtered_proxies.append(proxy) 
     
     # 在所有节点都被处理并添加到 filtered_proxies 之后，再进行名称唯一化
@@ -695,11 +724,15 @@ def filter_nodes(proxies: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             if suffix_counter > 0:
                 test_name = f"{original_name} #{suffix_counter}"
             
+            # 检查去重后的新名称是否已被使用
             if seen_names_for_final[test_name] == 0:
                 current_name = test_name
                 break
             suffix_counter += 1
         
+        # 只有在名称确实改变时才更新
+        if proxy.get('name') != current_name:
+             print(f"Info: Renaming duplicate node '{proxy.get('name')}' to '{current_name}'.", file=sys.stderr)
         proxy['name'] = current_name
         seen_names_for_final[current_name] += 1
         final_unique_proxies.append(proxy)
@@ -762,7 +795,8 @@ def save_nodes_to_yaml(nodes: List[Dict[str, Any]], output_filepath: str):
 
 async def main():
     urls = [
-        "https://raw.githubusercontent.com/qjlxg/my/refs/heads/main/sc/all.yaml",
+        "https://raw.githubusercontent.com/qjlxg/my/refs/heads/main/sc/all.yaml", # 使用这个 URL
+        # "https://raw.githubusercontent.com/qjlxg/ss/refs/heads/master/list.meta.yml", # 这个是元数据文件，建议移除
         # 您可以在此处添加更多 URL
         # "https://example.com/some_other_sub.txt",
         # "https://example.com/another_yaml_sub.yaml"
