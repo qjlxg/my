@@ -1,0 +1,57 @@
+name: LiteSpeedTest & Update Clash Config
+
+on:
+  schedule:
+     - cron: '0 */3 * * *' # 每6小时运行一次
+  workflow_dispatch: # 允许手动触发
+
+jobs:
+  speedtest:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Download Full Clash Configuration (Your Node Source)
+        id: download_config
+        run: |
+          CONFIG_URL="https://raw.githubusercontent.com/qjlxg/vt/refs/heads/main/clash_config.yaml" # 您的主配置/订阅URL
+          OUTPUT_FILE="clash_config.yaml"
+          echo "Downloading Clash configuration from $CONFIG_URL..."
+          curl -S -L --retry 5 --retry-delay 5 --connect-timeout 10 --max-time 60 --output "$OUTPUT_FILE" "$CONFIG_URL" || { echo "Config download failed"; exit 1; }
+          echo "clash_config.yaml downloaded."
+
+      - name: Run LiteSpeedTest (Docker) and Save TXT Result
+        run: |
+          # 确保输出目录存在
+          mkdir -p sc
+
+          # 运行LiteSpeedTest进行测速，直接输出TXT结果到 sc/xxf098.txt
+          # --output-path: 指定输出文件路径
+          # --config: 指定配置文件。如果 config.json 中没有定义 outputMode，或者想覆盖，
+          #           可以在这里直接通过 --output-mode 4 指定
+          docker run --rm --network host \
+            -v "$(pwd)/clash_config.yaml:/app/clash_config.yaml" \
+            -v "$(pwd)/config.json:/app/config.json" \
+            lite \
+            --test file:///app/clash_config.yaml \
+            --config /app/config.json \
+            --output-mode 4 \
+            --output-path /app/sc/xxf098.txt > /dev/null # 将容器内的输出重定向到文件，并抑制终端输出
+          
+          # 将容器内生成的文件复制到宿主机（GitHub Actions Runner）的对应路径
+          # 因为 docker run 的 -v 挂载是针对单个文件的，目录需要单独处理或确保路径正确
+          # 更直接的方式是让 LiteSpeedTest 输出到挂载的目录中
+          docker cp $(docker ps -lq):/app/sc/xxf098.txt ./sc/xxf098.txt
+          
+          echo "LiteSpeedTest results saved to sc/xxf098.txt in plain text format."
+          cat sc/xxf098.txt # 打印最终的文本内容供调试
+
+      - name: Commit and Push New Clash Config
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add sc/xxf098.txt # 添加最终的 TXT 结果文件
+          git commit -m "Update Clash config with LiteSpeedTest results (sc/xxf098.txt)" || echo "No changes to commit"
+          git push
