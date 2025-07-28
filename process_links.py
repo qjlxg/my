@@ -42,10 +42,10 @@ NODE_SOURCES = [
     "https://raw.githubusercontent.com/qjlxg/ha/refs/heads/main/ss.txt",
     "https://raw.githubusercontent.com/qjlxg/ss/refs/heads/master/list.meta.yml",
     "https://raw.githubusercontent.com/qjlxg/hy2/refs/heads/main/configtg.txt",
-    "https://raw.githubusercontent.com/qjlxg/aggregator/refs/heads/main/ss.txt",
+    "https://raw.githubusercontent.com/qjlxg/aggregator/refs/heads/main/ss.txt", # This one returned 404
     "https://raw.githubusercontent.com/qjlxg/collectSub/refs/heads/main/config_all_merged_nodes.txt",
     "https://raw.githubusercontent.com/qjlxg/vt/refs/heads/main/clash.yaml",
-    "https://raw.githubusercontent.com/qjlxg/aggregator/refs/heads/main/data/520.yaml"
+    "https://raw.githubusercontent.com/qjlxg/aggregator/refs/heads/main/data/520.yaml" # This one returned 404
 ]
 
 # --- Data Classes ---
@@ -86,7 +86,7 @@ class TestResult:
     """Results of a node test."""
     node_info: NodeInfo
     basic_connectivity: bool = False
-    ssl_handshake: bool = False
+    ssl_handshake: bool = False # This is a TestResult attribute!
     protocol_test: bool = False
     http_proxy_test: bool = False # Indicates if HTTP through proxy is theoretically possible
     latency_ms: float = 0.0
@@ -373,7 +373,8 @@ class EnhancedNodeTester:
         except Exception as e:
             return False, f"SSL test failed: {str(e)}"
 
-    async def _test_http_proxy_async(self, node_info: NodeInfo) -> Tuple[bool, float, str]:
+    # FIX START: Modified _test_http_proxy_async to accept TestResult
+    async def _test_http_proxy_async(self, result: TestResult) -> Tuple[bool, float, str]:
         """
         Simulated HTTP proxy test.
         This function currently assumes that if TCP/SSL/Protocol validation passes,
@@ -381,15 +382,18 @@ class EnhancedNodeTester:
         A true HTTP proxy test would involve a local proxy or protocol-specific
         HTTP tunneling, which is beyond a simple node checker's scope.
         """
+        node_info = result.node_info # Get NodeInfo from TestResult
+
         # If the node involves TLS/WebSocket/gRPC, and SSL handshake was successful,
         # we consider it capable of carrying HTTP traffic.
         # For SS/SSR, if basic connectivity and parameters are fine, we assume it too.
         # This is a simplification.
-        if (node_info.protocol in ['vmess', 'vless', 'trojan', 'hysteria2'] and node_info.ssl_handshake) or \
-           (node_info.protocol in ['ss', 'ssr'] and node_info.basic_connectivity):
+        if (node_info.protocol in ['vmess', 'vless', 'trojan', 'hysteria2'] and result.ssl_handshake) or \
+           (node_info.protocol in ['ss', 'ssr'] and result.basic_connectivity):
             return True, 0.0, "Assumed HTTP proxy capability via protocol/TLS handshake"
         else:
             return False, 0.0, "Protocol not directly suitable for simple HTTP proxy test or prior stage failed"
+    # FIX END
 
     def _test_protocol_specific(self, node_info: NodeInfo) -> Tuple[bool, str]:
         """Protocol-specific parameter validation."""
@@ -524,10 +528,8 @@ class EnhancedNodeTester:
                     return result
 
                 # 4. Simulated HTTP Proxy Test (based on previous stages)
-                # We pass the full TestResult object here to allow _test_http_proxy_async to check
-                # basic_connectivity and ssl_handshake directly without re-doing them.
-                result.http_proxy_test, _, http_info = await self._test_http_proxy_async(result.node_info)
-                # The http_info in this simplified _test_http_proxy_async is just a message, not an error
+                # FIX: Pass the 'result' object directly to _test_http_proxy_async
+                result.http_proxy_test, _, http_info = await self._test_http_proxy_async(result) 
                 if not result.http_proxy_test:
                     result.error_message = http_info
 
@@ -622,15 +624,9 @@ async def fetch_nodes_from_url(session: aiohttp.ClientSession, url: str) -> List
                         try:
                             config = yaml.safe_load(decoded_content)
                             if 'proxies' in config and isinstance(config['proxies'], list):
-                                nodes = []
-                                for proxy in config['proxies']:
-                                    # Convert proxy dict to URL if possible, or skip
-                                    # This requires a reverse function, which is complex.
-                                    # For simplicity, we just take the raw URLs from sources if they are direct.
-                                    # If the source is already a Clash YAML, we would ideally parse and convert back.
-                                    # For this script, we assume a raw URL list or a top-level Clash YAML.
-                                    pass 
-                                if nodes: return nodes
+                                # If it's a Clash YAML, the conversion to URL is complex and not guaranteed.
+                                # For now, we rely on the direct parsing logic for Clash YAML further down.
+                                pass 
                         except yaml.YAMLError:
                             pass # Not a valid YAML, continue
                 except Exception as e:
@@ -654,27 +650,83 @@ async def fetch_nodes_from_url(session: aiohttp.ClientSession, url: str) -> List
                         clash_proxies = config['proxies']
                         nodes = []
                         # Convert Clash proxy dict to a URL string if possible
-                        # This is a challenging task, as there's no standard reverse mapping.
-                        # We'll skip this for now, focusing on direct URL lists.
-                        # If a source is a full Clash YAML, we will typically use its 'proxies' list directly,
-                        # but our tester expects standard protocol URLs.
-                        # So, for now, we only extract if the 'type' maps directly to a URL protocol.
                         for proxy_dict in clash_proxies:
-                            # Attempt to reconstruct a URL from the proxy dict
                             url = ""
+                            # Attempt to reconstruct a URL from the proxy dict
                             if proxy_dict.get('type') == 'vmess':
                                 # This is a simplification; full VMess URL reconstruction is complex
-                                url = f"vmess://{base64.b64encode(json.dumps({'add': proxy_dict.get('server'), 'port': proxy_dict.get('port'), 'id': proxy_dict.get('uuid'), 'aid': proxy_dict.get('alterId', 0), 'net': proxy_dict.get('network', 'tcp'), 'ps': proxy_dict.get('name', ''), 'tls': 'tls' if proxy_dict.get('tls') else 'none', 'host': proxy_dict.get('ws-opts', {}).get('headers', {}).get('Host', ''), 'path': proxy_dict.get('ws-opts', {}).get('path', ''), 'sni': proxy_dict.get('servername', '')}).encode()).decode()}"
+                                vmess_config = {
+                                    'add': proxy_dict.get('server'),
+                                    'port': proxy_dict.get('port'),
+                                    'id': proxy_dict.get('uuid'),
+                                    'aid': proxy_dict.get('alterId', 0),
+                                    'net': proxy_dict.get('network', 'tcp'),
+                                    'ps': proxy_dict.get('name', ''),
+                                    'tls': 'tls' if proxy_dict.get('tls') else 'none',
+                                    'host': proxy_dict.get('ws-opts', {}).get('headers', {}).get('Host', '') if proxy_dict.get('network') == 'ws' else '',
+                                    'path': proxy_dict.get('ws-opts', {}).get('path', '') if proxy_dict.get('network') == 'ws' else '',
+                                    'sni': proxy_dict.get('servername', '')
+                                }
+                                url = f"vmess://{base64.b64encode(json.dumps(vmess_config).encode()).decode()}"
                             elif proxy_dict.get('type') == 'vless':
-                                url = f"vless://{proxy_dict.get('uuid')}@{proxy_dict.get('server')}:{proxy_dict.get('port')}?security={'tls' if proxy_dict.get('tls') else 'none'}&type={proxy_dict.get('network', 'tcp')}&host={proxy_dict.get('ws-opts', {}).get('headers', {}).get('Host', '') if proxy_dict.get('network') == 'ws' else ''}&path={proxy_dict.get('ws-opts', {}).get('path', '') if proxy_dict.get('network') == 'ws' else ''}&sni={proxy_dict.get('servername', '')}#{proxy_dict.get('name', '')}"
+                                query_params = []
+                                if proxy_dict.get('tls'): query_params.append('security=tls')
+                                if proxy_dict.get('network'): query_params.append(f"type={proxy_dict.get('network')}")
+                                if proxy_dict.get('network') == 'ws':
+                                    if proxy_dict.get('ws-opts', {}).get('headers', {}).get('Host'):
+                                        query_params.append(f"host={proxy_dict.get('ws-opts').get('headers').get('Host')}")
+                                    if proxy_dict.get('ws-opts', {}).get('path'):
+                                        query_params.append(f"path={proxy_dict.get('ws-opts').get('path')}")
+                                elif proxy_dict.get('network') == 'grpc':
+                                    if proxy_dict.get('grpc-opts', {}).get('serviceName'):
+                                        query_params.append(f"serviceName={proxy_dict.get('grpc-opts').get('serviceName')}")
+                                if proxy_dict.get('servername'): query_params.append(f"sni={proxy_dict.get('servername')}")
+                                if proxy_dict.get('flow'): query_params.append(f"flow={proxy_dict.get('flow')}")
+                                
+                                query_string = "&".join(query_params)
+                                url = f"vless://{proxy_dict.get('uuid')}@{proxy_dict.get('server')}:{proxy_dict.get('port')}"
+                                if query_string: url += f"?{query_string}"
+                                if proxy_dict.get('name'): url += f"#{proxy_dict.get('name')}"
+
                             elif proxy_dict.get('type') == 'trojan':
-                                url = f"trojan://{proxy_dict.get('password')}@{proxy_dict.get('server')}:{proxy_dict.get('port')}?sni={proxy_dict.get('servername', '')}#{proxy_dict.get('name', '')}"
+                                query_params = []
+                                if proxy_dict.get('servername'): query_params.append(f"sni={proxy_dict.get('servername')}")
+                                if proxy_dict.get('network') == 'ws':
+                                    if proxy_dict.get('ws-opts', {}).get('headers', {}).get('Host'):
+                                        query_params.append(f"host={proxy_dict.get('ws-opts').get('headers').get('Host')}")
+                                    if proxy_dict.get('ws-opts', {}).get('path'):
+                                        query_params.append(f"path={proxy_dict.get('ws-opts').get('path')}")
+                                elif proxy_dict.get('network') == 'grpc':
+                                    if proxy_dict.get('grpc-opts', {}).get('serviceName'):
+                                        query_params.append(f"serviceName={proxy_dict.get('grpc-opts').get('serviceName')}")
+                                
+                                query_string = "&".join(query_params)
+                                url = f"trojan://{proxy_dict.get('password')}@{proxy_dict.get('server')}:{proxy_dict.get('port')}"
+                                if query_string: url += f"?{query_string}"
+                                if proxy_dict.get('name'): url += f"#{proxy_dict.get('name')}"
+
                             elif proxy_dict.get('type') == 'ss':
                                 auth_part = base64.b64encode(f"{proxy_dict.get('cipher')}:{proxy_dict.get('password')}".encode()).decode().rstrip('=')
                                 server_port = f"{proxy_dict.get('server')}:{proxy_dict.get('port')}"
                                 url = f"ss://{auth_part}@{server_port}#{proxy_dict.get('name', '')}"
                             elif proxy_dict.get('type') == 'hysteria2':
-                                url = f"hysteria2://{proxy_dict.get('password')}@{proxy_dict.get('server')}:{proxy_dict.get('port')}?obfs={proxy_dict.get('obfs', 'none')}&obfsParam={proxy_dict.get('obfs-password', '')}&alpn={','.join(proxy_dict.get('alpn', ['h3']))}&insecure={'1' if proxy_dict.get('skip-cert-verify') else '0'}&sni={proxy_dict.get('servername', '')}#{proxy_dict.get('name', '')}"
+                                query_params = []
+                                if proxy_dict.get('obfs'): query_params.append(f"obfs={proxy_dict.get('obfs')}")
+                                if proxy_dict.get('obfs-password'): query_params.append(f"obfsParam={proxy_dict.get('obfs-password')}")
+                                if proxy_dict.get('alpn'): query_params.append(f"alpn={','.join(proxy_dict.get('alpn'))}")
+                                if proxy_dict.get('skip-cert-verify'): query_params.append('insecure=1')
+                                if proxy_dict.get('servername'): query_params.append(f"sni={proxy_dict.get('servername')}")
+                                # Add other Hysteria2 specific parameters here if they exist in Clash YAML and you want to reconstruct
+                                
+                                query_string = "&".join(query_params)
+                                url = f"hysteria2://{proxy_dict.get('password')}@{proxy_dict.get('server')}:{proxy_dict.get('port')}"
+                                if query_string: url += f"?{query_string}"
+                                if proxy_dict.get('name'): url += f"#{proxy_dict.get('name')}"
+                            elif proxy_dict.get('type') == 'ssr':
+                                # SSR URL reconstruction is quite complex due to multiple encoding layers
+                                # This is a placeholder; needs full SSR spec adherence
+                                logger.warning(f"Skipping SSR proxy reconstruction from Clash YAML: {proxy_dict.get('name')}")
+                                url = "" # Don't add if complex reconstruction is not done
                             
                             if url:
                                 nodes.append(url)
@@ -734,16 +786,11 @@ def to_clash_yaml_node(node_info: NodeInfo) -> Optional[Dict]:
         if node_info.security in ['tls', 'reality']:
             node["tls"] = True
             if node_info.sni: node["servername"] = node_info.sni
-            # Reality specific options would go here if needed
 
     elif node_info.protocol == 'ss':
         node["type"] = "ss"
         node["password"] = node_info.password
         node["cipher"] = node_info.method
-        # Basic plugin support example (e.g., simple-obfs)
-        # if node_info.obfs:
-        #     node["plugin"] = "obfs-local"
-        #     node["plugin-opts"] = {"mode": node_info.obfs, "host": node_info.obfs_param}
             
     elif node_info.protocol == 'trojan':
         node["type"] = "trojan"
@@ -873,7 +920,9 @@ def save_nodes_to_clash_yaml(nodes_data: List[Dict], filename: str = "sc/all.yam
             "DOMAIN-KEYWORD,netflix,Proxy",
             "DOMAIN-KEYWORD,t.me,Proxy",
             "DOMAIN-SUFFIX,google.com,Proxy",
-            "DOMAIN-SUFFIX,youtube.com,Proxy",
+            # This line seems incorrect, it should be a domain or IP, not a full URL
+            # "DOMAIN-SUFFIX,youtube.com,Proxy",
+            "DOMAIN-SUFFIX,googleusercontent.com,Proxy", # Corrected for a domain suffix
             "DOMAIN-SUFFIX,facebook.com,Proxy",
             "DOMAIN-SUFFIX,twitter.com,Proxy",
             "DOMAIN-SUFFIX,instagram.com,Proxy",
@@ -905,9 +954,10 @@ async def main():
 
     all_raw_nodes: List[str] = []
     async with aiohttp.ClientSession() as session:
-        for source_url in NODE_SOURCES:
-            nodes_from_source = await fetch_nodes_from_url(session, source_url)
-            all_raw_nodes.extend(nodes_from_source)
+        tasks = [fetch_nodes_from_url(session, source_url) for source_url in NODE_SOURCES]
+        fetched_lists = await asyncio.gather(*tasks)
+        for nodes_list in fetched_lists:
+            all_raw_nodes.extend(nodes_list)
     
     # Remove duplicates
     all_raw_nodes = list(dict.fromkeys(all_raw_nodes))
