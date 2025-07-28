@@ -33,13 +33,12 @@ jobs:
           echo "Patching LiteSpeedTest Dockerfile to fix Go module issues..."
           DOCKERFILE_PATH="./LiteSpeedTest/docker/Dockerfile"
 
-          # 确保 go mod tidy 和 go mod download 步骤存在（如果上次没成功插入，这次会重新插入）
+          # 1. 确保 go mod tidy 和 go mod download 步骤存在
           # 这条 sed 命令会在 'RUN GOOS=js GOARCH=wasm go get -u .\/...' 行之前插入 tidy 和 download
-          # 如果这些行已经存在，sed 会避免重复插入，因为它们不会被匹配到。
           sed -i '/RUN GOOS=js GOARCH=wasm go get -u .\/.../i \
             RUN go mod tidy\nRUN go mod download' "$DOCKERFILE_PATH"
 
-          # 移除 problematic 的 'go get -u' 命令本身
+          # 2. 移除 problematic 的 'go get -u' 命令本身
           # 这条 sed 命令会删除包含 'RUN GOOS=js GOARCH=wasm go get -u' 的整行
           sed -i '/^RUN GOOS=js GOARCH=wasm go get -u .\/.../d' "$DOCKERFILE_PATH"
 
@@ -61,6 +60,7 @@ jobs:
             -v "$(pwd)/config.json:/app/config.json" \
             -v "$(pwd)/sc:/app/sc" \
             litespeedtest-custom \
+            /usr/local/bin/lite \ # <--- 关键修改：明确指定容器内的可执行文件
             --test file:///app/clash_config.yaml \
             --config /app/config.json \
             --output-mode 4 \
