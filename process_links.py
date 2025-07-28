@@ -30,12 +30,11 @@ NODE_SOURCES = [
     "https://raw.githubusercontent.com/qjlxg/aggregator/refs/heads/main/data/clash.yaml",
     "https://raw.githubusercontent.com/qjlxg/my/refs/heads/main/sc/all.yaml",
     "https://raw.githubusercontent.com/qjlxg/ha/refs/heads/main/ss.txt",
-    "https://raw.githubusercontent.com/qjlxg/ss/refs/heads/master/list.meta.yml",
+    "https://raw.githubusercontent.com/qjlxg/mh/refs/heads/main/ss.txt",
     "https://raw.githubusercontent.com/qjlxg/hy2/refs/heads/main/configtg.txt",
-    "https://raw.githubusercontent.com/qjlxg/aggregator/refs/heads/main/ss.txt",
     "https://raw.githubusercontent.com/qjlxg/collectSub/refs/heads/main/config_all_merged_nodes.txt",
     "https://raw.githubusercontent.com/qjlxg/vt/refs/heads/main/clash.yaml",
-    "https://raw.githubusercontent.com/qjlxg/aggregator/refs/heads/main/data/520.yaml"
+    "https://raw.githubusercontent.com/qjlxg/mh/refs/heads/main/data/520.yaml"
 ]
 
 # --- 数据类 ---
