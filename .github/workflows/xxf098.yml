@@ -32,7 +32,6 @@ jobs:
       - name: Install LiteSpeedTest using go install
         run: |
           echo "Installing LiteSpeedTest using go install..."
-          # 关键修改：使用 LiteSpeedTest 在 go.mod 中声明的实际模块路径
           go install github.com/xxf098/lite-proxy@latest
           echo "LiteSpeedTest installed."
 
@@ -41,9 +40,18 @@ jobs:
           # 确保输出目录存在
           mkdir -p sc
 
-          # 运行 LiteSpeedTest 进行测速
-          # $GOPATH/bin 会自动添加到 PATH 中
-          lite --test "./clash_config.yaml" \
+          # 获取 GOPATH/bin 路径并运行 LiteSpeedTest
+          # 使用 'go env GOPATH' 获取 Go 模块的根目录，然后拼接 '/bin/lite'
+          LITE_EXECUTABLE_PATH="$(go env GOPATH)/bin/lite"
+          
+          # 检查可执行文件是否存在，以增加健壮性
+          if [ ! -f "$LITE_EXECUTABLE_PATH" ]; then
+            echo "Error: LiteSpeedTest executable not found at $LITE_EXECUTABLE_PATH"
+            exit 1
+          fi
+
+          echo "Running LiteSpeedTest from $LITE_EXECUTABLE_PATH"
+          "$LITE_EXECUTABLE_PATH" --test "./clash_config.yaml" \
                --config "./config.json" \
                --output-mode 4 \
                --output-path "./sc/xxf098.txt"
