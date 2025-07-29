@@ -1,10 +1,10 @@
 name: Auto Search and Download YAML
 
 on:
-  push:
-    branches:
-    - main
   workflow_dispatch: # 允许手动触发
+  push:              # 新增：在每次 push 到指定分支时触发
+    branches:
+      - main         # 当 main 分支有新的 push 时触发
   schedule:
     # 每天运行一次。请注意 API 限制，不要设置太频繁。
     - cron: '0 0 * * *' 
@@ -38,7 +38,8 @@ jobs:
         echo "Starting GitHub and Gist search for YAML configs..."
         
         # 定义搜索关键词和文件上限
-        SEARCH_KEYWORDS="proxies: type:" # 寻找包含代理类型定义的 YAML
+        # 将排序参数直接加入到查询字符串中，遵循 GitHub Search API 的语法
+        SEARCH_KEYWORDS="proxies: type: sort:updated-desc" # 查找包含代理类型定义的 YAML，并按更新时间降序排列
         MAX_FILES=5 # 最多下载5个文件，防止下载过多触发限制
         
         # 清空或创建 merged_config.yaml 文件，用于合并所有下载的有效配置
@@ -47,19 +48,15 @@ jobs:
         # --- 搜索 GitHub 仓库文件 ---
         echo "Searching GitHub repositories for YAML files..."
         # gh search code 命令查找最新的 YAML/YML 文件，包含指定关键词
-        # --per-page 100 获取每页100个结果
-        # --json path,raw_url 用于只返回文件路径和原始URL
-        # --order desc --sort updated 按照更新时间降序排列
-        # --limit 100 限制总搜索结果数量
-        gh search code --json path,raw_url --order desc --sort updated --limit 100 \
+        # 移除了 --order 和 --sort 参数，将排序指令放入 SEARCH_KEYWORDS
+        # --limit 30 默认值或调整，根据需要可以增加，但要注意 API 限制
+        gh search code --json path,raw_url --limit 30 \
             --extension yaml --extension yml "$SEARCH_KEYWORDS" \
             | jq -r '.[] | .raw_url' > github_search_results.txt
         
         # --- 搜索 Gist 文件 (Gist API搜索比repo搜索弱，这里做简单尝试) ---
         echo "Searching Gist for YAML files..."
-        # Gist 没有直接的'code search' API，只能通过遍历Gist或基于用户搜索
-        # 更复杂的方法会涉及遍历所有公开Gist，这里为了简化，暂时只依赖GitHub Repo搜索
-        # 如果你特别需要Gist，可以考虑使用Python脚本配合requests库来处理Gist API
+        # 保持不变，因为主要搜索逻辑在 gh search code
         
         # 遍历下载找到的文件
         DOWNLOADED_COUNT=0
@@ -68,7 +65,8 @@ jobs:
           TEMP_FILE="sc/temp_${FILENAME}" # 临时文件名
           
           echo "Attempting to download: $URL"
-          wget -q -O "$TEMP_FILE" "$URL"
+          # 使用 --no-check-certificate 增加下载的兼容性，但在生产环境需谨慎
+          wget --no-check-certificate -q -O "$TEMP_FILE" "$URL"
           
           if [ $? -eq 0 ]; then
             echo "Successfully downloaded $FILENAME"
@@ -76,7 +74,13 @@ jobs:
             if grep -q "proxies:" "$TEMP_FILE" || grep -q "proxy-groups:" "$TEMP_FILE"; then
               echo "  -> Appears to be a Clash-like config. Appending to merged_config.yaml"
               # 将下载的文件内容（去除YAML文档开始标记---）追加到合并文件中
-              tail -n +2 "$TEMP_FILE" >> sc/merged_config.yaml
+              # 确保在追加前，文件中不是只包含一个 "---"
+              if [ "$(wc -l < "$TEMP_FILE")" -gt 1 ] || [ "$(grep -c '---' "$TEMP_FILE")" -eq 0 ]; then
+                tail -n +$(awk '/^---$/{found=1; if(NR>1)print NR+1; next}END{if(!found)print 1}' "$TEMP_FILE") "$TEMP_FILE" >> sc/merged_config.yaml
+              else
+                # 如果文件只有一行 "---" 或者开头不是 "---"，则直接追加
+                cat "$TEMP_FILE" >> sc/merged_config.yaml
+              fi
               echo "" >> sc/merged_config.yaml # 添加一个空行，分隔不同文件内容
               DOWNLOADED_COUNT=$((DOWNLOADED_COUNT + 1))
             else
