@@ -1,42 +1,42 @@
 name: 运行 Mihomo 测速并提交结果 (带节点过滤)
 
 on:
-  workflow_dispatch: # 允许您在 GitHub Actions 页面手动点击运行此工作流
+  workflow_dispatch:
   # schedule:
-  #   - cron: '0 0 * * *' # 可选：每天午夜 (UTC) 自动运行。如果您不需要定时运行，可以删除或注释掉这两行。
+  #   - cron: '0 0 * * *'
 
 jobs:
   run_speedtest:
-    runs-on: ubuntu-latest # 在最新的 Ubuntu 虚拟机上执行任务
+    runs-on: ubuntu-latest
 
     steps:
       - name: 检出仓库代码
-        uses: actions/checkout@v4 # 将您的 GitHub 仓库代码下载到虚拟机中
+        uses: actions/checkout@v4
 
       - name: 设置 Python 环境
         uses: actions/setup-python@v5
         with:
-          python-version: '3.x' # 使用最新的 Python 3 版本
+          python-version: '3.x'
           
       - name: 安装 Python 依赖
         run: |
-          pip install pyyaml # 安装 Python 脚本所需的 PyYAML 库
+          pip install pyyaml
 
       - name: 设置 Rust 环境
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: stable # 使用稳定的 Rust 版本
-          profile: minimal # 安装最小化的 Rust 工具链
-          override: true # 覆盖默认的 Rust 设置
+          toolchain: stable
+          profile: minimal
+          override: true
 
       - name: 安装 mihomo-speedtest-rs 工具
         run: |
-          cargo install mihomo-speedtest-rs # 使用 Cargo 包管理器安装测速工具
+          cargo install mihomo-speedtest-rs
 
       - name: 下载原始 Clash 配置文件
         run: |
           DOWNLOAD_URL="https://raw.githubusercontent.com/qjlxg/vt/refs/heads/main/clash_config.yaml"
-          INPUT_CONFIG_PATH="clash_config.yaml" # 直接下载到根目录，与 Python 脚本的 input_file 对应
+          INPUT_CONFIG_PATH="clash_config.yaml"
 
           echo "正在从 ${DOWNLOAD_URL} 下载原始配置文件到 ${INPUT_CONFIG_PATH}..."
           curl -sSL "${DOWNLOAD_URL}" -o "${INPUT_CONFIG_PATH}"
@@ -49,17 +49,27 @@ jobs:
       - name: 运行 Python 脚本过滤节点
         run: |
           echo "正在运行 filter_clash_nodes.py 脚本过滤节点..."
-          python filter_clash_nodes.py # 运行脚本，它会读取 clash_config.yaml 并输出到 filtered_nodes.yaml
+          python filter_clash_nodes.py
           if [ $? -ne 0 ]; then
               echo "节点过滤脚本运行失败！请检查 Python 脚本是否存在错误或路径是否正确。"
               exit 1
           fi
           echo "节点过滤完成，生成 filtered_nodes.yaml。"
 
+      - name: 检查 filtered_nodes.yaml 内容
+        run: |
+          echo "--- filtered_nodes.yaml 内容开始 ---"
+          cat filtered_nodes.yaml
+          echo "--- filtered_nodes.yaml 内容结束 ---"
+          # 检查文件是否存在且非空
+          if [ ! -s filtered_nodes.yaml ]; then
+              echo "Error: filtered_nodes.yaml is empty or does not exist after filtering!"
+              exit 1
+          fi
+
       - name: 运行测速并将结果保存到 sc/KodeBarinn.yaml
         run: |
-          mkdir -p sc # 确保 sc 目录存在
-          # 使用过滤后的配置文件 (filtered_nodes.yaml) 运行 mihomo-speedtest
+          mkdir -p sc
           mihomo-speedtest --config filtered_nodes.yaml --output sc/KodeBarinn.yaml
           if [ $? -ne 0 ]; then
               echo "Mihomo 测速失败！请检查测速工具或过滤后的配置文件。"
@@ -69,10 +79,10 @@ jobs:
 
       - name: 提交并推送测速结果
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # 自动提供的 GitHub Token，用于认证 Git 操作
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          git config user.name "github-actions[bot]" # 设置 Git 用户名，显示为 GitHub Actions 机器人
-          git config user.email "github-actions[bot]@users.noreply.github.com" # 设置 Git 用户邮箱
-          git add sc/KodeBarinn.yaml # 将生成的测速结果文件添加到 Git 暂存区
-          git commit -m "chore: Update mihomo-speedtest results after filtering" || echo "No changes to commit" # 提交更改，如果文件没有变化则跳过
-          git push || echo "No new commits to push" # 推送更改到远程仓库，如果无法推送则跳过
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add sc/KodeBarinn.yaml
+          git commit -m "chore: Update mihomo-speedtest results after filtering" || echo "No changes to commit"
+          git push || echo "No new commits to push"
