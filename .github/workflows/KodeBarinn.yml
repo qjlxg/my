@@ -3,91 +3,74 @@ name: XieCang Speedtest
 on:
   workflow_dispatch: # 允许通过 GitHub UI 手动触发工作流
   schedule:
-    # 每6小时运行一次。
-    # 你可以根据需要调整 cron 表达式：
-    # 例如：'0 0 * * *' 每天午夜运行
-    # 更多信息：https://docs.github.com/cn/actions/using-workflows/events-that-trigger-workflows#schedule
-    - cron: '0 */6 * * *'
+    - cron: '0 */6 * * *' # 每6小时运行一次
 
 jobs:
   run-speedtest:
-    runs-on: ubuntu-latest # 使用最新的 Ubuntu 操作系统
+    runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout repository # 检出你的 GitHub 仓库代码
+    - name: Checkout repository
       uses: actions/checkout@v4
 
-    - name: Get latest speedtest-clash release URL # 获取最新版本的 speedtest-clash 下载链接
-      id: get_release # 为此步骤设置一个 ID，以便后续引用其输出
+    - name: Get latest speedtest-clash release URL
+      id: get_release
       run: |
-        # 使用 GitHub API 获取最新 release 中适用于 Linux x86_64 的 tar.gz 包的下载 URL
-        # grep 命令查找包含 "browser_download_url" 和 "speedtest-clash_Linux_x86_64.tar.gz" 的行
-        # awk 命令提取 URL，tr -d '"' 移除引号
         ASSET_URL=$(curl -s https://api.github.com/repos/xiecang/speedtest-clash/releases/latest | \
           grep "browser_download_url.*speedtest-clash_Linux_x86_64.tar.gz" | \
           awk '{print $2}' | \
           tr -d '"')
         
-        # 检查是否成功获取到 URL
         if [ -z "$ASSET_URL" ]; then
           echo "Error: Could not find speedtest-clash_Linux_x86_64.tar.gz in latest release assets."
-          exit 1 # 如果没有找到下载链接，则此步骤失败
+          exit 1
         fi
         
-        # 将下载 URL 设置为步骤的输出，以便后续步骤可以使用
         echo "::set-output name=download_url::$ASSET_URL"
-      shell: bash # 指定使用 bash shell 执行此命令
+      shell: bash
 
-    - name: Download and extract speedtest-clash # 下载并解压 speedtest-clash 二进制文件
+    - name: Download and extract speedtest-clash
       run: |
-        # 使用 wget 下载文件到临时目录，并重命名为 speedtest-clash.tar.gz
         wget ${{ steps.get_release.outputs.download_url }} -O speedtest-clash.tar.gz
-        # 解压 tar.gz 文件
         tar -xzf speedtest-clash.tar.gz
-        # 赋予二进制文件执行权限
         chmod +x speedtest-clash
-      working-directory: ${{ runner.temp }} # 在 GitHub Actions 的临时目录中执行此操作
+      working-directory: ${{ runner.temp }}
 
-    - name: Create output directory # 创建保存结果的目录
-      run: mkdir -p sc # 如果 sc 目录不存在，则创建它
+    - name: Create output directory
+      run: mkdir -p sc
 
-    - name: Run speedtest-clash and save output # 运行 speedtest-clash 工具并保存结果
+    - name: Run speedtest-clash and save output
       run: |
-        # 运行 speedtest-clash，指定配置来源 URL 和输出文件路径
-        # -c：指定 Clash 配置文件的 URL
-        # -output：指定结果输出的 YAML 文件路径
-        # -timeout：设置代理测试的超时时间，增加到 15 秒，以减少因超时导致的错误
-        # -size：设置下载测试大小为 50MB (52428800 字节)
-        # -sort b：按带宽 (bandwidth) 对结果进行排序
-        # || true：这是一个关键部分。如果 speedtest-clash 命令以非零退出码（表示失败）退出，
-        #         那么 'true' 命令会执行并返回零退出码，从而使整个 'run' 步骤被标记为成功。
-        #         这允许工作流即使在某些代理测试失败时也能继续，并提交已生成的部分结果。
+        echo "Starting speedtest-clash..."
+        # 运行 speedtest-clash。如果它失败，此步骤将失败。
         ${{ runner.temp }}/speedtest-clash \
           -c https://raw.githubusercontent.com/qjlxg/vt/refs/heads/main/clash_config.yaml \
           -output sc/xiecang.yaml \
-          -timeout 15s \
+          -timeout 20s \ # 再次增加超时时间，给予更多机会
           -size 52428800 \
-          -sort b \
-          || true
-      shell: bash # 确保使用 bash shell，以便 || true 语法生效
+          -sort b
+        
+        # 显式检查文件是否存在
+        if [ -f "sc/xiecang.yaml" ]; then
+          echo "sc/xiecang.yaml was successfully generated."
+          # 打印文件前几行以确认内容
+          echo "--- Content of sc/xiecang.yaml (first 20 lines) ---"
+          head -n 20 sc/xiecang.yaml
+          echo "----------------------------------------------------"
+        else
+          echo "Error: sc/xiecang.yaml was NOT generated. Speedtest-clash might have failed internally."
+          # 强制此步骤失败，以便 Git commit 步骤不会执行并报告“文件未找到”
+          exit 1
+        fi
+      shell: bash
 
-    - name: Commit and push results # 提交并推送生成的测速结果文件
+    - name: Commit and push results
       run: |
-        # 配置 Git 用户名和邮箱，以便 GitHub Actions 可以代表你提交
         git config user.name "github-actions[bot]"
         git config user.email "github-actions[bot]@users.noreply.github.com"
         
-        # 添加生成的 xiecang.yaml 文件到 Git 暂存区
         git add sc/xiecang.yaml
-        
-        # 提交更改。'git commit -m "..." || echo "No changes to commit"' 表示：
-        # 如果有文件更改，则执行提交。如果没有更改 (例如，上一次运行的结果完全相同)，
-        # 则 'git commit' 会失败，但 '|| echo "No changes to commit"' 会使其成功，
-        # 并输出一条信息，避免步骤失败。
         git commit -m "Update xiecang.yaml with speedtest results" || echo "No changes to commit"
-        
-        # 推送更改到当前分支
         git push
       env:
-        # GITHUB_TOKEN 是 GitHub Actions 自动提供的令牌，用于授权操作你的仓库
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
