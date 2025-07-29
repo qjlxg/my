@@ -1,112 +1,64 @@
-
-name: Speedtest Clash Nodes with xiecang/speedtest-clash
+name: XieCang Speedtest
 
 on:
   workflow_dispatch: # 允许手动触发
   schedule:
-    - cron: '0 8 * * *' # 每天 UTC 8:00 运行
+    - cron: '0 */6 * * *' # 每6小时运行一次，你可以根据需要调整
 
 jobs:
-  run_speedtest:
+  run-speedtest:
     runs-on: ubuntu-latest
 
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
 
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: '1.22'
-
-    - name: Prepare Clash configuration file
+    - name: Get latest speedtest-clash release
+      id: get_release
       run: |
-        CONFIG_URL="https://raw.githubusercontent.com/qjlxg/vt/refs/heads/main/clash_config.yaml"
-        echo "正在从 ${CONFIG_URL} 下载配置文件..."
-        curl -sSL "$CONFIG_URL" -o clash_config.yaml
-        if [ $? -ne 0 ]; then
-            echo "配置文件下载失败！请检查 URL 或网络连接。"
-            exit 1
+        # 获取最新 release 的 Linux x86_64 版本下载 URL
+        # 我们将从 releases API 获取，并解析出正确的下载链接
+        # speedtest-clash_Linux_x86_64.tar.gz
+        ASSET_URL=$(curl -s https://api.github.com/repos/xiecang/speedtest-clash/releases/latest | \
+          grep "browser_download_url.*speedtest-clash_Linux_x86_64.tar.gz" | \
+          awk '{print $2}' | \
+          tr -d '"')
+        
+        if [ -z "$ASSET_URL" ]; then
+          echo "Error: Could not find speedtest-clash_Linux_x86_64.tar.gz in latest release assets."
+          exit 1
         fi
-        echo "--- Clash config file content (first 20 lines) ---"
-        head -n 20 clash_config.yaml
-        echo "---------------------------------------------------"
+        
+        echo "::set-output name=download_url::$ASSET_URL"
+      shell: bash
 
-    - name: Download and Start Mihomo (Clash Core)
+    - name: Download speedtest-clash
       run: |
-        MIHOMO_RELEASE=$(curl -s "https://api.github.com/repos/MetaCubeX/mihomo/releases/latest" | grep -Po '"tag_name": "\K[^"]*')
-        echo "Latest Mihomo release: $MIHOMO_RELEASE"
-        MIHOMO_FILENAME="mihomo-linux-amd64-${MIHOMO_RELEASE}.gz"
-        MIHOMO_URL="https://github.com/MetaCubeX/mihomo/releases/download/${MIHOMO_RELEASE}/${MIHOMO_FILENAME}"
-        echo "Downloading Mihomo from: $MIHOMO_URL"
-        curl -L -o mihomo.gz "$MIHOMO_URL"
-        gunzip mihomo.gz
-        mv mihomo mihomo-core
-        chmod +x mihomo-core
-        ./mihomo-core -f clash_config.yaml -d 127.0.0.1:9090 -m 7890 &
-        echo $! > /tmp/mihomo.pid
-        MIHOMO_PID=$(cat /tmp/mihomo.pid)
-        echo "Mihomo core started with PID: $MIHOMO_PID"
-        sleep 15
-        curl http://127.0.0.1:9090/configs > /dev/null 2>&1
-        if [ $? -ne 0 ]; then
-            echo "Error(unable to translate) Error: Mihomo core did not start successfully."
-            kill $MIHOMO_PID
-            rm /tmp/mihomo.pid
-            exit 1
-        fi
-        echo "Mihomo core is running and external controller is accessible."
-        echo "Testing Mihomo proxy..."
-        if ! curl -x http://127.0.0.1:7890 https://www.google.com -I -m 15; then
-            echo "Warning: Mihomo proxy failed to handle HTTPS request."
-        else
-            echo "Mihomo proxy successfully handled HTTPS request."
-        fi
+        wget ${{ steps.get_release.outputs.download_url }} -O speedtest-clash.tar.gz
+        tar -xzf speedtest-clash.tar.gz
+        chmod +x speedtest-clash # 使其可执行
+      working-directory: ${{ runner.temp }} # 在临时目录下载和解压
 
-    - name: Download xiecang/speedtest-clash binary
+    - name: Create output directory
+      run: mkdir -p sc
+
+    - name: Run speedtest-clash and save output
       run: |
-        TOOL_RELEASE="v0.2.4" # 使用最新版本
-        echo "Latest speedtest-clash release: $TOOL_RELEASE"
-        TOOL_FILENAME="speedtest-clash_Linux_x86_64.tar.gz"
-        TOOL_URL="https://github.com/xiecang/speedtest-clash/releases/download/${TOOL_RELEASE}/${TOOL_FILENAME}"
-        echo "Downloading speedtest-clash from: $TOOL_URL"
-        curl -L -o speedtest-clash.tar.gz "$TOOL_URL"
-        tar -xzf speedtest-clash.tar.gz speedtest-clash
-        chmod +x speedtest-clash
-        ./speedtest-clash -h
-
-    - name: Run speedtest-clash
-      id: speedtest
-      env:
-        NO_PROGRESS: "true" # 禁用进度条以避免可能的 ioctl 错误
-      run: |
-        mkdir -p sc
-        ./speedtest-clash -c clash_config.yaml -l https://speed.cloudflare.com/__down?bytes=%d -size 5242880 -concurrent 2 -timeout 15s -output sc/xiecang.yaml -f 'Vmess|Trojan|Vless' -sort b
-        if [ ! -s sc/xiecang.yaml ]; then
-            echo "Warning: 测速结果文件为空或未生成，继续执行后续步骤。"
-        else
-            echo "--- Speedtest results (first 20 lines) ---"
-            head -n 20 sc/xiecang.yaml
-            echo "------------------------------------------"
-        fi
-      continue-on-error: true # 允许继续，即使测速失败
-
-    - name: Stop Mihomo Core
-      if: always()
-      run: |
-        if [ -f "/tmp/mihomo.pid" ]; then
-            MIHOMO_PID=$(cat /tmp/mihomo.pid)
-            echo "Stopping Mihomo core with PID: $MIHOMO_PID"
-            kill $MIHOMO_PID || true
-            rm /tmp/mihomo.pid
-        else
-            echo "No Mihomo PID file found."
-        fi
-
+        # 使用你提供的节点来源URL和输出文件路径
+        # 注意：speedtest-clash 的 -output 参数看起来是输出结果到文件
+        # 它应该生成 Clash YAML 格式的测速结果
+        ${{ runner.temp }}/speedtest-clash \
+          -c https://raw.githubusercontent.com/qjlxg/vt/refs/heads/main/clash_config.yaml \
+          -output sc/xiecang.yaml \
+          -timeout 10s \
+          -size 52428800 # 50MB 下载大小，你可以根据需要调整
+     
     - name: Commit and push results
       run: |
         git config user.name "github-actions[bot]"
         git config user.email "github-actions[bot]@users.noreply.github.com"
-        git add sc/xiecang.yaml || echo "No results file to add"
-        git commit -m "chore: Update speedtest results from xiecang/speedtest-clash" || echo "No changes to commit"
-        git push || echo "No new commits to push"
+        git add sc/xiecang.yaml
+        git commit -m "Update xiecang.yaml with speedtest results" || echo "No changes to commit"
+        git push
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # GitHub Actions 默认提供的 token
