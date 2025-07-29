@@ -1,110 +1,72 @@
-name: Ehco1996 Speedtest
+name: SpeedTest-Clash Workflow
 
 on:
-  workflow_dispatch: # 允许通过 GitHub UI 手动触发工作流
+  push:
+    branches:
+      - main
   schedule:
-    # 每6小时运行一次
-    - cron: '0 */6 * * *'
+    - cron: '0 0 * * *' # 每天运行一次
+  workflow_dispatch: # 允许手动触发
 
 jobs:
-  run-speedtest:
-    runs-on: ubuntu-latest # 使用最新的 Ubuntu 操作系统
+  speedtest:
+    runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout repository # 检出你的 GitHub 仓库代码
-      uses: actions/checkout@v4
+      # 检出代码
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-    - name: Get latest Ehco1996/speedtest-clash release URL # 获取最新版本的 Ehco1996/speedtest-clash 下载链接
-      id: get_release # 为此步骤设置一个 ID，以便后续引用其输出
-      run: |
-        # 使用 GitHub API 获取最新 release 中适用于 Linux AMD64 的二进制文件下载 URL
-        # grep 命令查找包含 "browser_download_url" 和 "speedtest-clash_0.1_linux_amd64" 的行
-        # awk 命令提取 URL，tr -d '"' 移除引号
-        # 注意：这里直接指定了 v0.1 版本，因为 releases 页面只显示了这一个版本
-        # 如果未来有新版本发布，且名称格式一致，可以尝试获取latest release
-        # 但是，为了稳定性，这里硬编码了 v0.1
-        ASSET_URL="https://github.com/Ehco1996/speedtest-clash/releases/download/v0.1/speedtest-clash_0.1_linux_amd64"
-        
-        # 简单检查 URL 是否为空
-        if [ -z "$ASSET_URL" ]; then
-          echo "Error: Could not determine download URL for speedtest-clash_0.1_linux_amd64."
-          exit 1 # 如果没有找到下载链接，则此步骤失败
-        fi
-        
-        # 将下载 URL 设置为步骤的输出，以便后续步骤可以使用
-        echo "::set-output name=download_url::$ASSET_URL"
-      shell: bash # 指定使用 bash shell 执行此命令
+      # 设置 Go 环境（以防需要编译或运行 Go 代码）
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.18' # v0.1 发布于 2022 年，选择兼容的 Go 版本
 
-    - name: Download speedtest-clash # 下载 speedtest-clash 二进制文件
-      run: |
-        # 使用 wget 下载二进制文件到临时目录
-        wget ${{ steps.get_release.outputs.download_url }} -O speedtest-clash
-        # 赋予二进制文件执行权限
-        chmod +x speedtest-clash
-        # 再次检查文件是否存在和权限
-        ls -l speedtest-clash 
-      working-directory: ${{ runner.temp }} # 在 GitHub Actions 的临时目录中执行此操作
+      # 下载 speedtest-clash 工具（v0.1 Linux AMD64）
+      - name: Download speedtest-clash
+        run: |
+          wget https://github.com/Ehco1996/speedtest-clash/releases/download/v0.1/speedtest-clash_0.1_linux_amd64
+          chmod +x speedtest-clash_0.1_linux_amd64
+          mv speedtest-clash_0.1_linux_amd64 speedtest-clash
 
-    - name: Create output directory # 创建保存结果的目录
-      run: mkdir -p sc # 如果 sc 目录不存在，则创建它 (你提到sc目录已存在，但这条命令是安全的)
+      # 创建输出目录
+      - name: Create output directory
+        run: mkdir -p sc
 
-    - name: Run speedtest-clash and capture output # 运行 speedtest-clash 工具并捕获所有输出
-      run: |
-        echo "Starting Ehco1996/speedtest-clash..."
-        
-        # 将 speedtest-clash 的所有输出（stdout 和 stderr）都重定向到一个临时文件
-        # 同时打印到控制台
-        # Ehco1996/speedtest-clash 的 -output 参数似乎是用于调试日志而非结果文件
-        # 它主要通过标准输出打印结果。所以我们将整个输出捕获到 Ehco1996.yaml
-        ${{ runner.temp }}/speedtest-clash \
-          --config https://raw.githubusercontent.com/qjlxg/vt/refs/heads/main/clash_config.yaml \
-          --duration 10s \ # 设置测速持续时间为 10 秒
-          --concurrency 4 \ # 设置并发数为 4
-          2>&1 | tee ehco1996_output.log # 将所有输出重定向到日志文件并同时打印到控制台
-        
-        # 捕获 speedtest-clash 的退出码
-        EXIT_CODE=$?
-        echo "Ehco1996/speedtest-clash exited with code: $EXIT_CODE"
-        
-        # 打印完整的 ehco1996_output.log 文件内容，以便查看详细信息
-        echo "--- Full ehco1996_output.log content ---"
-        cat ehco1996_output.log
-        echo "----------------------------------------"
-        
-        # 将 Ehco1996/speedtest-clash 的结果（它通常打印到 stdout）保存到 sc/Ehco1996.yaml
-        # Ehco1996/speedtest-clash 似乎没有直接的 YAML 输出参数，
-        # 它的输出是文本格式。我们需要手动将其保存。
-        # 如果需要 YAML 格式，可能需要额外的转换步骤。
-        # 这里假设你希望将完整的命令行输出（包括测速结果）保存为 .yaml 文件，即使它不是严格的 YAML 格式。
-        mv ehco1996_output.log sc/Ehco1996.yaml
-        
-        # 检查 Ehco1996.yaml 文件是否存在
-        if [ -f "sc/Ehco1996.yaml" ]; then
-          echo "sc/Ehco1996.yaml was successfully generated."
-          # 打印文件前几行以确认内容
-          echo "--- Content of sc/Ehco1996.yaml (first 20 lines) ---"
-          head -n 20 sc/Ehco1996.yaml
-          echo "----------------------------------------------------"
-        else
-          echo "Error: sc/Ehco1996.yaml was NOT generated."
-          # 如果文件未生成，且程序的退出码不是0，则强制此步骤失败
-          if [ "$EXIT_CODE" -ne 0 ]; then
-            echo "Ehco1996/speedtest-clash likely failed internally, preventing output file generation."
-            exit "$EXIT_CODE" # 使用 Ehco1996/speedtest-clash 的原始退出码
+      # 运行 speedtest-clash 测试
+      - name: Run SpeedTest-Clash
+        run: |
+          ./speedtest-clash \
+            -c https://raw.githubusercontent.com/qjlxg/vt/refs/heads/main/clash_config.yaml \
+            -concurrent 2 \
+            -size 10485760 \
+            -sort t \
+            -timeout 60s \
+            -l https://speed.cloudflare.com/__down?bytes=10485760 \
+            -output sc/xiecang.yaml || echo "SpeedTest-Clash failed with exit code $?"
+          ls -l sc/
+
+      # 上传测试结果
+      - name: Upload Test Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: speedtest-results
+          path: sc/xiecang.yaml
+        if: always()
+
+      # 提交结果到仓库
+      - name: Commit and Push Results
+        run: |
+          if [ -f sc/xiecang.yaml ]; then
+            git config --local user.email "action@github.com"
+            git config --local user.name "GitHub Action"
+            git add sc/xiecang.yaml
+            git commit -m "Update speedtest results" || echo "Nothing to commit"
+            git push
           else
-            echo "Ehco1996/speedtest-clash exited with code 0 but did not create the output file. This is unexpected."
-            exit 1 # 这种情况下，我们仍认为它是失败
+            echo "No output file generated, skipping commit"
           fi
-        fi
-      shell: bash
-
-    - name: Commit and push results # 提交并推送生成的测速结果文件
-      run: |
-        git config user.name "github-actions[bot]"
-        git config user.email "github-actions[bot]@users.noreply.github.com"
-        
-        git add sc/Ehco1996.yaml
-        git commit -m "Update Ehco1996.yaml with speedtest results" || echo "No changes to commit"
-        git push
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        if: always()
