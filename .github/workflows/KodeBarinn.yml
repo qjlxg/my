@@ -13,7 +13,7 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
 
-    - name: Install 'expect' for unbuffer # NEW STEP: Install the 'expect' package
+    - name: Install 'expect' for unbuffer
       run: |
         sudo apt-get update
         sudo apt-get install -y expect
@@ -50,13 +50,11 @@ jobs:
       run: |
         echo "Starting xiecang/speedtest-clash..."
         
-        # Now 'unbuffer' should be available
         unbuffer ${{ runner.temp }}/speedtest-clash \
           -c https://raw.githubusercontent.com/qjlxg/vt/refs/heads/main/clash_config.yaml \
           -output sc/xiecang.yaml \
           -timeout 30s \ # Increased timeout
-          -size 52428800 \
-          -sort b \
+          -sort b \ # REMOVED: -size parameter
           2>&1 | tee xiecang_output.log
         
         EXIT_CODE=$?
