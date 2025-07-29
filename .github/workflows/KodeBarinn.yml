@@ -46,15 +46,16 @@ jobs:
     - name: Create output directory
       run: mkdir -p sc
 
-    - name: Run xiecang/speedtest-clash with enhanced logging
+    - name: Run xiecang/speedtest-clash with enhanced logging # THIS IS THE CRITICAL STEP
       run: |
         echo "Starting xiecang/speedtest-clash..."
         
+        # We are now just providing the essential parameters that are likely supported:
+        # -c for config URL, -output for output file, -timeout for test duration.
         unbuffer ${{ runner.temp }}/speedtest-clash \
           -c https://raw.githubusercontent.com/qjlxg/vt/refs/heads/main/clash_config.yaml \
           -output sc/xiecang.yaml \
           -timeout 30s \ # Increased timeout
-          -sort b \ # REMOVED: -size parameter
           2>&1 | tee xiecang_output.log
         
         EXIT_CODE=$?
