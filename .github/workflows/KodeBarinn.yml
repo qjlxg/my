@@ -45,11 +45,36 @@ jobs:
       - name: Install mihomo-speedtest-rs
         run: cargo install mihomo-speedtest-rs --version 1.1.2
 
+      # --- 新增步骤：下载原始 Clash 配置文件 ---
+      - name: Download raw Clash config
+        run: |
+          DOWNLOAD_URL="https://raw.githubusercontent.com/qjlxg/vt/refs/heads/main/clash_config.yaml"
+          INPUT_CONFIG_PATH="clash_config.yaml"
+          echo "正在从 ${DOWNLOAD_URL} 下载原始配置文件到 ${INPUT_CONFIG_PATH}..."
+          curl -sSL "${DOWNLOAD_URL}" -o "${INPUT_CONFIG_PATH}"
+          if [ $? -ne 0 ]; then
+              echo "原始配置文件下载失败！请检查 URL 或网络连接。"
+              exit 1
+          fi
+          echo "原始配置文件下载完成。"
+
+      # --- 新增步骤：运行 Python 脚本过滤节点 ---
+      - name: Run Python script to filter nodes
+        run: |
+          echo "正在运行 filter_clash_nodes.py 脚本过滤节点..."
+          python filter_clash_nodes.py
+          if [ $? -ne 0 ]; then
+              echo "节点过滤脚本运行失败！请检查 Python 脚本是否存在错误或路径是否正确。"
+              exit 1
+          fi
+          echo "节点过滤完成，生成 filtered_nodes.yaml。"
+
       # 运行速度测试
       - name: Run speedtest
         run: |
           mkdir -p sc
-          mihomo-speedtest --config https://raw.githubusercontent.com/qjlxg/vt/refs/heads/main/clash_config.yaml \
+          # --- 关键修改：使用本地过滤后的文件 ---
+          mihomo-speedtest --config filtered_nodes.yaml \
             --use-mihomo \
             --fast \
             --max-latency 300ms \
@@ -57,6 +82,11 @@ jobs:
             --download-size 50 \
             --upload-size 20 \
             --output sc/KodeBarinn.yaml
+          if [ $? -ne 0 ]; then
+              echo "Mihomo 测速失败！请检查测速工具或过滤后的配置文件。"
+              exit 1
+          fi
+          echo "Mihomo 测速完成。"
 
       # 提交结果
       - name: Commit results
