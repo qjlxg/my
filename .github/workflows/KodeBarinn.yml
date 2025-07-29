@@ -1,4 +1,5 @@
-name: Speedtest Clash Nodes
+
+name: Speedtest Clash Nodes with xiecang/speedtest-clash
 
 on:
   workflow_dispatch: # 允许手动触发
@@ -62,31 +63,30 @@ jobs:
             echo "Mihomo proxy successfully handled HTTPS request."
         fi
 
-    - name: Download starudream/clash-speedtest binary
+    - name: Download xiecang/speedtest-clash binary
       run: |
-        TOOL_RELEASE=$(curl -s "https://api.github.com/repos/starudream/clash-speedtest/releases/latest" | grep -Po '"tag_name": "\K[^"]*')
-        echo "Latest clash-speedtest release: $TOOL_RELEASE"
-        TOOL_FILENAME="clash-speedtest_${TOOL_RELEASE}_linux_amd64.tar.gz"
-        TOOL_URL="https://github.com/starudream/clash-speedtest/releases/download/${TOOL_RELEASE}/${TOOL_FILENAME}"
-        echo "Downloading clash-speedtest from: $TOOL_URL"
-        curl -L -o clash-speedtest.tar.gz "$TOOL_URL"
-        tar -xzf clash-speedtest.tar.gz clash-speedtest
-        chmod +x clash-speedtest
-        ./clash-speedtest -h
+        TOOL_RELEASE=$(curl -s "https://api.github.com/repos/xiecang/speedtest-clash/releases/latest" | grep -Po '"tag_name": "\K[^"]*')
+        echo "Latest speedtest-clash release: $TOOL_RELEASE"
+        TOOL_FILENAME="speedtest-clash_${TOOL_RELEASE}_linux_amd64.tar.gz"
+        TOOL_URL="https://github.com/xiecang/speedtest-clash/releases/download/${TOOL_RELEASE}/${TOOL_FILENAME}"
+        echo "Downloading speedtest-clash from: $TOOL_URL"
+        curl -L -o speedtest-clash.tar.gz "$TOOL_URL"
+        tar -xzf speedtest-clash.tar.gz speedtest-clash
+        chmod +x speedtest-clash
+        ./speedtest-clash -h
 
-    - name: Run clash-speedtest
+    - name: Run speedtest-clash
       id: speedtest
       env:
-        NO_PROGRESS: "true" # 禁用进度条以避免 ioctl 错误
+        NO_PROGRESS: "true" # 禁用进度条以避免可能的 ioctl 错误
       run: |
-        mkdir -p results
-        # 移除 --timeout，优化下载大小和线程数，仅测试支持 TLS 的代理
-        ./clash-speedtest -d cloudflare -r 5 -t 2 -o results/speedtest_results.yaml -y -i Vmess,Trojan,Vless -e Shadowsocks
-        if [ ! -s results/speedtest_results.yaml ]; then
+        mkdir -p sc
+        ./speedtest-clash -c clash_config.yaml -l https://speed.cloudflare.com/__down?bytes=%d -size 5242880 -concurrent 2 -timeout 10s -output sc/xiecang.yaml -f 'Vmess|Trojan|Vless'
+        if [ ! -s sc/xiecang.yaml ]; then
             echo "Warning: 测速结果文件为空或未生成，继续执行后续步骤。"
         else
             echo "--- Speedtest results (first 20 lines) ---"
-            head -n 20 results/speedtest_results.yaml
+            head -n 20 sc/xiecang.yaml
             echo "------------------------------------------"
         fi
       continue-on-error: true # 允许继续，即使测速失败
@@ -107,6 +107,6 @@ jobs:
       run: |
         git config user.name "github-actions[bot]"
         git config user.email "github-actions[bot]@users.noreply.github.com"
-        git add results/speedtest_results.yaml || echo "No results file to add"
-        git commit -m "chore: Update speedtest results" || echo "No changes to commit"
+        git add sc/xiecang.yaml || echo "No results file to add"
+        git commit -m "chore: Update speedtest results from xiecang/speedtest-clash" || echo "No changes to commit"
         git push || echo "No new commits to push"
