@@ -13,41 +13,14 @@ jobs:
     - name: Checkout repository # 检出仓库代码
       uses: actions/checkout@v4
 
-    - name: Set up Go # 安装 Go 环境，如果需要从源码编译或者使用 Go install
+    - name: Set up Go # 安装 Go 环境，用于下载 Go 语言工具
       uses: actions/setup-go@v5
       with:
         go-version: '1.22' # 建议使用最新稳定版 Go
 
-    - name: Download speedtest-clash binary # 下载预编译的 speedtest-clash 二进制文件
-      id: download_tool
-      run: |
-        # 获取最新版本号，或者您可以指定固定版本，例如 v0.2.4
-        LATEST_RELEASE=$(curl -s "https://api.github.com/repos/xiecang/speedtest-clash/releases/latest" | grep -Po '"tag_name": "\K[^"]*')
-        echo "Latest release: $LATEST_RELEASE"
-
-        # 根据 runner 架构下载对应的二进制包
-        ARCH=$(uname -m)
-        FILENAME=""
-        if [ "$ARCH" == "x86_64" ]; then
-          FILENAME="speedtest-clash_Linux_x86_64.tar.gz"
-        elif [ "$ARCH" == "aarch64" ]; then
-          FILENAME="speedtest-clash_Linux_arm64.tar.gz"
-        else
-          echo "Unsupported architecture: $ARCH"
-          exit 1
-        fi
-
-        DOWNLOAD_URL="https://github.com/xiecang/speedtest-clash/releases/download/${LATEST_RELEASE}/${FILENAME}"
-        echo "Downloading from: $DOWNLOAD_URL"
-        curl -L -o speedtest-clash.tar.gz "$DOWNLOAD_URL"
-        tar -xzf speedtest-clash.tar.gz speedtest-clash
-        chmod +x speedtest-clash
-        ./speedtest-clash -h # 验证工具是否可运行
-
     - name: Prepare Clash configuration file # 准备 Clash 配置文件
       run: |
-        # 从您提供的 URL 下载配置文件
-        CONFIG_URL="https://raw.githubusercontent.com/qjlxg/my/refs/heads/main/sc/all.yaml"
+        CONFIG_URL="https://raw.githubusercontent.com/qjlxg/vt/refs/heads/main/clash_config.yaml"
         echo "正在从 ${CONFIG_URL} 下载配置文件..."
         curl -sSL "$CONFIG_URL" -o clash_config.yaml
         if [ $? -ne 0 ]; then
@@ -58,25 +31,89 @@ jobs:
         head -n 20 clash_config.yaml
         echo "---------------------------------------------------"
 
-    - name: Run speedtest-clash # 运行测速
+    - name: Download and Start Mihomo (Clash Core) # 下载并启动 Mihomo 核心
+      run: |
+        # 下载 Mihomo 最新版本
+        MIHOMO_RELEASE=$(curl -s "https://api.github.com/repos/MetaCubeX/mihomo/releases/latest" | grep -Po '"tag_name": "\K[^"]*')
+        echo "Latest Mihomo release: $MIHOMO_RELEASE"
+        
+        MIHOMO_FILENAME="mihomo-linux-amd64-${MIHOMO_RELEASE}.gz"
+        MIHOMO_URL="https://github.com/MetaCubeX/mihomo/releases/download/${MIHOMO_RELEASE}/${MIHOMO_FILENAME}"
+        echo "Downloading Mihomo from: $MIHOMO_URL"
+        curl -L -o mihomo.gz "$MIHOMO_URL"
+        gunzip mihomo.gz
+        mv mihomo mihomo-core
+        chmod +x mihomo-core
+
+        # 启动 Mihomo 核心
+        # 使用 -f 指定配置文件，-d 开启外部控制器，-m 开启混合代理端口
+        # 注意：这里的端口和配置要与 clash-speedtest 的默认值或您自定义的值匹配
+        ./mihomo-core -f clash_config.yaml -d 127.0.0.1:9090 -m 7890 &
+        MIHOMO_PID=$!
+        echo "Mihomo core started with PID: $MIHOMO_PID"
+        
+        # 等待 Mihomo 完全启动
+        sleep 10
+        
+        # 验证 Mihomo 是否运行
+        curl http://127.0.0.1:9090/configs > /dev/null 2>&1
+        if [ $? -ne 0 ]; then
+            echo "Error: Mihomo core did not start successfully or external controller is not accessible."
+            kill $MIHOMO_PID # 尝试杀死进程
+            exit 1
+        fi
+        echo "Mihomo core is running and external controller is accessible."
+
+    - name: Download starudream/clash-speedtest binary # 下载 starudream/clash-speedtest 工具
+      run: |
+        TOOL_RELEASE=$(curl -s "https://api.github.com/repos/starudream/clash-speedtest/releases/latest" | grep -Po '"tag_name": "\K[^"]*')
+        echo "Latest starudream/clash-speedtest release: $TOOL_RELEASE"
+
+        TOOL_FILENAME="clash-speedtest_${TOOL_RELEASE}_linux_amd64.tar.gz"
+        TOOL_URL="https://github.com/starudream/clash-speedtest/releases/download/${TOOL_RELEASE}/${TOOL_FILENAME}"
+        echo "Downloading starudream/clash-speedtest from: $TOOL_URL"
+        curl -L -o clash-speedtest.tar.gz "$TOOL_URL"
+        tar -xzf clash-speedtest.tar.gz clash-speedtest
+        chmod +x clash-speedtest
+        ./clash-speedtest -h # 验证工具是否可运行
+
+    - name: Run clash-speedtest # 运行测速
       id: speedtest
       run: |
         mkdir -p results # 创建存放结果的目录
-        # 您可以根据需要调整以下参数，例如 -size, -concurrent, -timeout, -l 等
-        ./speedtest-clash -c clash_config.yaml -output results/speedtest_results.yaml -size 104857600 -concurrent 18 -timeout 30s -l "https://speed.cloudflare.com/__down?bytes=%d" -sort b
         
-        # 验证结果文件是否生成
+        # 运行 starudream/clash-speedtest
+        # --clash-addr 默认是 http://127.0.0.1:9090
+        # --clash-proxy 默认是 http://127.0.0.1:7890 (HTTP proxy)
+        # -d cloudflare (使用 cloudflare 下载测速方式)
+        # -r 100 (每个线程下载 100MB)
+        # -t 8 (8个下载线程，与之前 -concurrent 8 对应)
+        # -o results/speedtest_results.yaml (输出到文件)
+        ./clash-speedtest -d cloudflare -r 100 -t 8 -o results/speedtest_results.yaml
+
+        # 验证结果文件是否生成且非空
         if [ ! -s results/speedtest_results.yaml ]; then
             echo "Error: 测速结果文件为空或未生成！"
+            # 如果是 Mihomo 启动失败导致没有测速结果，此处会捕获并终止工作流
+            kill $(cat /tmp/mihomo.pid) # 尝试杀死 Mihomo 进程
             exit 1
         fi
         echo "--- Speedtest results (first 20 lines) ---"
         head -n 20 results/speedtest_results.yaml
         echo "------------------------------------------"
+      env:
+        MIHOMO_PID_FILE: /tmp/mihomo.pid # 保存 Mihomo 进程ID，以便后续停止
+
+    - name: Stop Mihomo Core # 停止 Mihomo 核心 (重要：在测速完成后清理后台进程)
+      if: always() # 确保即使测速失败也尝试停止 Mihomo
+      run: |
+        if [ -f "/tmp/mihomo.pid" ]; then
+            kill $(cat /tmp/mihomo.pid) || true # 杀死 Mihomo 进程，|| true 避免因进程不存在而导致步骤失败
+            echo "Mihomo core stopped."
+            rm /tmp/mihomo.pid
+        fi
 
     - name: Commit and push results (Optional) # 提交并推送测速结果 (可选步骤)
-      # 仅在有更改时提交，避免空提交
-      # 这需要您的仓库设置允许 GitHub Actions bot 写入权限
       run: |
         git config user.name "github-actions[bot]"
         git config user.email "github-actions[bot]@users.noreply.github.com"
