@@ -1,0 +1,56 @@
+name: 运行 Mihomo 测速
+
+on:
+  workflow_dispatch: # 允许您在 GitHub Actions 页面手动点击运行此工作流
+  # schedule:
+  #   - cron: '0 0 * * *' # 这是一个可选的定时触发器，表示每天午夜 (UTC) 运行。
+                          # 如果您不需要自动定时运行，可以删除或注释掉这一行及其下一行。
+
+jobs:
+  run_speedtest:
+    runs-on: ubuntu-latest # 在最新的 Ubuntu 虚拟机上执行任务
+
+    steps:
+      - name: 检出仓库代码
+        uses: actions/checkout@v4 # 将您的 GitHub 仓库代码下载到虚拟机中
+
+      - name: 设置 Rust 环境
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable # 使用稳定的 Rust 版本
+          profile: minimal # 安装最小化的 Rust 工具链
+          override: true # 覆盖默认的 Rust 设置
+
+      - name: 安装 mihomo-speedtest-rs 工具
+        run: |
+          cargo install mihomo-speedtest-rs # 使用 Cargo 包管理器安装测速工具
+
+      - name: 准备 Mihomo 配置文件 (从 URL 下载)
+        run: |
+          mkdir -p ./.github/temp_config/ # 创建一个临时目录来存放配置文件
+          echo "正在从 raw.githubusercontent.com/qjlxg/vt/refs/heads/main/clash_config.yaml 下载配置文件..."
+          curl -sSL raw.githubusercontent.com/qjlxg/vt/refs/heads/main/clash_config.yaml -o ./.github/temp_config/config.yaml
+          if [ $? -ne 0 ]; then
+              echo "配置文件下载失败！请检查 URL 或网络连接。"
+              exit 1
+          fi
+          echo "配置文件下载完成。"
+
+      - name: 运行测速并将结果保存到 sc/KodeBarinn.yaml
+        run: |
+          mkdir -p sc # 每次 GitHub Actions 运行时都会在一个全新的、干净的环境中开始，
+                       # 所以需要确保 sc 目录存在，以便保存结果。
+          # 使用下载的配置文件运行 mihomo-speedtest
+          mihomo-speedtest --config ./.github/temp_config/config.yaml --output sc/KodeBarinn.yaml
+
+      - name: 提交并推送结果
+        # 警告：此步骤会将每次测速结果作为新的提交推送到您的仓库，可能导致提交历史频繁更新。
+        # 如果您不希望这样，请考虑使用 Artifact 上传结果（即恢复 '上传测速结果' 步骤并移除此步骤）。
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # 自动提供的 GitHub Token，用于认证
+        run: |
+          git config user.name "github-actions[bot]" # 设置 Git 用户名
+          git config user.email "github-actions[bot]@users.noreply.github.com" # 设置 Git 用户邮箱
+          git add sc/KodeBarinn.yaml # 添加更改的文件到暂存区
+          git commit -m "chore: Update mihomo-speedtest results" || echo "No changes to commit" # 提交更改
+          git push || echo "No new commits to push" # 推送更改到远程仓库
