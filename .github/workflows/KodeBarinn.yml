@@ -63,7 +63,7 @@ jobs:
       run: |
         mkdir -p results # 创建存放结果的目录
         # 您可以根据需要调整以下参数，例如 -size, -concurrent, -timeout, -l 等
-        ./speedtest-clash -c clash_config.yaml -output results/speedtest_results.yaml -size 104857600 -concurrent 8 -timeout 10s -l "https://speed.cloudflare.com/__down?bytes=%d" -sort b
+        ./speedtest-clash -c clash_config.yaml -output results/speedtest_results.yaml -size 104857600 -concurrent 18 -timeout 30s -l "https://speed.cloudflare.com/__down?bytes=%d" -sort b
         
         # 验证结果文件是否生成
         if [ ! -s results/speedtest_results.yaml ]; then
