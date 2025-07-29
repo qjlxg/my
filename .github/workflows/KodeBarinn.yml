@@ -50,7 +50,7 @@ jobs:
         sleep 15
         curl http://127.0.0.1:9090/configs > /dev/null 2>&1
         if [ $? -ne 0 ]; then
-            echo "Error: Mihomo core did not start successfully."
+            echo "Error(unable to translate) Error: Mihomo core did not start successfully."
             kill $MIHOMO_PID
             rm /tmp/mihomo.pid
             exit 1
@@ -65,9 +65,9 @@ jobs:
 
     - name: Download xiecang/speedtest-clash binary
       run: |
-        TOOL_RELEASE=$(curl -s "https://api.github.com/repos/xiecang/speedtest-clash/releases/latest" | grep -Po '"tag_name": "\K[^"]*')
+        TOOL_RELEASE="v0.2.4" # 使用最新版本
         echo "Latest speedtest-clash release: $TOOL_RELEASE"
-        TOOL_FILENAME="speedtest-clash_${TOOL_RELEASE}_linux_amd64.tar.gz"
+        TOOL_FILENAME="speedtest-clash_Linux_x86_64.tar.gz"
         TOOL_URL="https://github.com/xiecang/speedtest-clash/releases/download/${TOOL_RELEASE}/${TOOL_FILENAME}"
         echo "Downloading speedtest-clash from: $TOOL_URL"
         curl -L -o speedtest-clash.tar.gz "$TOOL_URL"
@@ -81,7 +81,7 @@ jobs:
         NO_PROGRESS: "true" # 禁用进度条以避免可能的 ioctl 错误
       run: |
         mkdir -p sc
-        ./speedtest-clash -c clash_config.yaml -l https://speed.cloudflare.com/__down?bytes=%d -size 5242880 -concurrent 2 -timeout 10s -output sc/xiecang.yaml -f 'Vmess|Trojan|Vless'
+        ./speedtest-clash -c clash_config.yaml -l https://speed.cloudflare.com/__down?bytes=%d -size 5242880 -concurrent 2 -timeout 15s -output sc/xiecang.yaml -f 'Vmess|Trojan|Vless' -sort b
         if [ ! -s sc/xiecang.yaml ]; then
             echo "Warning: 测速结果文件为空或未生成，继续执行后续步骤。"
         else
