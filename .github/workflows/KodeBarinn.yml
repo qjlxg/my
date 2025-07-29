@@ -47,7 +47,7 @@ jobs:
     - name: Prepare Clash configuration file # 准备 Clash 配置文件
       run: |
         # 从您提供的 URL 下载配置文件
-        CONFIG_URL="https://raw.githubusercontent.com/qjlxg/vt/refs/heads/main/clash_config.yaml"
+        CONFIG_URL="https://raw.githubusercontent.com/qjlxg/my/refs/heads/main/sc/all.yaml"
         echo "正在从 ${CONFIG_URL} 下载配置文件..."
         curl -sSL "$CONFIG_URL" -o clash_config.yaml
         if [ $? -ne 0 ]; then
