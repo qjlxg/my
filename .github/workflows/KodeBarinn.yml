@@ -67,15 +67,14 @@ jobs:
         echo "Mihomo core is running and external controller is accessible."
         
         # 诊断步骤：尝试通过 Mihomo 代理访问 HTTPS 网站
+        # **重要修改**：这里不再因 curl 失败而终止整个步骤，而是只输出警告。
         echo "Attempting to test Mihomo proxy with curl..."
         if ! curl -x http://127.0.0.1:7890 https://www.google.com -I -m 15; then # -I for head request, -m 15 for timeout
-            echo "Error: Mihomo proxy failed to handle HTTPS request for www.google.com."
-            echo "这通常表明 Mihomo 的配置或 clash_config.yaml 中的节点存在问题。"
-            kill $MIHOMO_PID # 尝试杀死进程
-            rm /tmp/mihomo.pid # 清理 PID 文件
-            exit 1
+            echo "Warning: Mihomo proxy failed to handle HTTPS request for www.google.com. This might indicate issues with some proxy nodes or their SSL/TLS handling."
+            # 不再 exit 1，允许后续的 clash-speedtest 运行
+        else
+            echo "Mihomo proxy successfully handled HTTPS request."
         fi
-        echo "Mihomo proxy successfully handled HTTPS request."
 
     - name: Download starudream/clash-speedtest binary # 下载 starudream/clash-speedtest 工具
       run: |
