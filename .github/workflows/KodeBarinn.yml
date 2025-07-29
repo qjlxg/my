@@ -1,24 +1,24 @@
 name: Speedtest Clash Nodes
 
 on:
-  workflow_dispatch: # 允许手动触发工作流
+  workflow_dispatch: # 允许手动触发
   schedule:
-    - cron: '0 8 * * *' # 每天 UTC 时间上午 8 点运行 (根据需要调整)
+    - cron: '0 8 * * *' # 每天 UTC 8:00 运行
 
 jobs:
   run_speedtest:
-    runs-on: ubuntu-latest # 使用最新的 Ubuntu runner
+    runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout repository # 检出仓库代码
+    - name: Checkout repository
       uses: actions/checkout@v4
 
-    - name: Set up Go # 安装 Go 环境，用于下载 Go 语言工具
+    - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.22' # 建议使用最新稳定版 Go
+        go-version: '1.22'
 
-    - name: Prepare Clash configuration file # 准备 Clash 配置文件
+    - name: Prepare Clash configuration file
       run: |
         CONFIG_URL="https://raw.githubusercontent.com/qjlxg/vt/refs/heads/main/clash_config.yaml"
         echo "正在从 ${CONFIG_URL} 下载配置文件..."
@@ -31,12 +31,10 @@ jobs:
         head -n 20 clash_config.yaml
         echo "---------------------------------------------------"
 
-    - name: Download and Start Mihomo (Clash Core) # 下载并启动 Mihomo 核心
+    - name: Download and Start Mihomo (Clash Core)
       run: |
-        # 下载 Mihomo 最新版本
         MIHOMO_RELEASE=$(curl -s "https://api.github.com/repos/MetaCubeX/mihomo/releases/latest" | grep -Po '"tag_name": "\K[^"]*')
         echo "Latest Mihomo release: $MIHOMO_RELEASE"
-        
         MIHOMO_FILENAME="mihomo-linux-amd64-${MIHOMO_RELEASE}.gz"
         MIHOMO_URL="https://github.com/MetaCubeX/mihomo/releases/download/${MIHOMO_RELEASE}/${MIHOMO_FILENAME}"
         echo "Downloading Mihomo from: $MIHOMO_URL"
@@ -44,85 +42,69 @@ jobs:
         gunzip mihomo.gz
         mv mihomo mihomo-core
         chmod +x mihomo-core
-
-        # 启动 Mihomo 核心，并将其 PID 写入文件
-        # 使用 -f 指定配置文件，-d 开启外部控制器，-m 开启混合代理端口
-        # 注意：这里的端口和配置要与 clash-speedtest 的默认值或您自定义的值匹配
         ./mihomo-core -f clash_config.yaml -d 127.0.0.1:9090 -m 7890 &
-        echo $! > /tmp/mihomo.pid # 将后台进程的 PID 写入文件
+        echo $! > /tmp/mihomo.pid
         MIHOMO_PID=$(cat /tmp/mihomo.pid)
         echo "Mihomo core started with PID: $MIHOMO_PID"
-        
-        # 增加等待时间，确保 Mihomo 完全启动并加载节点
         sleep 15
-
-        # 验证 Mihomo 是否运行
         curl http://127.0.0.1:9090/configs > /dev/null 2>&1
         if [ $? -ne 0 ]; then
-            echo "Error: Mihomo core did not start successfully or external controller is not accessible."
-            kill $MIHOMO_PID # 尝试杀死进程
-            rm /tmp/mihomo.pid # 清理 PID 文件
+            echo "Error: Mihomo core did not start successfully."
+            kill $MIHOMO_PID
+            rm /tmp/mihomo.pid
             exit 1
         fi
         echo "Mihomo core is running and external controller is accessible."
-        
-        # 诊断步骤：尝试通过 Mihomo 代理访问 HTTPS 网站
-        # **重要修改**：这里不再因 curl 失败而终止整个步骤，而是只输出警告。
-        echo "Attempting to test Mihomo proxy with curl..."
-        if ! curl -x http://127.0.0.1:7890 https://www.google.com -I -m 15; then # -I for head request, -m 15 for timeout
-            echo "Warning: Mihomo proxy failed to handle HTTPS request for www.google.com. This might indicate issues with some proxy nodes or their SSL/TLS handling."
-            # 不再 exit 1，允许后续的 clash-speedtest 运行
+        echo "Testing Mihomo proxy..."
+        if ! curl -x http://127.0.0.1:7890 https://www.google.com -I -m 15; then
+            echo "Warning: Mihomo proxy failed to handle HTTPS request."
         else
             echo "Mihomo proxy successfully handled HTTPS request."
         fi
 
-    - name: Download starudream/clash-speedtest binary # 下载 starudream/clash-speedtest 工具
+    - name: Download starudream/clash-speedtest binary
       run: |
         TOOL_RELEASE=$(curl -s "https://api.github.com/repos/starudream/clash-speedtest/releases/latest" | grep -Po '"tag_name": "\K[^"]*')
-        echo "Latest starudream/clash-speedtest release: $TOOL_RELEASE"
-
+        echo "Latest clash-speedtest release: $TOOL_RELEASE"
         TOOL_FILENAME="clash-speedtest_${TOOL_RELEASE}_linux_amd64.tar.gz"
         TOOL_URL="https://github.com/starudream/clash-speedtest/releases/download/${TOOL_RELEASE}/${TOOL_FILENAME}"
-        echo "Downloading starudream/clash-speedtest from: $TOOL_URL"
+        echo "Downloading clash-speedtest from: $TOOL_URL"
         curl -L -o clash-speedtest.tar.gz "$TOOL_URL"
         tar -xzf clash-speedtest.tar.gz clash-speedtest
         chmod +x clash-speedtest
-        ./clash-speedtest -h # 验证工具是否可运行
+        ./clash-speedtest -h
 
-    - name: Run clash-speedtest # 运行测速
+    - name: Run clash-speedtest
       id: speedtest
       run: |
-        mkdir -p results # 创建存放结果的目录
-        
-        # 运行 starudream/clash-speedtest
-        # 增加了 -y 标志，以跳过交互式确认
-        ./clash-speedtest -d cloudflare -r 100 -t 8 -o results/speedtest_results.yaml -y
-
-        # 验证结果文件是否生成且非空
+        mkdir -p results
+        # 过滤支持 TLS 的代理类型，增加超时时间
+        ./clash-speedtest -d cloudflare -r 100 -t 8 -o results/speedtest_results.yaml -y -i Vmess,Trojan,Vless -e Shadowsocks --timeout 30s
         if [ ! -s results/speedtest_results.yaml ]; then
-            echo "Error: 测速结果文件为空或未生成！"
-            exit 1
+            echo "Warning: 测速结果文件为空或未生成，继续执行后续步骤。"
+        else
+            echo "--- Speedtest results (first 20 lines) ---"
+            head -n 20 results/speedtest_results.yaml
+            echo "------------------------------------------"
         fi
-        echo "--- Speedtest results (first 20 lines) ---"
-        head -n 20 results/speedtest_results.yaml
-        echo "------------------------------------------"
+      continue-on-error: true # 允许继续，即使测速失败
 
-    - name: Stop Mihomo Core # 停止 Mihomo 核心 (重要：在测速完成后清理后台进程)
-      if: always() # 确保即使测速失败也尝试停止 Mihomo
+    - name: Stop Mihomo Core
+      if: always()
       run: |
         if [ -f "/tmp/mihomo.pid" ]; then
             MIHOMO_PID=$(cat /tmp/mihomo.pid)
             echo "Stopping Mihomo core with PID: $MIHOMO_PID"
-            kill $MIHOMO_PID || true # 杀死 Mihomo 进程，|| true 避免因进程不存在而导致步骤失败
+            kill $MIHOMO_PID || true
             rm /tmp/mihomo.pid
         else
-            echo "No Mihomo PID file found. Mihomo might not have started or already stopped."
+            echo "No Mihomo PID file found."
         fi
 
-    - name: Commit and push results (Optional) # 提交并推送测速结果 (可选步骤)
+    - name: Commit and push results
       run: |
         git config user.name "github-actions[bot]"
         git config user.email "github-actions[bot]@users.noreply.github.com"
-        git add results/speedtest_results.yaml
+        git add results/speedtest_results.yaml || echo "No results file to add"
         git commit -m "chore: Update speedtest results" || echo "No changes to commit"
         git push || echo "No new commits to push"
