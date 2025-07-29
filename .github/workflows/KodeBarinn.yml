@@ -34,33 +34,51 @@ jobs:
         wget ${{ steps.get_release.outputs.download_url }} -O speedtest-clash.tar.gz
         tar -xzf speedtest-clash.tar.gz
         chmod +x speedtest-clash
+        ls -l ${{ runner.temp }}/speedtest-clash # 确认文件权限和存在
       working-directory: ${{ runner.temp }}
 
     - name: Create output directory
       run: mkdir -p sc
 
-    - name: Run speedtest-clash and save output
+    - name: Run speedtest-clash and capture output # 修改此步骤以捕获所有输出
       run: |
         echo "Starting speedtest-clash..."
-        # 运行 speedtest-clash。如果它失败，此步骤将失败。
+        
+        # 将 speedtest-clash 的所有输出（stdout 和 stderr）都重定向到一个临时文件
+        # 这有助于捕获任何崩溃前的错误信息
         ${{ runner.temp }}/speedtest-clash \
           -c https://raw.githubusercontent.com/qjlxg/vt/refs/heads/main/clash_config.yaml \
           -output sc/xiecang.yaml \
-          -timeout 20s \ # 再次增加超时时间，给予更多机会
+          -timeout 20s \
           -size 52428800 \
-          -sort b
+          -sort b \
+          2>&1 | tee speedtest_output.log # 将所有输出重定向到日志文件并同时打印到控制台
         
-        # 显式检查文件是否存在
+        # 捕获 speedtest-clash 的退出码
+        EXIT_CODE=$?
+        echo "speedtest-clash exited with code: $EXIT_CODE"
+        
+        # 打印完整的 speedtest_output.log 文件内容，以便查看详细信息
+        echo "--- Full speedtest-clash output log ---"
+        cat speedtest_output.log
+        echo "----------------------------------------"
+        
+        # 检查文件是否存在
         if [ -f "sc/xiecang.yaml" ]; then
           echo "sc/xiecang.yaml was successfully generated."
-          # 打印文件前几行以确认内容
           echo "--- Content of sc/xiecang.yaml (first 20 lines) ---"
           head -n 20 sc/xiecang.yaml
           echo "----------------------------------------------------"
         else
-          echo "Error: sc/xiecang.yaml was NOT generated. Speedtest-clash might have failed internally."
-          # 强制此步骤失败，以便 Git commit 步骤不会执行并报告“文件未找到”
-          exit 1
+          echo "Error: sc/xiecang.yaml was NOT generated."
+          # 如果文件未生成，且程序的退出码不是0，则强制此步骤失败
+          if [ "$EXIT_CODE" -ne 0 ]; then
+            echo "Speedtest-clash likely failed internally, preventing file generation."
+            exit "$EXIT_CODE" # 使用 speedtest-clash 的原始退出码
+          else
+            echo "Speedtest-clash exited with code 0 but did not create the output file. This is unexpected."
+            exit 1 # 这种情况下，我们仍认为它是失败
+          fi
         fi
       shell: bash
 
