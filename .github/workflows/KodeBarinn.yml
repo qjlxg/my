@@ -81,7 +81,7 @@ jobs:
       run: |
         mkdir -p results
         # 移除 --timeout，优化下载大小和线程数，仅测试支持 TLS 的代理
-        ./clash-speedtest -d cloudflare -r 5 -t 3 -o results/speedtest_results.yaml -y -i Vmess,Trojan,Vless -e Shadowsocks
+        ./clash-speedtest -d cloudflare -r 5 -t 2 -o results/speedtest_results.yaml -y -i Vmess,Trojan,Vless -e Shadowsocks
         if [ ! -s results/speedtest_results.yaml ]; then
             echo "Warning: 测速结果文件为空或未生成，继续执行后续步骤。"
         else
