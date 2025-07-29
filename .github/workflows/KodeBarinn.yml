@@ -3,7 +3,7 @@ name: XieCang Speedtest
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 */6 * * *'
+    - cron: '0 */6 * * *' # Runs every 6 hours
 
 jobs:
   run-speedtest:
@@ -12,6 +12,12 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
+
+    - name: Install 'expect' for unbuffer # NEW STEP: Install the 'expect' package
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y expect
+      shell: bash
 
     - name: Get latest xiecang/speedtest-clash release URL
       id: get_release
@@ -34,40 +40,34 @@ jobs:
         wget ${{ steps.get_release.outputs.download_url }} -O speedtest-clash.tar.gz
         tar -xzf speedtest-clash.tar.gz
         chmod +x speedtest-clash
-        ls -l ${{ runner.temp }}/speedtest-clash # 确认文件权限和存在
+        ls -l ${{ runner.temp }}/speedtest-clash # Confirm file permissions and existence
       working-directory: ${{ runner.temp }}
 
     - name: Create output directory
       run: mkdir -p sc
 
-    - name: Run xiecang/speedtest-clash with enhanced logging # 运行并增强日志捕获
+    - name: Run xiecang/speedtest-clash with enhanced logging
       run: |
         echo "Starting xiecang/speedtest-clash..."
         
-        # 尝试使用 unbuffer 来确保所有输出都被捕获，即使程序崩溃
-        # 同时，将所有输出重定向到文件并打印到控制台
-        # -output 参数应该将结果保存为 YAML，我们主要关注它是否生成
+        # Now 'unbuffer' should be available
         unbuffer ${{ runner.temp }}/speedtest-clash \
           -c https://raw.githubusercontent.com/qjlxg/vt/refs/heads/main/clash_config.yaml \
           -output sc/xiecang.yaml \
-          -timeout 30s \ # 再次增加超时时间，给予更多机会
+          -timeout 30s \ # Increased timeout
           -size 52428800 \
           -sort b \
           2>&1 | tee xiecang_output.log
         
-        # 捕获 speedtest-clash 的退出码
         EXIT_CODE=$?
         echo "xiecang/speedtest-clash exited with code: $EXIT_CODE"
         
-        # 打印完整的 xiecang_output.log 文件内容，以便查看详细信息
         echo "--- Full xiecang/speedtest-clash output log ---"
         cat xiecang_output.log
         echo "------------------------------------------------"
         
-        # 检查文件是否存在
         if [ -f "sc/xiecang.yaml" ]; then
           echo "sc/xiecang.yaml was successfully generated."
-          # 打印文件前几行以确认内容
           echo "--- Content of sc/xiecang.yaml (first 20 lines) ---"
           head -n 20 sc/xiecang.yaml
           echo "----------------------------------------------------"
@@ -75,10 +75,10 @@ jobs:
           echo "Error: sc/xiecang.yaml was NOT generated."
           if [ "$EXIT_CODE" -ne 0 ]; then
             echo "xiecang/speedtest-clash failed internally with exit code $EXIT_CODE. This indicates a crash or unhandled error."
-            exit "$EXIT_CODE" # 使用 xiecang/speedtest-clash 的原始退出码
+            exit "$EXIT_CODE"
           else
             echo "xiecang/speedtest-clash exited with code 0 but did not create the output file. This is unexpected behavior."
-            exit 1 # 这种情况也认为是失败
+            exit 1
           fi
         fi
       shell: bash
