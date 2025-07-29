@@ -1,20 +1,19 @@
 name: Auto Search and Download YAML
 
 on:
-  workflow_dispatch: # 允许手动触发
-  push:              # 新增：在每次 push 到指定分支时触发
+  workflow_dispatch: # Allows manual triggering
+  push:
     branches:
-      - main         # 当 main 分支有新的 push 时触发
+      - main         # Triggers on push to main branch
   schedule:
-    # 每天运行一次。请注意 API 限制，不要设置太频繁。
-    - cron: '0 0 * * *' 
+    - cron: '0 0 * * *' # Runs daily at 00:00 JST (assuming default runner timezone)
 
 jobs:
   search-and-download:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # 允许写入仓库内容 (提交文件)
-      pull-requests: write # 允许创建 Pull Request，如果选择这种方式提交
+      contents: write # Allows writing to the repository (committing files)
+      pull-requests: write # Allows creating Pull Requests (if chosen for submission)
 
     steps:
     - name: Checkout repository
@@ -23,7 +22,7 @@ jobs:
     - name: Set up Git LFS (Optional, for large files if needed)
       run: |
         sudo apt-get update
-        sudo apt-get install -y git-lfs # 安装 Git LFS，如果文件可能很大
+        sudo apt-get install -y git-lfs # Install Git LFS
         git lfs install
       shell: bash
 
@@ -33,68 +32,88 @@ jobs:
     - name: Search GitHub and Gist for YAML configs
       id: search_configs
       env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }} # 自动提供的 GITHUB_TOKEN
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Automatically provided GITHUB_TOKEN
       run: |
         echo "Starting GitHub and Gist search for YAML configs..."
         
-        # 定义搜索关键词和文件上限
-        # 将排序参数直接加入到查询字符串中，遵循 GitHub Search API 的语法
-        SEARCH_KEYWORDS="proxies: type: sort:updated-desc" # 查找包含代理类型定义的 YAML，并按更新时间降序排列
-        MAX_FILES=5 # 最多下载5个文件，防止下载过多触发限制
+        # Define search keywords and file limit
+        SEARCH_KEYWORDS="proxies: type: sort:updated-desc" # Search for YAMLs with proxy type definitions, sorted by update date
+        MAX_FILES=5 # Max number of files to download, to prevent rate limits
         
-        # 清空或创建 merged_config.yaml 文件，用于合并所有下载的有效配置
-        echo "---" > sc/merged_config.yaml # YAML 文件的起始标记
+        # Clear or create merged_config.yaml file for merging all downloaded valid configs
+        echo "---" > sc/merged_config.yaml # YAML document start marker
         
-        # --- 搜索 GitHub 仓库文件 ---
+        # --- Search GitHub repository files ---
         echo "Searching GitHub repositories for YAML files..."
-        # gh search code 命令查找最新的 YAML/YML 文件，包含指定关键词
-        # 移除了 --order 和 --sort 参数，将排序指令放入 SEARCH_KEYWORDS
-        # --limit 30 默认值或调整，根据需要可以增加，但要注意 API 限制
-        gh search code --json path,raw_url --limit 30 \
+        # gh search code now requests 'path', 'repository', 'url' fields
+        # 'repository' is an object, we need to extract owner and name from it using jq
+        gh search code --json path,repository \
+            --limit 30 \
             --extension yaml --extension yml "$SEARCH_KEYWORDS" \
-            | jq -r '.[] | .raw_url' > github_search_results.txt
+            | jq -c '.[] | {owner: .repository.owner.login, repo: .repository.name, path: .path}' > github_search_results.json
         
-        # --- 搜索 Gist 文件 (Gist API搜索比repo搜索弱，这里做简单尝试) ---
-        echo "Searching Gist for YAML files..."
-        # 保持不变，因为主要搜索逻辑在 gh search code
+        # --- Gist Search (still limited, only focusing on GitHub Repos for now) ---
+        echo "Gist search is not directly supported by 'gh search code'. Focusing on repository search."
         
-        # 遍历下载找到的文件
+        # Loop through downloaded files
         DOWNLOADED_COUNT=0
-        while IFS= read -r URL && [ "$DOWNLOADED_COUNT" -lt "$MAX_FILES" ]; do
-          FILENAME=$(basename "$URL") # 从URL中提取文件名
-          TEMP_FILE="sc/temp_${FILENAME}" # 临时文件名
+        while IFS= read -r line && [ "$DOWNLOADED_COUNT" -lt "$MAX_FILES" ]; do
+          # Parse owner, repo, and path from each JSON line
+          OWNER=$(echo "$line" | jq -r '.owner')
+          REPO=$(echo "$line" | jq -r '.repo')
+          FILE_PATH=$(echo "$line" | jq -r '.path')
           
-          echo "Attempting to download: $URL"
-          # 使用 --no-check-certificate 增加下载的兼容性，但在生产环境需谨慎
-          wget --no-check-certificate -q -O "$TEMP_FILE" "$URL"
+          # Try common default branches
+          POSSIBLE_BRANCHES=("main" "master")
+          FILE_URL=""
+          for BRANCH in "${POSSIBLE_BRANCHES[@]}"; do
+            CANDIDATE_URL="https://raw.githubusercontent.com/${OWNER}/${REPO}/${BRANCH}/${FILE_PATH}"
+            # Check if the URL actually returns a 200 OK without downloading the whole file
+            # Use curl -s -o /dev/null -w "%{http_code}" to get only the status code
+            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$CANDIDATE_URL")
+            if [ "$HTTP_STATUS" -eq 200 ]; then
+              FILE_URL="$CANDIDATE_URL"
+              break # Found a valid URL, break from branch loop
+            fi
+          done
+
+          if [ -z "$FILE_URL" ]; then
+            echo "Skipping file as raw URL could not be constructed or found: ${OWNER}/${REPO}/${FILE_PATH}"
+            continue # Move to next file if no valid URL found
+          fi
+
+          FILENAME=$(basename "$FILE_URL") # Extract filename from the working URL
+          TEMP_FILE="sc/temp_${FILENAME}" # Temporary file name
+          
+          echo "Attempting to download: $FILE_URL"
+          # Use --no-check-certificate for compatibility, but be cautious in production
+          wget --no-check-certificate -q -O "$TEMP_FILE" "$FILE_URL"
           
           if [ $? -eq 0 ]; then
             echo "Successfully downloaded $FILENAME"
-            # 检查文件是否可能是有效的Clash配置 (非常简单的检查，实际可能更复杂)
+            # Simple heuristic check for Clash-like config
             if grep -q "proxies:" "$TEMP_FILE" || grep -q "proxy-groups:" "$TEMP_FILE"; then
               echo "  -> Appears to be a Clash-like config. Appending to merged_config.yaml"
-              # 将下载的文件内容（去除YAML文档开始标记---）追加到合并文件中
-              # 确保在追加前，文件中不是只包含一个 "---"
+              # Append file content (removing leading '---' if present)
               if [ "$(wc -l < "$TEMP_FILE")" -gt 1 ] || [ "$(grep -c '---' "$TEMP_FILE")" -eq 0 ]; then
                 tail -n +$(awk '/^---$/{found=1; if(NR>1)print NR+1; next}END{if(!found)print 1}' "$TEMP_FILE") "$TEMP_FILE" >> sc/merged_config.yaml
               else
-                # 如果文件只有一行 "---" 或者开头不是 "---"，则直接追加
                 cat "$TEMP_FILE" >> sc/merged_config.yaml
               fi
-              echo "" >> sc/merged_config.yaml # 添加一个空行，分隔不同文件内容
+              echo "" >> sc/merged_config.yaml # Add an empty line to separate file contents
               DOWNLOADED_COUNT=$((DOWNLOADED_COUNT + 1))
             else
               echo "  -> Not a recognized Clash-like config, skipping merge."
             fi
-            rm "$TEMP_FILE" # 移除临时文件
+            rm "$TEMP_FILE" # Remove temporary file
           else
-            echo "Failed to download $URL"
+            echo "Failed to download $FILE_URL"
           fi
-        done < github_search_results.txt
+        done < github_search_results.json
         
         if [ "$DOWNLOADED_COUNT" -eq 0 ]; then
           echo "Warning: No valid YAML configurations were downloaded."
-          # 可以选择在这里让工作流失败，如果这是强制要求
+          # Option to fail workflow here if this is a mandatory requirement
           # exit 1
         fi
         
