@@ -45,11 +45,12 @@ jobs:
         mv mihomo mihomo-core
         chmod +x mihomo-core
 
-        # 启动 Mihomo 核心
+        # 启动 Mihomo 核心，并将其 PID 写入文件
         # 使用 -f 指定配置文件，-d 开启外部控制器，-m 开启混合代理端口
         # 注意：这里的端口和配置要与 clash-speedtest 的默认值或您自定义的值匹配
         ./mihomo-core -f clash_config.yaml -d 127.0.0.1:9090 -m 7890 &
-        MIHOMO_PID=$!
+        echo $! > /tmp/mihomo.pid # 将后台进程的 PID 写入文件
+        MIHOMO_PID=$(cat /tmp/mihomo.pid)
         echo "Mihomo core started with PID: $MIHOMO_PID"
         
         # 等待 Mihomo 完全启动
@@ -60,6 +61,7 @@ jobs:
         if [ $? -ne 0 ]; then
             echo "Error: Mihomo core did not start successfully or external controller is not accessible."
             kill $MIHOMO_PID # 尝试杀死进程
+            rm /tmp/mihomo.pid # 清理 PID 文件
             exit 1
         fi
         echo "Mihomo core is running and external controller is accessible."
@@ -83,34 +85,28 @@ jobs:
         mkdir -p results # 创建存放结果的目录
         
         # 运行 starudream/clash-speedtest
-        # --clash-addr 默认是 http://127.0.0.1:9090
-        # --clash-proxy 默认是 http://127.0.0.1:7890 (HTTP proxy)
-        # -d cloudflare (使用 cloudflare 下载测速方式)
-        # -r 100 (每个线程下载 100MB)
-        # -t 8 (8个下载线程，与之前 -concurrent 8 对应)
-        # -o results/speedtest_results.yaml (输出到文件)
-        ./clash-speedtest -d cloudflare -r 100 -t 8 -o results/speedtest_results.yaml
+        # 增加了 -y 标志，以跳过交互式确认
+        ./clash-speedtest -d cloudflare -r 100 -t 8 -o results/speedtest_results.yaml -y
 
         # 验证结果文件是否生成且非空
         if [ ! -s results/speedtest_results.yaml ]; then
             echo "Error: 测速结果文件为空或未生成！"
-            # 如果是 Mihomo 启动失败导致没有测速结果，此处会捕获并终止工作流
-            kill $(cat /tmp/mihomo.pid) # 尝试杀死 Mihomo 进程
             exit 1
         fi
         echo "--- Speedtest results (first 20 lines) ---"
         head -n 20 results/speedtest_results.yaml
         echo "------------------------------------------"
-      env:
-        MIHOMO_PID_FILE: /tmp/mihomo.pid # 保存 Mihomo 进程ID，以便后续停止
 
     - name: Stop Mihomo Core # 停止 Mihomo 核心 (重要：在测速完成后清理后台进程)
       if: always() # 确保即使测速失败也尝试停止 Mihomo
       run: |
         if [ -f "/tmp/mihomo.pid" ]; then
-            kill $(cat /tmp/mihomo.pid) || true # 杀死 Mihomo 进程，|| true 避免因进程不存在而导致步骤失败
-            echo "Mihomo core stopped."
+            MIHOMO_PID=$(cat /tmp/mihomo.pid)
+            echo "Stopping Mihomo core with PID: $MIHOMO_PID"
+            kill $MIHOMO_PID || true # 杀死 Mihomo 进程，|| true 避免因进程不存在而导致步骤失败
             rm /tmp/mihomo.pid
+        else
+            echo "No Mihomo PID file found. Mihomo might not have started or already stopped."
         fi
 
     - name: Commit and push results (Optional) # 提交并推送测速结果 (可选步骤)
