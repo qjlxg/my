@@ -33,13 +33,13 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-
 
-      # 安装 mihomo
+      # 安装 mihomo（使用 amd64-v3 版本）
       - name: Install mihomo
         run: |
-          wget https://github.com/MetaCubeX/mihomo/releases/latest/download/mihomo-linux-amd64.gz
-          gunzip mihomo-linux-amd64.gz
-          chmod +x mihomo-linux-amd64
-          sudo mv mihomo-linux-amd64 /usr/local/bin/mihomo
+          wget https://github.com/MetaCubeX/mihomo/releases/download/v1.19.12/mihomo-linux-amd64-v3-v1.19.12.gz
+          gunzip mihomo-linux-amd64-v3-v1.19.12.gz
+          chmod +x mihomo-linux-amd64-v3-v1.19.12
+          sudo mv mihomo-linux-amd64-v3-v1.19.12 /usr/local/bin/mihomo
 
       # 安装 mihomo-speedtest-rs
       - name: Install mihomo-speedtest-rs
