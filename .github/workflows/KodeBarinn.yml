@@ -1,6 +1,9 @@
 name: Auto Search and Download YAML
 
 on:
+  push:
+    branches:
+    - main
   workflow_dispatch: # 允许手动触发
   schedule:
     # 每天运行一次。请注意 API 限制，不要设置太频繁。
