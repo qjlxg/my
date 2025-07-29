@@ -17,11 +17,11 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      # 设置 Go 环境（以防需要编译或运行 Go 代码）
+      # 设置 Go 环境
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.18' # v0.1 发布于 2022 年，选择兼容的 Go 版本
+          go-version: '1.18' # v0.1 兼容的 Go 版本
 
       # 下载 speedtest-clash 工具（v0.1 Linux AMD64）
       - name: Download speedtest-clash
@@ -38,21 +38,21 @@ jobs:
       - name: Run SpeedTest-Clash
         run: |
           ./speedtest-clash \
-            -c https://raw.githubusercontent.com/qjlxg/vt/refs/heads/main/clash_config.yaml \
-            -concurrent 2 \
-            -size 10485760 \
-            -sort t \
-            -timeout 60s \
-            -l https://speed.cloudflare.com/__down?bytes=10485760 \
-            -output sc/xiecang.yaml || echo "SpeedTest-Clash failed with exit code $?"
+            --config https://raw.githubusercontent.com/qjlxg/vt/refs/heads/main/clash_config.yaml \
+            --concurrency 2 \
+            --duration 10s \
+            --debug > sc/xiecang.yaml 2> sc/xiecang.log || echo "SpeedTest-Clash failed with exit code $?"
           ls -l sc/
+          cat sc/xiecang.log
 
-      # 上传测试结果
+      # 上传测试结果和日志
       - name: Upload Test Results
         uses: actions/upload-artifact@v4
         with:
           name: speedtest-results
-          path: sc/xiecang.yaml
+          path: |
+            sc/xiecang.yaml
+            sc/xiecang.log
         if: always()
 
       # 提交结果到仓库
@@ -62,7 +62,8 @@ jobs:
             git config --local user.email "action@github.com"
             git config --local user.name "GitHub Action"
             git add sc/xiecang.yaml
-            git commit -m "Update speedtest results" || echo "Nothing to commit"
+            git add sc/xiecang.log
+            git commit -m "Update speedtest results and log" || echo "Nothing to commit"
             git push
           else
             echo "No output file generated, skipping commit"
