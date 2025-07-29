@@ -76,10 +76,12 @@ jobs:
 
     - name: Run clash-speedtest
       id: speedtest
+      env:
+        NO_PROGRESS: "true" # 禁用进度条以避免 ioctl 错误
       run: |
         mkdir -p results
-        # 过滤支持 TLS 的代理类型，增加超时时间
-        ./clash-speedtest -d cloudflare -r 100 -t 8 -o results/speedtest_results.yaml -y -i Vmess,Trojan,Vless -e Shadowsocks --timeout 30s
+        # 移除 --timeout，优化下载大小和线程数，仅测试支持 TLS 的代理
+        ./clash-speedtest -d cloudflare -r 5 -t 3 -o results/speedtest_results.yaml -y -i Vmess,Trojan,Vless -e Shadowsocks
         if [ ! -s results/speedtest_results.yaml ]; then
             echo "Warning: 测速结果文件为空或未生成，继续执行后续步骤。"
         else
