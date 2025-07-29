@@ -1,88 +1,70 @@
-name: 运行 Mihomo 测速并提交结果 (带节点过滤)
+name: Mihomo SpeedTest
 
 on:
-  workflow_dispatch:
-  # schedule:
-  #   - cron: '0 0 * * *'
+  workflow_dispatch:  # 允许手动触发
+  schedule:
+    - cron: '0 0 * * *'  # 每天 UTC 0:00 运行
 
 jobs:
-  run_speedtest:
+  speedtest:
     runs-on: ubuntu-latest
 
     steps:
-      - name: 检出仓库代码
+      # 检出代码
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: 设置 Python 环境
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.x'
-          
-      - name: 安装 Python 依赖
-        run: |
-          pip install pyyaml
-
-      - name: 设置 Rust 环境
+      # 设置 Rust 环境
+      - name: Setup Rust
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
-          profile: minimal
           override: true
 
-      - name: 安装 mihomo-speedtest-rs 工具
+      # 缓存 Rust 依赖
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      # 安装 mihomo
+      - name: Install mihomo
         run: |
-          cargo install mihomo-speedtest-rs
+          wget https://github.com/MetaCubeX/mihomo/releases/latest/download/mihomo-linux-amd64.gz
+          gunzip mihomo-linux-amd64.gz
+          chmod +x mihomo-linux-amd64
+          sudo mv mihomo-linux-amd64 /usr/local/bin/mihomo
 
-      - name: 下载原始 Clash 配置文件
-        run: |
-          DOWNLOAD_URL="https://raw.githubusercontent.com/qjlxg/vt/refs/heads/main/clash_config.yaml"
-          INPUT_CONFIG_PATH="clash_config.yaml"
+      # 安装 mihomo-speedtest-rs
+      - name: Install mihomo-speedtest-rs
+        run: cargo install mihomo-speedtest-rs --version 1.1.2
 
-          echo "正在从 ${DOWNLOAD_URL} 下载原始配置文件到 ${INPUT_CONFIG_PATH}..."
-          curl -sSL "${DOWNLOAD_URL}" -o "${INPUT_CONFIG_PATH}"
-          if [ $? -ne 0 ]; then
-              echo "原始配置文件下载失败！请检查 URL 或网络连接。"
-              exit 1
-          fi
-          echo "原始配置文件下载完成。"
-
-      - name: 运行 Python 脚本过滤节点
-        run: |
-          echo "正在运行 filter_clash_nodes.py 脚本过滤节点..."
-          python filter_clash_nodes.py
-          if [ $? -ne 0 ]; then
-              echo "节点过滤脚本运行失败！请检查 Python 脚本是否存在错误或路径是否正确。"
-              exit 1
-          fi
-          echo "节点过滤完成，生成 filtered_nodes.yaml。"
-
-      - name: 检查 filtered_nodes.yaml 内容
-        run: |
-          echo "--- filtered_nodes.yaml 内容开始 ---"
-          cat filtered_nodes.yaml
-          echo "--- filtered_nodes.yaml 内容结束 ---"
-          # 检查文件是否存在且非空
-          if [ ! -s filtered_nodes.yaml ]; then
-              echo "Error: filtered_nodes.yaml is empty or does not exist after filtering!"
-              exit 1
-          fi
-
-      - name: 运行测速并将结果保存到 sc/KodeBarinn.yaml
+      # 运行速度测试
+      - name: Run speedtest
         run: |
           mkdir -p sc
-          mihomo-speedtest --config filtered_nodes.yaml --output sc/KodeBarinn.yaml
-          if [ $? -ne 0 ]; then
-              echo "Mihomo 测速失败！请检查测速工具或过滤后的配置文件。"
-              exit 1
-          fi
-          echo "Mihomo 测速完成。"
+          mihomo-speedtest --config https://raw.githubusercontent.com/qjlxg/vt/refs/heads/main/clash_config.yaml \
+            --use-mihomo \
+            --fast \
+            --max-latency 300ms \
+            --min-download-speed 10 \
+            --download-size 50 \
+            --upload-size 20 \
+            --output sc/KodeBarinn.yaml
 
-      - name: 提交并推送测速结果
+      # 提交结果
+      - name: Commit results
+        run: |
+          git config --global user.name 'GitHub Action'
+          git config --global user.email 'action@github.com'
+          git add sc/KodeBarinn.yaml
+          git commit -m 'Update speedtest results' || echo "No changes to commit"
+          git push
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add sc/KodeBarinn.yaml
-          git commit -m "chore: Update mihomo-speedtest results after filtering" || echo "No changes to commit"
-          git push || echo "No new commits to push"
