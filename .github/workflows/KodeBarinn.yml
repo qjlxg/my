@@ -5,57 +5,62 @@ on:
     branches:
       - main
   schedule:
-    - cron: '0 0 * * *' # 每天运行一次
-  workflow_dispatch: # 允许手动触发
+    - cron: '0 0 * * *'
+  workflow_dispatch:
 
 jobs:
   speedtest:
     runs-on: ubuntu-latest
 
     steps:
-      # 检出代码
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      # 设置 Go 环境
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.21' # 根据需要调整 Go 版本
+          go-version: '1.21'
 
-      # 下载 speedtest-clash 工具
       - name: Download speedtest-clash
         run: |
           wget https://github.com/xiecang/speedtest-clash/releases/download/v0.2.4/speedtest-clash_Linux_x86_64.tar.gz
           tar -xzf speedtest-clash_Linux_x86_64.tar.gz
           chmod +x speedtest-clash
 
-      # 运行 speedtest-clash 测试
+      - name: Create output directory
+        run: mkdir -p sc
+
       - name: Run SpeedTest-Clash
         run: |
           ./speedtest-clash \
             -c https://raw.githubusercontent.com/qjlxg/vt/refs/heads/main/clash_config.yaml \
-            -concurrent 5 \
+            -concurrent 2 \
             -size 10485760 \
             -sort t \
-            -timeout 30s \
+            -timeout 60s \
             -l https://speed.cloudflare.com/__down?bytes=10485760 \
-            -output sc/xiecang.yaml
+            -f "HK.*" \
+            -output sc/xiecang.yaml || echo "SpeedTest-Clash failed with exit code $?"
+          ls -l sc/
 
-      # 保存测试结果
       - name: Upload Test Results
         uses: actions/upload-artifact@v4
         with:
           name: speedtest-results
           path: sc/xiecang.yaml
+        if: always()
 
-      # 提交结果到仓库
       - name: Commit and Push Results
         run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-          git add sc/xiecang.yaml
-          git commit -m "Update speedtest results"
-          git push
+          if [ -f sc/xiecang.yaml ]; then
+            git config --local user.email "action@github.com"
+            git config --local user.name "GitHub Action"
+            git add sc/xiecang.yaml
+            git commit -m "Update speedtest results" || echo "Nothing to commit"
+            git push
+          else
+            echo "No output file generated, skipping commit"
+          fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        if: always()
