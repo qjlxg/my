@@ -36,6 +36,11 @@ try:
             is_valid_node = True
             missing_fields = []
 
+            # --- 新增：排除 Hysteria2 节点 ---
+            if proxy_type == 'hysteria2':
+                print(f"Info: Proxy {i+1} ('{proxy_name}'): Skipping Hysteria2 proxy as it's not supported by mihomo-speedtest-rs.", file=sys.stderr)
+                continue # 跳过此代理
+
             # --- 增强的 VMess 错误排除：针对 unsupported security type 和 cipher missing ---
             if proxy_type == 'vmess':
                 valid_vmess_ciphers = [
@@ -97,13 +102,6 @@ try:
                        (vless_security.lower() not in ['tls', 'none']):
                         print(f"Warning: Proxy {i+1} ('{proxy_name}'): Skipping VLESS proxy due to unsupported or empty 'security' field ('{vless_security}').", file=sys.stderr)
                         is_valid_node = False
-            elif proxy_type == 'hysteria2':
-                required_fields = ['server', 'port', 'password']
-                for field in required_fields:
-                    if field not in proxy:
-                        missing_fields.append(field)
-                if missing_fields:
-                    is_valid_node = False
             elif proxy_type == 'ssr':
                 required_fields = ['server', 'port', 'cipher', 'password', 'protocol', 'obfs']
                 for field in required_fields:
