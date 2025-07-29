@@ -1,10 +1,9 @@
-name: 运行 Mihomo 测速
+name: 运行 Mihomo 测速并提交结果
 
 on:
   workflow_dispatch: # 允许您在 GitHub Actions 页面手动点击运行此工作流
   # schedule:
-  #   - cron: '0 0 * * *' # 这是一个可选的定时触发器，表示每天午夜 (UTC) 运行。
-                          # 如果您不需要自动定时运行，可以删除或注释掉这一行及其下一行。
+  #   - cron: '0 0 * * *' # 可选：每天午夜 (UTC) 自动运行。如果您不需要定时运行，可以删除或注释掉这两行。
 
 jobs:
   run_speedtest:
@@ -38,19 +37,15 @@ jobs:
 
       - name: 运行测速并将结果保存到 sc/KodeBarinn.yaml
         run: |
-          mkdir -p sc # 每次 GitHub Actions 运行时都会在一个全新的、干净的环境中开始，
-                       # 所以需要确保 sc 目录存在，以便保存结果。
-          # 使用下载的配置文件运行 mihomo-speedtest
+          mkdir -p sc # 每次 GitHub Actions 运行时都在一个全新的、干净的环境中开始，因此需要确保 sc 目录存在，以便保存结果。
           mihomo-speedtest --config ./.github/temp_config/config.yaml --output sc/KodeBarinn.yaml
 
-      - name: 提交并推送结果
-        # 警告：此步骤会将每次测速结果作为新的提交推送到您的仓库，可能导致提交历史频繁更新。
-        # 如果您不希望这样，请考虑使用 Artifact 上传结果（即恢复 '上传测速结果' 步骤并移除此步骤）。
+      - name: 提交并推送测速结果
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # 自动提供的 GitHub Token，用于认证
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # 自动提供的 GitHub Token，用于认证 Git 操作
         run: |
-          git config user.name "github-actions[bot]" # 设置 Git 用户名
+          git config user.name "github-actions[bot]" # 设置 Git 用户名，显示为 GitHub Actions 机器人
           git config user.email "github-actions[bot]@users.noreply.github.com" # 设置 Git 用户邮箱
-          git add sc/KodeBarinn.yaml # 添加更改的文件到暂存区
-          git commit -m "chore: Update mihomo-speedtest results" || echo "No changes to commit" # 提交更改
-          git push || echo "No new commits to push" # 推送更改到远程仓库
+          git add sc/KodeBarinn.yaml # 将生成的测速结果文件添加到 Git 暂存区
+          git commit -m "chore: Update mihomo-speedtest results" || echo "No changes to commit" # 提交更改，如果文件没有变化则跳过
+          git push || echo "No new commits to push" # 推送更改到远程仓库，如果无法推送则跳过
