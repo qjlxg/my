@@ -1,94 +1,61 @@
-name: XieCang Speedtest
+name: SpeedTest-Clash Workflow
 
 on:
-  workflow_dispatch: # 允许通过 GitHub UI 手动触发工作流
+  push:
+    branches:
+      - main
   schedule:
-    - cron: '0 */6 * * *' # 每6小时运行一次
+    - cron: '0 0 * * *' # 每天运行一次
+  workflow_dispatch: # 允许手动触发
 
 jobs:
-  run-speedtest:
+  speedtest:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+      # 检出代码
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-    - name: Get latest speedtest-clash release URL
-      id: get_release
-      run: |
-        ASSET_URL=$(curl -s https://api.github.com/repos/xiecang/speedtest-clash/releases/latest | \
-          grep "browser_download_url.*speedtest-clash_Linux_x86_64.tar.gz" | \
-          awk '{print $2}' | \
-          tr -d '"')
-        
-        if [ -z "$ASSET_URL" ]; then
-          echo "Error: Could not find speedtest-clash_Linux_x86_64.tar.gz in latest release assets."
-          exit 1
-        fi
-        
-        echo "::set-output name=download_url::$ASSET_URL"
-      shell: bash
+      # 设置 Go 环境
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21' # 根据需要调整 Go 版本
 
-    - name: Download and extract speedtest-clash
-      run: |
-        wget ${{ steps.get_release.outputs.download_url }} -O speedtest-clash.tar.gz
-        tar -xzf speedtest-clash.tar.gz
-        chmod +x speedtest-clash
-        ls -l ${{ runner.temp }}/speedtest-clash # 确认文件权限和存在
-      working-directory: ${{ runner.temp }}
+      # 下载 speedtest-clash 工具
+      - name: Download speedtest-clash
+        run: |
+          wget https://github.com/xiecang/speedtest-clash/releases/download/v0.2.4/speedtest-clash_Linux_x86_64.tar.gz
+          tar -xzf speedtest-clash_Linux_x86_64.tar.gz
+          chmod +x speedtest-clash
 
-    - name: Create output directory
-      run: mkdir -p sc
+      # 运行 speedtest-clash 测试
+      - name: Run SpeedTest-Clash
+        run: |
+          ./speedtest-clash \
+            -c https://raw.githubusercontent.com/qjlxg/vt/refs/heads/main/clash_config.yaml \
+            -concurrent 5 \
+            -size 10485760 \
+            -sort t \
+            -timeout 30s \
+            -l https://speed.cloudflare.com/__down?bytes=10485760 \
+            -output sc/xiecang.yaml
 
-    - name: Run speedtest-clash and capture output # 修改此步骤以捕获所有输出
-      run: |
-        echo "Starting speedtest-clash..."
-        
-        # 将 speedtest-clash 的所有输出（stdout 和 stderr）都重定向到一个临时文件
-        # 这有助于捕获任何崩溃前的错误信息
-        ${{ runner.temp }}/speedtest-clash \
-          -c https://raw.githubusercontent.com/qjlxg/vt/refs/heads/main/clash_config.yaml \
-          -output sc/xiecang.yaml \
-          -timeout 20s \
-          -size 52428800 \
-          -sort b \
-          2>&1 | tee speedtest_output.log # 将所有输出重定向到日志文件并同时打印到控制台
-        
-        # 捕获 speedtest-clash 的退出码
-        EXIT_CODE=$?
-        echo "speedtest-clash exited with code: $EXIT_CODE"
-        
-        # 打印完整的 speedtest_output.log 文件内容，以便查看详细信息
-        echo "--- Full speedtest-clash output log ---"
-        cat speedtest_output.log
-        echo "----------------------------------------"
-        
-        # 检查文件是否存在
-        if [ -f "sc/xiecang.yaml" ]; then
-          echo "sc/xiecang.yaml was successfully generated."
-          echo "--- Content of sc/xiecang.yaml (first 20 lines) ---"
-          head -n 20 sc/xiecang.yaml
-          echo "----------------------------------------------------"
-        else
-          echo "Error: sc/xiecang.yaml was NOT generated."
-          # 如果文件未生成，且程序的退出码不是0，则强制此步骤失败
-          if [ "$EXIT_CODE" -ne 0 ]; then
-            echo "Speedtest-clash likely failed internally, preventing file generation."
-            exit "$EXIT_CODE" # 使用 speedtest-clash 的原始退出码
-          else
-            echo "Speedtest-clash exited with code 0 but did not create the output file. This is unexpected."
-            exit 1 # 这种情况下，我们仍认为它是失败
-          fi
-        fi
-      shell: bash
+      # 保存测试结果
+      - name: Upload Test Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: speedtest-results
+          path: sc/xiecang.yaml
 
-    - name: Commit and push results
-      run: |
-        git config user.name "github-actions[bot]"
-        git config user.email "github-actions[bot]@users.noreply.github.com"
-        
-        git add sc/xiecang.yaml
-        git commit -m "Update xiecang.yaml with speedtest results" || echo "No changes to commit"
-        git push
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # 提交结果到仓库
+      - name: Commit and Push Results
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add sc/xiecang.yaml
+          git commit -m "Update speedtest results"
+          git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
