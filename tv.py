@@ -64,7 +64,7 @@ def load_config(config_path="config/config.yaml"):
         with open(config_path, 'r', encoding='utf-8') as file:
             config = yaml.safe_load(file)
             logging.info("配置文件 config.yaml 加载成功")
-        return config
+            return config
     except FileNotFoundError:
         logging.error(f"错误：未找到配置文件 '{config_path}'")
         exit(1)
@@ -607,7 +607,259 @@ def filter_and_modify_channels(channels):
     logging.info(f"URL 预筛选后剩余 {pre_screened_count} 个频道进行进一步过滤")
     return filtered_channels
 
-# --- 频道有效性检查函数 (已移除网络可达性检查) ---
+# --- 频道有效性检查函数 ---
+@performance_monitor
+def check_http_url(url, timeout):
+    """检查 HTTP/HTTPS URL 是否可达
+    参数:
+        url: 要检查的 URL
+        timeout: 超时时间（秒）
+    返回:
+        布尔值，表示 URL 是否可达
+    """
+    try:
+        response = session.head(url, timeout=timeout, allow_redirects=True)
+        return 200 <= response.status_code < 400
+    except requests.exceptions.RequestException as e:
+        logging.info(f"HTTP URL 检查失败: {url} - {e}")
+        return False
+
+@performance_monitor
+def check_rtmp_url(url, timeout):
+    """检查 RTMP URL 是否可达
+    参数:
+        url: 要检查的 URL
+        timeout: 超时时间（秒）
+    返回:
+        布尔值，表示 URL 是否可达
+    """
+    try:
+        subprocess.run(['ffprobe', '-h'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True, timeout=2)
+    except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
+        logging.warning("ffprobe 未找到或不可用，跳过 RTMP 检查")
+        return False
+    try:
+        result = subprocess.run(
+            ['ffprobe', '-v', 'error', '-rtmp_transport', 'tcp', '-i', url],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=timeout
+        )
+        return result.returncode == 0
+    except subprocess.TimeoutExpired:
+        logging.info(f"RTMP URL 检查超时: {url}")
+        return False
+    except Exception as e:
+        logging.info(f"RTMP URL 检查错误: {url} - {e}")
+        return False
+
+@performance_monitor
+def check_rtp_url(url, timeout):
+    """检查 RTP URL 是否可达
+    参数:
+        url: 要检查的 URL
+        timeout: 超时时间（秒）
+    返回:
+        布尔值，表示 URL 是否可达
+    """
+    try:
+        parsed_url = urlparse(url)
+        host = parsed_url.hostname
+        port = parsed_url.port
+        if not host or not port:
+            logging.info(f"RTP URL 解析失败（缺少主机或端口）: {url}")
+            return False
+
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.settimeout(timeout)
+            s.connect((host, port))
+            s.sendto(b'', (host, port))
+            s.recv(1)
+        return True
+    except (socket.timeout, socket.error) as e:
+        logging.info(f"RTP URL 检查失败: {url} - {e}")
+        return False
+    except Exception as e:
+        logging.info(f"RTP URL 检查错误: {url} - {e}")
+        return False
+
+@performance_monitor
+def check_p3p_url(url, timeout):
+    """检查 P3P URL 是否可达
+    参数:
+        url: 要检查的 URL
+        timeout: 超时时间（秒）
+    返回:
+        布尔值，表示 URL 是否可达
+    """
+    try:
+        parsed_url = urlparse(url)
+        host = parsed_url.hostname
+        port = parsed_url.port if parsed_url.port else 80
+        path = parsed_url.path if parsed_url.path else '/'
+
+        if not host:
+            logging.info(f"P3P URL 解析失败（缺少主机）: {url}")
+            return False
+
+        with socket.create_connection((host, port), timeout=timeout) as s:
+            request = f"GET {path} HTTP/1.0\r\nHost: {host}\r\nUser-Agent: Python\r\n\r\n"
+            s.sendall(request.encode())
+            response = s.recv(1024).decode('utf-8', errors='ignore')
+            return "P3P" in response or response.startswith("HTTP/1.")
+    except Exception as e:
+        logging.info(f"P3P URL 检查失败: {url} - {e}")
+        return False
+
+@performance_monitor
+def check_webrtc_url(url, timeout):
+    """检查 WebRTC URL 是否可达（简单检查 ICE 服务器可用性）
+    参数:
+        url: 要检查的 URL
+        timeout: 超时时间（秒）
+    返回:
+        布尔值，表示 URL 是否可达（占位实现）
+    """
+    try:
+        parsed_url = urlparse(url)
+        if not parsed_url.scheme == 'webrtc':
+            return False
+        # 这里仅模拟检查，实际 WebRTC 需要更复杂的 ICE/TURN/STUN 验证
+        return True  # 占位，需根据实际需求实现
+    except Exception as e:
+        logging.info(f"WebRTC URL 检查失败: {url} - {e}")
+        return False
+
+@performance_monitor
+def check_channel_validity_and_speed(channel_name, url, url_states, timeout=CONFIG['network']['check_timeout']):
+    """检查单个频道的有效性和速度
+    参数:
+        channel_name: 频道名称
+        url: 频道 URL
+        url_states: URL 状态字典
+        timeout: 检查超时时间（秒）
+    返回:
+        元组 (响应时间, 是否有效)
+    """
+    current_time = datetime.now()
+    current_url_state = url_states.get(url, {})
+
+    if 'stream_check_failed_at' in current_url_state:
+        try:
+            last_failed_datetime = datetime.fromisoformat(current_url_state['stream_check_failed_at'])
+            time_since_failed_hours = (current_time - last_failed_datetime).total_seconds() / 3600
+            if time_since_failed_hours < CONFIG['channel_retention']['stream_retention_hours']:
+                logging.info(f"跳过频道 {channel_name} ({url})，因其在冷却期内（{CONFIG['channel_retention']['stream_retention_hours']}h），上次失败于 {time_since_failed_hours:.2f}h 前")
+                return None, False
+        except ValueError:
+            logging.warning(f"无法解析 URL {url} 的失败时间戳: {current_url_state['stream_check_failed_at']}")
+
+    start_time = time.time()
+    is_valid = False
+    protocol_checked = False
+
+    try:
+        if url.startswith("http"):
+            is_valid = check_http_url(url, timeout)
+            protocol_checked = True
+        elif url.startswith("rtmp"):
+            is_valid = check_rtmp_url(url, timeout)
+            protocol_checked = True
+        elif url.startswith("rtp"):
+            is_valid = check_rtp_url(url, timeout)
+            protocol_checked = True
+        elif url.startswith("p3p"):
+            is_valid = check_p3p_url(url, timeout)
+            protocol_checked = True
+        elif url.startswith("webrtc"):
+            is_valid = check_webrtc_url(url, timeout)
+            protocol_checked = True
+        else:
+            logging.info(f"频道 {channel_name} 的协议不支持: {url}")
+            if url not in url_states:
+                url_states[url] = {}
+            url_states[url]['last_checked_protocol_unsupported'] = current_time.isoformat()
+            url_states[url].pop('stream_check_failed_at', None)
+            url_states[url].pop('stream_fail_count', None)
+            url_states[url]['last_stream_checked'] = current_time.isoformat()
+            return None, False
+
+        elapsed_time = (time.time() - start_time) * 1000
+
+        if is_valid:
+            if url not in url_states:
+                url_states[url] = {}
+            url_states[url].pop('stream_check_failed_at', None)
+            url_states[url].pop('stream_fail_count', None)
+            url_states[url]['last_successful_stream_check'] = current_time.isoformat()
+            url_states[url]['last_stream_checked'] = current_time.isoformat()
+            logging.info(f"频道 {channel_name} ({url}) 检查成功，耗时 {elapsed_time:.0f} ms")
+            return elapsed_time, True
+        else:
+            if url not in url_states:
+                url_states[url] = {}
+            url_states[url]['stream_check_failed_at'] = current_time.isoformat()
+            url_states[url]['stream_fail_count'] = current_url_state.get('stream_fail_count', 0) + 1
+            url_states[url]['last_stream_checked'] = current_time.isoformat()
+            logging.info(f"频道 {channel_name} ({url}) 检查失败")
+            return None, False
+    except Exception as e:
+        if url not in url_states:
+            url_states[url] = {}
+        url_states[url]['stream_check_failed_at'] = current_time.isoformat()
+        url_states[url]['stream_fail_count'] = current_url_state.get('stream_fail_count', 0) + 1
+        url_states[url]['last_stream_checked'] = current_time.isoformat()
+        logging.info(f"检查频道 {channel_name} ({url}) 错误: {e}")
+        return None, False
+
+@performance_monitor
+def process_single_channel_line(channel_line, url_states):
+    """处理单个频道行以进行有效性检查
+    参数:
+        channel_line: 频道行（格式为 "名称,URL"）
+        url_states: URL 状态字典
+    返回:
+        元组 (响应时间, 频道行)，若无效则返回 (None, None)
+    """
+    if "://" not in channel_line:
+        logging.info(f"跳过无效频道行（无协议）: {channel_line}")
+        return None, None
+    parts = channel_line.split(',', 1)
+    if len(parts) == 2:
+        name, url = parts
+        url = url.strip()
+        elapsed_time, is_valid = check_channel_validity_and_speed(name, url, url_states)
+        if is_valid:
+            return elapsed_time, f"{name},{url}"
+    return None, None
+
+@performance_monitor
+def check_channels_multithreaded(channel_lines, url_states, max_workers=CONFIG['network']['channel_check_workers']):
+    """多线程检查频道有效性
+    参数:
+        channel_lines: 频道行列表
+        url_states: URL 状态字典
+        max_workers: 最大线程数
+    返回:
+        有效频道的列表，包含响应时间和频道行
+    """
+    results = []
+    checked_count = 0
+    total_channels = len(channel_lines)
+    logging.warning(f"开始多线程检查 {total_channels} 个频道的有效性和速度")
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {executor.submit(process_single_channel_line, line, url_states): line for line in channel_lines}
+        for i, future in enumerate(as_completed(futures)):
+            checked_count += 1
+            if checked_count % CONFIG['performance_monitor']['log_interval'] == 0:
+                logging.warning(f"已检查 {checked_count}/{total_channels} 个频道")
+            try:
+                elapsed_time, result_line = future.result()
+                if elapsed_time is not None and result_line is not None:
+                    results.append((elapsed_time, result_line))
+            except Exception as exc:
+                logging.warning(f"处理频道行时发生异常: {exc}")
+    return results
 
 # --- 文件合并和排序函数 ---
 @performance_monitor
@@ -715,8 +967,7 @@ def merge_local_channel_files(local_channels_directory, output_file_name, url_st
     channels_for_checking_lines = [f"{name},{url}" for name, url in combined_channels]
     logging.warning(f"总计 {len(channels_for_checking_lines)} 个唯一频道待检查和过滤")
 
-    # 移除了实际的网络有效性检查，所有通过预筛选和格式检查的频道都被认为是“有效”的
-    valid_channels_from_check = [(0, line) for line in channels_for_checking_lines] 
+    valid_channels_from_check = check_channels_multithreaded(channels_for_checking_lines, url_states)
 
     # 按分类重新组织有效频道
     categorized_channels_checked, uncategorized_channels_checked, final_ordered_categories_checked = categorize_channels(
@@ -732,10 +983,10 @@ def merge_local_channel_files(local_channels_directory, output_file_name, url_st
                     iptv_list_file.write(f"{category},#genre#\n")
                     for name, url in sorted(categorized_channels_checked[category], key=lambda x: x[0]):
                         iptv_list_file.write(f"{name},{url}\n")
-            if uncategorized_channels_checked:
-                iptv_list_file.write("其他频道,#genre#\n")
-                for name, url in sorted(uncategorized_channels_checked, key=lambda x: x[0]):
-                    iptv_list_file.write(f"{name},{url}\n")
+ #           if uncategorized_channels_checked:
+ #               iptv_list_file.write("其他频道,#genre#\n")
+ #               for name, url in sorted(uncategorized_channels_checked, key=lambda x: x[0]):
+ #                   iptv_list_file.write(f"{name},{url}\n")
         logging.warning(f"所有频道列表文件合并、去重、分类完成，输出保存到: {output_file_name}")
     except Exception as e:
         logging.error(f"写入文件 '{output_file_name}' 失败: {e}")
@@ -894,7 +1145,7 @@ def auto_discover_github_urls(urls_file_path_local, github_token):
 # --- URL 清理函数 ---
 @performance_monitor
 def cleanup_urls_local(urls_file_path_local, url_states):
-    """清理无效或失败的 URL (注意: 移除了网络有效性检查后，此函数中基于'stream_fail_count'和'stream_check_failed_at'的清理将不再生效，因为这些状态不再更新。)
+    """清理无效或失败的 URL
     参数:
         urls_file_path_local: 本地 URL 文件路径
         url_states: URL 状态字典
@@ -910,7 +1161,6 @@ def cleanup_urls_local(urls_file_path_local, url_states):
         last_failed_time_str = state.get('stream_check_failed_at')
         remove_url = False
 
-        # 以下逻辑在移除了网络可达性检查后，将不再触发对 URL 的移除，因为 'stream_fail_count' 和 'stream_check_failed_at' 不会被更新。
         if fail_count > CONFIG['channel_retention']['url_fail_threshold']:
             if last_failed_time_str:
                 try:
@@ -932,7 +1182,7 @@ def cleanup_urls_local(urls_file_path_local, url_states):
 
     if removed_count > 0:
         logging.warning(f"从 {urls_file_path_local} 清理 {removed_count} 个 URL")
-        write_array_to_txt_local(urls_to_keep)
+        write_array_to_txt_local(urls_file_path_local, urls_to_keep)
     else:
         logging.warning("无需清理 urls.txt 中的 URL")
 
@@ -1027,7 +1277,7 @@ def main():
     包含以下步骤：
     1. 加载 URL 状态
     2. 从 GitHub 自动发现新 URL
-    3. 清理无效 URL (注意: 基于网络可达性的清理已移除)
+    3. 清理无效 URL
     4. 加载 URL 列表
     5. 多线程提取频道
     6. 过滤和修改频道
@@ -1046,7 +1296,7 @@ def main():
     # 步骤 2：从 GitHub 自动发现新 URL
     auto_discover_github_urls(URLS_PATH, GITHUB_TOKEN)
 
-    # 步骤 3：清理无效 URL (注意: 基于网络可达性的清理已移除，仅保留了基于上次检查失败时间的清理逻辑，但因检查功能移除而不再生效)
+    # 步骤 3：清理无效 URL
     cleanup_urls_local(URLS_PATH, url_states)
 
     # 步骤 4：加载 URL 列表
@@ -1060,9 +1310,10 @@ def main():
     all_extracted_channels = []
     source_tracker = {}
     logging.warning(f"开始从 {len(urls)} 个 URL 提取频道")
-    max_urls = 100  # 临时限制为 100 个 URL 以调试
-    urls_to_process = urls[:max_urls]
-    logging.warning(f"调试模式：仅处理前 {len(urls_to_process)} 个 URL")
+   # max_urls = 100  # 临时限制为 100 个 URL 以调试
+   #  urls_to_process = urls[:max_urls]
+   #  logging.warning(f"调试模式：仅处理前 {len(urls_to_process)} 个 URL")
+    urls_to_process = urls
     with ThreadPoolExecutor(max_workers=min(CONFIG['network']['url_fetch_workers'], 10)) as executor:
         futures = {executor.submit(extract_channels_from_url, url, url_states, source_tracker): url for url in urls_to_process}
         for i, future in enumerate(as_completed(futures)):
