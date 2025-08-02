@@ -1,0 +1,116 @@
+name: IPTV 250724
+
+# 触发条件
+on:
+  workflow_dispatch:  # 允许手动触发
+  schedule:
+    - cron: '0 */168 * * *'  # 每周运行一次
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360  # 设置 6 小时超时
+    permissions:
+      contents: write  # 授予写入权限，用于提交和推送更改
+
+    steps:
+      # 步骤 1：检查 BOT secret
+      - name: 检查 BOT secret
+        run: |
+          if [ -z "${{ secrets.TOKEN }}" ]; then
+            echo "错误：未设置 BOT secret，请在 GitHub Secrets 中配置"
+            exit 1
+          fi
+        shell: bash
+
+      # 步骤 2：检出代码
+      - name: 检出代码
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # 获取完整提交历史，便于 rebase
+          token: ${{ secrets.TOKEN }}  # 使用 BOT secret 进行认证
+
+      # 步骤 3：设置 Python 环境
+      - name: 设置 Python 环境
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'  # 缓存 pip 依赖
+
+      # 步骤 4：安装 Python 依赖
+      - name: 安装 Python 依赖
+        run: |
+          pip install requests aiohttp beautifulsoup4 tenacity psutil
+          pip install pyyaml requests tenacity
+          pip install dnspython
+          pip install requests pyyaml dnspython aiohttp tqdm
+          pip install aiofiles
+          pip install cachetools
+
+      - name: 设置时区
+        run: sudo timedatectl set-timezone 'Asia/Shanghai'
+
+     
+
+      # 步骤 7：运行 IPTV 爬取脚本
+      - name: 运行 IPTV 爬取脚本
+        env:
+          BOT: ${{ secrets.TOKEN }}
+        run: python tv.py
+
+      # 步骤 8：保存日志和生成文件
+      - name: 保存日志和生成文件
+        uses: actions/upload-artifact@v4
+        with:
+          name: iptv-results
+          path: |
+            *.txt              # 捕获 iptv_list.txt 和 uncategorized_iptv.txt
+            temp_channels/     # 捕获 temp_channels 目录下的所有文件
+            config/*.txt       # 捕获 config 目录下的所有 .txt 文件
+            config/*.json      # 捕获 config 目录下的所有 .json 文件
+            iptv_crawler.log   # 捕获日志文件
+          retention-days: 7
+          if-no-files-found: warn
+          compression-level: 6
+          overwrite: false
+          include-hidden-files: false
+        if: always()
+
+      # 步骤 9：检查文件更改
+      - name: 检查文件更改
+        id: check_changes
+        run: |
+          git add .
+          if git diff --staged --quiet; then
+            echo "没有文件更改"
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+          else
+            echo "检测到文件更改"
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+          fi
+        shell: bash
+
+      # 步骤 10：提交更改
+      - name: 提交更改
+        if: steps.check_changes.outputs.has_changes == 'true'
+        run: |
+          git config --global user.email "actions@github.com"
+          git config --global user.name "GitHub Actions"
+          git commit --allow-empty -m "更新 IPTV 频道列表 ($(date +'%Y-%m-%d %H:%M'))"
+
+      # 步骤 11：推送更改 (优先合并)
+      - name: 推送更改 (优先合并)
+        if: steps.check_changes.outputs.has_changes == 'true'
+        run: |
+          git fetch origin main # 拉取远程 main 分支的最新状态
+          # 尝试合并远程更改。如果合并失败（有冲突），则退出并报错。
+          git merge origin/main -m "Merge remote changes before pushing" || (echo "错误：检测到合并冲突，请手动解决或检查日志" && exit 1)
+          git push origin main # 推送合并后的更改
+        env:
+          GITHUB_TOKEN: ${{ secrets.TOKEN }}
+
+      # 步骤 12：发送运行结果通知
+      - name: 发送运行结果通知
+        run: |
+          echo "IPTV 频道更新工作流完成，状态: ${{ job.status }}"
+          echo "请检查 artifact 中的 iptv_crawler.log 以获取详细信息"
