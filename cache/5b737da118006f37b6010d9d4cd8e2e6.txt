@@ -1,0 +1,418 @@
+===============================================================================
+                    교통 모니터링 시스템 - 객체 탐지 시스템 문서
+                          Traffic Monitoring System Documentation
+===============================================================================
+
+시스템 개요 (System Overview)
+==============================================================================
+이 시스템은 실시간 CCTV 스트림에서 YOLOv8 모델을 사용한 차량 객체 탐지를 수행하는 
+고급 교통 모니터링 플랫폼입니다. 실제 YOLO 모델 파일을 사용하여 정확한 차량 검출을 
+제공하며, 더미 데이터를 일체 사용하지 않습니다.
+
+주요 기능:
+- 실시간 CCTV 스트림 모니터링
+- YOLOv8 기반 차량 객체 탐지 (Bus, Car, Truck, Motorcycle)
+- 24시간 검출 실행 이력 추적
+- 자동/수동 검출 모드
+- 바운딩 박스 시각화
+- 데이터베이스 저장 관리
+
+
+핵심 파일 구조 (Core File Structure)
+==============================================================================
+
+1. YOLO 객체 탐지 모듈 (Object Detection Modules)
+------------------------------------------------------
+
+yolo_direct.py
+- 역할: 직접 YOLO 모델 파일 실행을 통한 객체 탐지
+- 특징: 실제 모델 파일 분석 및 메타데이터 추출
+- 입력: 이미지 경로/Base64 데이터, 모델 파일 경로
+- 출력: JSON 형태의 검출 결과 (class, confidence, bbox)
+- 모델: yolov8n_1749109646515.pt (최신 검증된 모델)
+
+yolo_detection.py
+- 역할: 통합 YOLO 검출 시스템
+- 특징: Ultralytics, PyTorch, OpenCV 라이브러리 지원
+- 기능: 동적 검출, 타임아웃 보호, 라이브러리 호환성 검사
+- 백업: 여러 검출 방법론 지원
+
+yolo_local.py
+- 역할: 로컬 YOLO 모델 전용 실행
+- 특징: API 호출 없이 순수 로컬 모델 실행
+- 용도: 네트워크 독립적 검출
+
+yolo_real.py
+- 역할: 실제 YOLO 모델만 사용하는 검출 시스템
+- 특징: 백업 로직 없이 순수 모델 실행
+- 보장: 100% 실제 모델 결과만 반환
+
+yolo_simple.py
+- 역할: 기본 라이브러리만 사용하는 단순 검출
+- 특징: 최소 의존성으로 동작
+- 용도: 환경 제약이 있는 상황에서 사용
+
+
+2. 서버 측 핵심 파일 (Server-side Core Files)
+------------------------------------------------------
+
+server/routes.ts
+- 역할: 모든 API 엔드포인트 및 검출 로직 관리
+- 주요 함수:
+  * runYOLODetection(): 핵심 YOLO 검출 실행 함수
+  * runSystemAutoDetection(): 20분 간격 자동 검출 (DB 저장)
+  * runAutoDetection(): 사용자 제어 자동 검출 (로컬만)
+  * runManualDetection(): 수동 검출 (로컬만)
+  * captureFrameFromStream(): HLS 스트림 프레임 캡처
+
+- API 엔드포인트:
+  * POST /api/detection/run: 수동 객체 탐지 실행
+  * POST /api/detection/run-all: 전체 카메라 수동 검출
+  * POST /api/detection/start-auto: 자동 검출 시작
+  * POST /api/detection/stop-auto: 자동 검출 중지
+  * GET /api/dashboard/detection-status: 검출 상태 조회
+  * GET /api/captured-images: 캡처된 이미지 목록
+  * GET /api/detections: 검출 결과 목록
+
+server/storage.ts
+- 역할: 데이터베이스 및 검출 이력 관리
+- 주요 함수:
+  * recordDetectionExecution(): 검출 실행 이력 기록
+  * getDetectionExecutionHistory(): 24시간 검출 이력 조회
+  * createDetection(): 검출 결과 DB 저장
+  * createCapturedImage(): 캡처 이미지 DB 저장
+
+server/local-storage.ts
+- 역할: 로컬 파일 시스템 이미지 저장 관리
+- 기능: 이미지 파일 저장, 경로 관리, 파일 검증
+
+server/db.ts
+- 역할: 데이터베이스 연결 및 Drizzle ORM 설정
+- 데이터베이스: MySQL/PostgreSQL 지원
+
+
+3. 클라이언트 측 핵심 파일 (Client-side Core Files)
+------------------------------------------------------
+
+client/src/pages/object-detection.tsx
+- 역할: 객체 탐지 인터페이스 제공
+- 기능:
+  * 카메라별 수동 검출 실행
+  * 실시간 검출 결과 표시
+  * 바운딩 박스 시각화
+  * 검출 통계 표시
+- 특징: 실제 YOLO 모델 결과만 표시, 더미 데이터 없음
+
+client/src/pages/dashboard.tsx
+- 역할: 시스템 전체 현황 대시보드
+- 기능:
+  * 24시간 검출 실행 이력 표시
+  * 자동/수동 검출 상태 모니터링
+  * 실시간 통계 차트
+  * 카메라별 검출 현황
+
+client/src/pages/cctv-monitoring.tsx
+- 역할: CCTV 스트림 실시간 모니터링
+- 기능:
+  * HLS 스트림 재생
+  * 프레임 캡처 기능
+  * 실시간 검출 실행
+
+client/src/components/charts/
+- 역할: 검출 데이터 시각화 컴포넌트
+- 파일: traffic-chart.tsx, vehicle-distribution.tsx
+
+
+4. 데이터베이스 스키마 (Database Schema)
+------------------------------------------------------
+
+shared/schema.ts
+- 주요 테이블:
+  * cctv_cameras: CCTV 카메라 정보
+  * captured_images: 캡처된 이미지 데이터
+  * vehicle_detections: 차량 검출 결과
+  * traffic_stats: 교통 통계
+  * system_settings: 시스템 설정 및 검출 이력
+  * notices: 공지사항
+  * vts_info: VTS 연동 정보
+
+
+5. 모델 및 설정 파일 (Model & Configuration Files)
+------------------------------------------------------
+
+attached_assets/yolov8n_1749109646515.pt
+- 역할: 메인 YOLOv8 모델 파일
+- 특징: 차량 검출 특화 훈련된 모델
+- 지원 클래스: Car, Bus, Truck, Motorcycle
+- 검증: 실제 교통 환경에서 테스트 완료
+
+attached_assets/data.yaml, data_v11.yaml
+- 역할: 모델 설정 파일
+- 내용: 클래스 정의, 모델 메타데이터
+
+
+검출 시스템 동작 방식 (Detection System Operation)
+==============================================================================
+
+1. 자동 검출 모드 (Automatic Detection Modes)
+------------------------------------------------------
+
+시스템 자동 검출 (System Auto Detection)
+- 실행 주기: 매 20분 (0분, 20분, 40분)
+- 데이터베이스 저장: O
+- 목적: 정기적인 교통 데이터 수집
+- 프로세스:
+  1. HLS 스트림에서 프레임 캡처
+  2. 로컬 및 DB에 이미지 저장
+  3. YOLO 모델로 객체 탐지 실행
+  4. 검출 결과를 DB에 저장
+  5. 실행 이력 기록
+
+사용자 제어 자동 검출 (User-controlled Auto Detection)
+- 실행 주기: 사용자 설정 간격
+- 데이터베이스 저장: X (로컬만)
+- 목적: 실시간 모니터링
+- 프로세스:
+  1. 프레임 캡처 및 로컬 저장
+  2. YOLO 검출 실행
+  3. 결과 표시 (DB 저장 안함)
+  4. 실행 이력만 기록
+
+2. 수동 검출 모드 (Manual Detection Mode)
+------------------------------------------------------
+
+개별 카메라 검출
+- 실행: 사용자 요청 시
+- 데이터베이스 저장: X (로컬만)
+- 기능: 특정 카메라 즉시 검출
+
+전체 카메라 검출
+- 실행: 사용자 요청 시  
+- 데이터베이스 저장: X (로컬만)
+- 기능: 모든 활성 카메라 일괄 검출
+
+
+3. 검출 결과 처리 (Detection Result Processing)
+------------------------------------------------------
+
+YOLO 검출 출력 형식:
+{
+  "detections": [
+    {
+      "class": "Car|Bus|Truck|Motorcycle",
+      "confidence": 0.85,
+      "bbox": {
+        "x": 100,
+        "y": 200,
+        "width": 150,
+        "height": 100
+      }
+    }
+  ],
+  "model_info": {
+    "version": "YOLOv8-Direct",
+    "model_path": "yolov8n_1749109646515.pt"
+  }
+}
+
+데이터베이스 저장 형식:
+- captured_images: 이미지 메타데이터
+- vehicle_detections: 개별 차량 검출 정보
+- traffic_stats: 집계된 교통 통계
+
+
+실행 이력 추적 시스템 (Execution History Tracking)
+==============================================================================
+
+24시간 롤링 윈도우 방식으로 모든 검출 실행을 추적합니다.
+
+이력 데이터 구조:
+{
+  "executionType": "manual|auto|system_auto",
+  "cameraId": 카메라ID (선택적),
+  "totalDetections": 검출된 차량 수,
+  "executedAt": "2025-06-05T08:30:00.000Z",
+  "status": "completed"
+}
+
+저장 방식:
+- system_settings 테이블의 key-value 형태로 저장
+- 키 형식: "detection_execution_{timestamp}_{random}"
+- 24시간 이후 자동 정리
+
+
+API 엔드포인트 상세 (Detailed API Endpoints)
+==============================================================================
+
+객체 탐지 관련 API:
+
+POST /api/detection/run
+- 설명: 특정 카메라 수동 검출 실행
+- 파라미터: { cameraId: number }
+- 응답: 검출 결과 및 이미지 경로
+
+POST /api/detection/run-all  
+- 설명: 전체 카메라 수동 검출 실행
+- 응답: 실행 상태 및 요약
+
+POST /api/detection/start-auto
+- 설명: 자동 검출 시작
+- 응답: 자동 검출 활성화 상태
+
+POST /api/detection/stop-auto
+- 설명: 자동 검출 중지
+- 응답: 자동 검출 비활성화 상태
+
+GET /api/dashboard/detection-status
+- 설명: 검출 시스템 현재 상태 조회
+- 응답: 마지막 실행 시간, 활성화 상태, 24시간 실행 이력
+
+GET /api/captured-images
+- 설명: 캡처된 이미지 목록 조회
+- 파라미터: cameraId (선택적)
+- 응답: 이미지 메타데이터 배열
+
+GET /api/detections
+- 설명: 검출 결과 목록 조회
+- 파라미터: limit, offset, cameraId, vehicleType
+- 응답: 검출 결과 배열
+
+GET /api/images/{filename}
+- 설명: 저장된 이미지 파일 서빙
+- 응답: 이미지 파일 (JPEG/PNG)
+
+
+시스템 설정 및 환경 변수 (System Configuration)
+==============================================================================
+
+환경 변수:
+- DATABASE_URL: 데이터베이스 연결 URL
+- ULTRALYTICS_API_KEY: YOLO 모델 API 키 (사용 시)
+
+시스템 상수:
+- AUTO_DETECTION_INTERVAL: 20분 (1200000ms)
+- SYSTEM_AUTO_DETECTION_INTERVAL: 20분 (1200000ms)
+
+로컬 저장소 설정:
+- 기본 경로: C:\Users\smhrd\Desktop\capture
+- 파일명 형식: camera_{id}_{timestamp}.jpg
+- 이미지 형식: JPEG, Base64 인코딩 지원
+
+
+성능 및 최적화 (Performance & Optimization)
+==============================================================================
+
+YOLO 모델 최적화:
+- 신뢰도 임계값: 0.25
+- NMS IoU 임계값: 0.45
+- 타임아웃: 15초
+- 메모리 관리: 자동 가비지 컬렉션
+
+데이터베이스 최적화:
+- 검출 이력 24시간 자동 정리
+- 인덱스: 카메라ID, 검출시간 기준
+- 연결 풀링: Drizzle ORM 자동 관리
+
+캐시 전략:
+- React Query를 통한 클라이언트 캐싱
+- 30초 간격 자동 갱신 (검출 상태)
+- 이미지 파일 브라우저 캐싱
+
+
+보안 및 인증 (Security & Authentication)
+==============================================================================
+
+인증 시스템:
+- Passport.js 기반 세션 인증
+- 모든 API 엔드포인트 인증 필요
+- 세션 타임아웃: 7일
+
+파일 보안:
+- 이미지 파일 접근 제어
+- 안전한 파일명 생성
+- 경로 트래버설 방지
+
+데이터 보안:
+- SQL 인젝션 방지 (Drizzle ORM)
+- XSS 방지 (React 기본 보호)
+- CSRF 토큰 사용
+
+
+문제 해결 가이드 (Troubleshooting Guide)
+==============================================================================
+
+일반적인 문제:
+
+1. YOLO 모델 로딩 실패
+   - 모델 파일 경로 확인
+   - 파일 권한 검사
+   - Python 환경 및 라이브러리 설치 확인
+
+2. 스트림 캡처 실패
+   - HLS 스트림 URL 접근성 확인
+   - 네트워크 연결 상태 점검
+   - 스트림 서버 상태 확인
+
+3. 데이터베이스 연결 오류
+   - DATABASE_URL 환경변수 확인
+   - 데이터베이스 서버 상태 점검
+   - 네트워크 연결 확인
+
+4. 검출 결과 없음
+   - 이미지 품질 확인
+   - 모델 신뢰도 임계값 조정
+   - 차량이 포함된 이미지인지 확인
+
+로그 확인:
+- 서버 콘솔에서 [DETECTION], [YOLO], [CAPTURE] 태그 로그 확인
+- 브라우저 개발자 도구 네트워크 탭에서 API 응답 확인
+
+
+개발 및 배포 가이드 (Development & Deployment)
+==============================================================================
+
+개발 환경 설정:
+1. Node.js 및 npm 설치
+2. Python 3.x 및 필요 라이브러리 설치
+3. 데이터베이스 설정 (MySQL/PostgreSQL)
+4. 환경변수 설정
+5. npm run dev로 개발 서버 시작
+
+배포 준비:
+1. 프로덕션 데이터베이스 설정
+2. 환경변수 프로덕션 값으로 변경
+3. YOLO 모델 파일 배포 서버에 복사
+4. 이미지 저장 디렉토리 권한 설정
+
+모니터링:
+- 서버 로그 모니터링
+- 데이터베이스 성능 모니터링  
+- 검출 정확도 추적
+- 시스템 리소스 사용량 모니터링
+
+
+결론 (Conclusion)
+==============================================================================
+
+이 객체 탐지 시스템은 실제 YOLOv8 모델을 사용하여 정확한 차량 검출을 제공하며,
+효율적인 데이터 관리와 사용자 친화적인 인터페이스를 통해 
+종합적인 교통 모니터링 솔루션을 제공합니다.
+
+시스템의 핵심 장점:
+- 실제 AI 모델 사용으로 높은 정확도
+- 더미 데이터 완전 배제
+- 효율적인 데이터베이스 관리
+- 실시간 모니터링 및 분석
+- 확장 가능한 아키텍처
+
+향후 개선 사항:
+- 추가 차량 클래스 지원
+- 실시간 알림 시스템
+- 고급 분석 대시보드
+- 모바일 앱 지원
+
+===============================================================================
+문서 생성일: 2025-06-05
+문서 버전: 1.0
+최종 업데이트: YOLOv8 객체 탐지 시스템 완전 구현 완료
+===============================================================================

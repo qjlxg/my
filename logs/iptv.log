@@ -1,0 +1,293 @@
+2025-08-02 13:39:41,531 - WARNING - 开始执行 IPTV 处理脚本
+2025-08-02 13:39:41,531 - WARNING - URL 状态文件 'config/url_states.json' 未找到，使用空状态
+2025-08-02 13:39:41,531 - WARNING - 加载 0 个 URL 状态
+2025-08-02 13:39:41,531 - WARNING - 文件 'config/urls.txt' 未找到
+2025-08-02 13:39:41,565 - WARNING - 从备用 URL https://raw.githubusercontent.com/example/repo/main/iptv_urls.txt 获取失败: 404 Client Error: Not Found for url: https://raw.githubusercontent.com/example/repo/main/iptv_urls.txt
+2025-08-02 13:39:41,774 - WARNING - 从备用 URL https://example.com/iptv_list.txt 获取失败: 404 Client Error: Not Found for url: https://example.com/iptv_list.txt
+2025-08-02 13:39:41,774 - WARNING - 开始从 GitHub 自动发现新的 IPTV 源 URL
+2025-08-02 13:40:10,711 - ERROR - GitHub API 速率限制或访问被拒绝，关键词 'extension:m3u8 in:file': 403 Client Error: Forbidden for url: https://api.github.com/search/code?q=extension%3Am3u8+in%3Afile&sort=indexed&order=desc&per_page=100&page=6
+2025-08-02 13:40:10,711 - WARNING - 切换到下一个关键词: 'extension:m3u in:file'，等待 38 秒以避免速率限制
+2025-08-02 13:41:15,487 - ERROR - GitHub API 速率限制或访问被拒绝，关键词 'extension:m3u in:file': 403 Client Error: Forbidden for url: https://api.github.com/search/code?q=extension%3Am3u+in%3Afile&sort=indexed&order=desc&per_page=100&page=6
+2025-08-02 13:41:15,487 - WARNING - 切换到下一个关键词: 'iptv playlist extension:m3u,m3u8 in:file'，等待 38 秒以避免速率限制
+2025-08-02 13:41:53,568 - WARNING - 切换到下一个关键词: 'raw.githubusercontent.com path:.m3u8'，等待 38 秒以避免速率限制
+2025-08-02 13:42:31,686 - WARNING - 切换到下一个关键词: 'raw.githubusercontent.com path:.m3u'，等待 38 秒以避免速率限制
+2025-08-02 13:43:09,974 - WARNING - 切换到下一个关键词: 'tv channels extension:m3u,m3u8 in:file'，等待 38 秒以避免速率限制
+2025-08-02 13:43:48,102 - WARNING - 切换到下一个关键词: 'live tv extension:m3u,m3u8 in:file'，等待 38 秒以避免速率限制
+2025-08-02 13:44:26,187 - WARNING - 切换到下一个关键词: 'playlist.m3u8 in:file'，等待 38 秒以避免速率限制
+2025-08-02 13:45:21,122 - ERROR - GitHub API 速率限制或访问被拒绝，关键词 'playlist.m3u8 in:file': 403 Client Error: Forbidden for url: https://api.github.com/search/code?q=playlist.m3u8+in%3Afile&sort=indexed&order=desc&per_page=100&page=4
+2025-08-02 13:45:21,122 - WARNING - 切换到下一个关键词: 'index.m3u8 in:file'，等待 38 秒以避免速率限制
+2025-08-02 13:46:33,610 - ERROR - GitHub API 速率限制或访问被拒绝，关键词 'index.m3u8 in:file': 403 Client Error: Forbidden for url: https://api.github.com/search/code?q=index.m3u8+in%3Afile&sort=indexed&order=desc&per_page=100&page=8
+2025-08-02 13:46:33,610 - WARNING - 切换到下一个关键词: 'channels.m3u in:file'，等待 38 秒以避免速率限制
+2025-08-02 13:47:46,202 - ERROR - GitHub API 速率限制或访问被拒绝，关键词 'channels.m3u in:file': 403 Client Error: Forbidden for url: https://api.github.com/search/code?q=channels.m3u+in%3Afile&sort=indexed&order=desc&per_page=100&page=7
+2025-08-02 13:47:46,202 - WARNING - 切换到下一个关键词: 'iptv links'，等待 38 秒以避免速率限制
+2025-08-02 13:49:04,424 - ERROR - GitHub API 速率限制或访问被拒绝，关键词 'iptv links': 403 Client Error: Forbidden for url: https://api.github.com/search/code?q=iptv+links&sort=indexed&order=desc&per_page=100&page=7
+2025-08-02 13:49:04,424 - WARNING - 切换到下一个关键词: 'm3u8 playlist'，等待 38 秒以避免速率限制
+2025-08-02 13:50:13,811 - ERROR - GitHub API 速率限制或访问被拒绝，关键词 'm3u8 playlist': 403 Client Error: Forbidden for url: https://api.github.com/search/code?q=m3u8+playlist&sort=indexed&order=desc&per_page=100&page=7
+2025-08-02 13:50:13,811 - WARNING - 切换到下一个关键词: 'iptv list'，等待 38 秒以避免速率限制
+2025-08-02 13:51:29,539 - ERROR - GitHub API 速率限制或访问被拒绝，关键词 'iptv list': 403 Client Error: Forbidden for url: https://api.github.com/search/code?q=iptv+list&sort=indexed&order=desc&per_page=100&page=8
+2025-08-02 13:51:29,539 - WARNING - 切换到下一个关键词: 'm3u channels'，等待 38 秒以避免速率限制
+2025-08-02 13:52:32,839 - ERROR - GitHub API 速率限制或访问被拒绝，关键词 'm3u channels': 403 Client Error: Forbidden for url: https://api.github.com/search/code?q=m3u+channels&sort=indexed&order=desc&per_page=100&page=6
+2025-08-02 13:52:32,839 - WARNING - 切换到下一个关键词: 'iptv channels'，等待 38 秒以避免速率限制
+2025-08-02 13:53:48,851 - ERROR - GitHub API 速率限制或访问被拒绝，关键词 'iptv channels': 403 Client Error: Forbidden for url: https://api.github.com/search/code?q=iptv+channels&sort=indexed&order=desc&per_page=100&page=8
+2025-08-02 13:53:48,851 - WARNING - 切换到下一个关键词: 'live tv playlist'，等待 38 秒以避免速率限制
+2025-08-02 13:55:14,993 - ERROR - GitHub API 速率限制或访问被拒绝，关键词 'live tv playlist': 403 Client Error: Forbidden for url: https://api.github.com/search/code?q=live+tv+playlist&sort=indexed&order=desc&per_page=100&page=10
+2025-08-02 13:55:14,993 - WARNING - 切换到下一个关键词: 'free iptv'，等待 38 秒以避免速率限制
+2025-08-02 13:56:40,287 - ERROR - GitHub API 速率限制或访问被拒绝，关键词 'free iptv': 403 Client Error: Forbidden for url: https://api.github.com/search/code?q=free+iptv&sort=indexed&order=desc&per_page=100&page=10
+2025-08-02 13:56:40,287 - WARNING - 切换到下一个关键词: 'public iptv'，等待 38 秒以避免速率限制
+2025-08-02 13:58:09,288 - ERROR - GitHub API 速率限制或访问被拒绝，关键词 'public iptv': 403 Client Error: Forbidden for url: https://api.github.com/search/code?q=public+iptv&sort=indexed&order=desc&per_page=100&page=10
+2025-08-02 13:58:09,288 - WARNING - 切换到下一个关键词: 'tv channels list'，等待 38 秒以避免速率限制
+2025-08-02 13:59:41,342 - ERROR - GitHub API 速率限制或访问被拒绝，关键词 'tv channels list': 403 Client Error: Forbidden for url: https://api.github.com/search/code?q=tv+channels+list&sort=indexed&order=desc&per_page=100&page=10
+2025-08-02 13:59:41,342 - WARNING - 切换到下一个关键词: 'stream list'，等待 38 秒以避免速率限制
+2025-08-02 14:01:15,573 - ERROR - GitHub API 速率限制或访问被拒绝，关键词 'stream list': 403 Client Error: Forbidden for url: https://api.github.com/search/code?q=stream+list&sort=indexed&order=desc&per_page=100&page=10
+2025-08-02 14:01:15,574 - WARNING - 切换到下一个关键词: 'live stream list'，等待 38 秒以避免速率限制
+2025-08-02 14:02:43,361 - ERROR - GitHub API 速率限制或访问被拒绝，关键词 'live stream list': 403 Client Error: Forbidden for url: https://api.github.com/search/code?q=live+stream+list&sort=indexed&order=desc&per_page=100&page=10
+2025-08-02 14:02:43,361 - WARNING - 切换到下一个关键词: 'm3u stream'，等待 38 秒以避免速率限制
+2025-08-02 14:03:58,972 - ERROR - GitHub API 速率限制或访问被拒绝，关键词 'm3u stream': 403 Client Error: Forbidden for url: https://api.github.com/search/code?q=m3u+stream&sort=indexed&order=desc&per_page=100&page=10
+2025-08-02 14:03:58,972 - WARNING - 切换到下一个关键词: 'm3u8 stream'，等待 38 秒以避免速率限制
+2025-08-02 14:05:01,614 - ERROR - GitHub API 速率限制或访问被拒绝，关键词 'm3u8 stream': 403 Client Error: Forbidden for url: https://api.github.com/search/code?q=m3u8+stream&sort=indexed&order=desc&per_page=100&page=10
+2025-08-02 14:05:01,614 - WARNING - 切换到下一个关键词: 'raw.githubusercontent.com m3u'，等待 38 秒以避免速率限制
+2025-08-02 14:06:24,881 - ERROR - GitHub API 速率限制或访问被拒绝，关键词 'raw.githubusercontent.com m3u': 403 Client Error: Forbidden for url: https://api.github.com/search/code?q=raw.githubusercontent.com+m3u&sort=indexed&order=desc&per_page=100&page=10
+2025-08-02 14:06:24,881 - WARNING - 切换到下一个关键词: 'gist.github.com m3u'，等待 38 秒以避免速率限制
+2025-08-02 14:08:11,917 - ERROR - 搜索 GitHub 关键词 'gist.github.com m3u' 失败: 422 Client Error: Unprocessable Entity for url: https://api.github.com/search/code?q=gist.github.com+m3u&sort=indexed&order=desc&per_page=100&page=11
+2025-08-02 14:08:11,918 - WARNING - 切换到下一个关键词: 'cdn.jsdelivr.net m3u'，等待 38 秒以避免速率限制
+2025-08-02 14:09:46,686 - ERROR - 搜索 GitHub 关键词 'cdn.jsdelivr.net m3u' 失败: 422 Client Error: Unprocessable Entity for url: https://api.github.com/search/code?q=cdn.jsdelivr.net+m3u&sort=indexed&order=desc&per_page=100&page=11
+2025-08-02 14:09:46,686 - WARNING - 切换到下一个关键词: 'fastly.net m3u8'，等待 38 秒以避免速率限制
+2025-08-02 14:11:20,096 - ERROR - GitHub API 速率限制或访问被拒绝，关键词 'fastly.net m3u8': 403 Client Error: Forbidden for url: https://api.github.com/search/code?q=fastly.net+m3u8&sort=indexed&order=desc&per_page=100&page=10
+2025-08-02 14:11:20,096 - WARNING - 切换到下一个关键词: 'gitee.com m3u'，等待 38 秒以避免速率限制
+2025-08-02 14:12:45,594 - ERROR - GitHub API 速率限制或访问被拒绝，关键词 'gitee.com m3u': 403 Client Error: Forbidden for url: https://api.github.com/search/code?q=gitee.com+m3u&sort=indexed&order=desc&per_page=100&page=10
+2025-08-02 14:12:45,594 - WARNING - 切换到下一个关键词: 'site:gitlab.com inurl:.m3u'，等待 38 秒以避免速率限制
+2025-08-02 14:13:23,871 - WARNING - 切换到下一个关键词: 'site:gitlab.com m3u8'，等待 38 秒以避免速率限制
+2025-08-02 14:14:02,124 - WARNING - 切换到下一个关键词: 'site:bitbucket.org filetype:m3u'，等待 38 秒以避免速率限制
+2025-08-02 14:14:40,383 - WARNING - 切换到下一个关键词: 'site:bitbucket.org filetype:m3u8'，等待 38 秒以避免速率限制
+2025-08-02 14:15:18,628 - WARNING - 切换到下一个关键词: 'site:pastebin.com ext:m3u'，等待 38 秒以避免速率限制
+2025-08-02 14:15:56,883 - WARNING - 切换到下一个关键词: 'site:pastebin.com m3u8'，等待 38 秒以避免速率限制
+2025-08-02 14:16:35,313 - WARNING - 切换到下一个关键词: 'site:sourcetech.cn iptv'，等待 38 秒以避免速率限制
+2025-08-02 14:17:13,548 - WARNING - 切换到下一个关键词: 'site:52pojie.cn 直播源'，等待 38 秒以避免速率限制
+2025-08-02 14:17:51,780 - WARNING - 切换到下一个关键词: 'iptv source'，等待 38 秒以避免速率限制
+2025-08-02 14:19:19,242 - ERROR - GitHub API 速率限制或访问被拒绝，关键词 'iptv source': 403 Client Error: Forbidden for url: https://api.github.com/search/code?q=iptv+source&sort=indexed&order=desc&per_page=100&page=10
+2025-08-02 14:19:19,242 - WARNING - 切换到下一个关键词: 'live stream source'，等待 38 秒以避免速率限制
+2025-08-02 14:20:47,883 - ERROR - GitHub API 速率限制或访问被拒绝，关键词 'live stream source': 403 Client Error: Forbidden for url: https://api.github.com/search/code?q=live+stream+source&sort=indexed&order=desc&per_page=100&page=10
+2025-08-02 14:20:47,884 - WARNING - 切换到下一个关键词: 'm3u8 source'，等待 38 秒以避免速率限制
+2025-08-02 14:22:10,974 - ERROR - GitHub API 速率限制或访问被拒绝，关键词 'm3u8 source': 403 Client Error: Forbidden for url: https://api.github.com/search/code?q=m3u8+source&sort=indexed&order=desc&per_page=100&page=10
+2025-08-02 14:22:10,974 - WARNING - 切换到下一个关键词: 'tv stream'，等待 38 秒以避免速率限制
+2025-08-02 14:23:39,578 - ERROR - GitHub API 速率限制或访问被拒绝，关键词 'tv stream': 403 Client Error: Forbidden for url: https://api.github.com/search/code?q=tv+stream&sort=indexed&order=desc&per_page=100&page=10
+2025-08-02 14:23:39,578 - WARNING - 切换到下一个关键词: 'streaming list'，等待 38 秒以避免速率限制
+2025-08-02 14:25:10,072 - ERROR - GitHub API 速率限制或访问被拒绝，关键词 'streaming list': 403 Client Error: Forbidden for url: https://api.github.com/search/code?q=streaming+list&sort=indexed&order=desc&per_page=100&page=10
+2025-08-02 14:25:10,072 - WARNING - 切换到下一个关键词: 'open source iptv'，等待 38 秒以避免速率限制
+2025-08-02 14:26:39,836 - ERROR - GitHub API 速率限制或访问被拒绝，关键词 'open source iptv': 403 Client Error: Forbidden for url: https://api.github.com/search/code?q=open+source+iptv&sort=indexed&order=desc&per_page=100&page=10
+2025-08-02 14:26:39,836 - WARNING - 切换到下一个关键词: 'iptv repository'，等待 38 秒以避免速率限制
+2025-08-02 14:28:04,381 - ERROR - GitHub API 速率限制或访问被拒绝，关键词 'iptv repository': 403 Client Error: Forbidden for url: https://api.github.com/search/code?q=iptv+repository&sort=indexed&order=desc&per_page=100&page=10
+2025-08-02 14:28:04,382 - WARNING - 切换到下一个关键词: 'm3u playlist 2025'，等待 38 秒以避免速率限制
+2025-08-02 14:29:38,534 - ERROR - GitHub API 速率限制或访问被拒绝，关键词 'm3u playlist 2025': 403 Client Error: Forbidden for url: https://api.github.com/search/code?q=m3u+playlist+2025&sort=indexed&order=desc&per_page=100&page=10
+2025-08-02 14:29:38,534 - WARNING - 切换到下一个关键词: 'iptv m3u8 2025'，等待 38 秒以避免速率限制
+2025-08-02 14:31:00,661 - ERROR - GitHub API 速率限制或访问被拒绝，关键词 'iptv m3u8 2025': 403 Client Error: Forbidden for url: https://api.github.com/search/code?q=iptv+m3u8+2025&sort=indexed&order=desc&per_page=100&page=10
+2025-08-02 14:31:00,661 - WARNING - 切换到下一个关键词: 'hls stream'，等待 38 秒以避免速率限制
+2025-08-02 14:32:28,109 - ERROR - GitHub API 速率限制或访问被拒绝，关键词 'hls stream': 403 Client Error: Forbidden for url: https://api.github.com/search/code?q=hls+stream&sort=indexed&order=desc&per_page=100&page=10
+2025-08-02 14:32:28,109 - WARNING - 切换到下一个关键词: 'dash stream'，等待 38 秒以避免速率限制
+2025-08-02 14:33:58,436 - ERROR - GitHub API 速率限制或访问被拒绝，关键词 'dash stream': 403 Client Error: Forbidden for url: https://api.github.com/search/code?q=dash+stream&sort=indexed&order=desc&per_page=100&page=10
+2025-08-02 14:33:58,436 - WARNING - 切换到下一个关键词: 'iptv epg'，等待 38 秒以避免速率限制
+2025-08-02 14:35:17,484 - ERROR - GitHub API 速率限制或访问被拒绝，关键词 'iptv epg': 403 Client Error: Forbidden for url: https://api.github.com/search/code?q=iptv+epg&sort=indexed&order=desc&per_page=100&page=10
+2025-08-02 14:35:17,484 - WARNING - 切换到下一个关键词: 'iptv github'，等待 38 秒以避免速率限制
+2025-08-02 14:36:48,495 - ERROR - GitHub API 速率限制或访问被拒绝，关键词 'iptv github': 403 Client Error: Forbidden for url: https://api.github.com/search/code?q=iptv+github&sort=indexed&order=desc&per_page=100&page=10
+2025-08-02 14:36:48,496 - WARNING - 切换到下一个关键词: 'm3u8?token='，等待 38 秒以避免速率限制
+2025-08-02 14:38:06,856 - ERROR - GitHub API 速率限制或访问被拒绝，关键词 'm3u8?token=': 403 Client Error: Forbidden for url: https://api.github.com/search/code?q=m3u8%3Ftoken%3D&sort=indexed&order=desc&per_page=100&page=10
+2025-08-02 14:38:06,856 - WARNING - 切换到下一个关键词: '直播源'，等待 38 秒以避免速率限制
+2025-08-02 14:39:32,209 - ERROR - GitHub API 速率限制或访问被拒绝，关键词 '直播源': 403 Client Error: Forbidden for url: https://api.github.com/search/code?q=%E7%9B%B4%E6%92%AD%E6%BA%90&sort=indexed&order=desc&per_page=100&page=10
+2025-08-02 14:39:32,209 - WARNING - 切换到下一个关键词: '电视直播'，等待 38 秒以避免速率限制
+2025-08-02 14:41:02,867 - ERROR - GitHub API 速率限制或访问被拒绝，关键词 '电视直播': 403 Client Error: Forbidden for url: https://api.github.com/search/code?q=%E7%94%B5%E8%A7%86%E7%9B%B4%E6%92%AD&sort=indexed&order=desc&per_page=100&page=10
+2025-08-02 14:41:02,867 - WARNING - 切换到下一个关键词: 'IPTV直播'，等待 38 秒以避免速率限制
+2025-08-02 14:42:25,453 - ERROR - GitHub API 速率限制或访问被拒绝，关键词 'IPTV直播': 403 Client Error: Forbidden for url: https://api.github.com/search/code?q=IPTV%E7%9B%B4%E6%92%AD&sort=indexed&order=desc&per_page=100&page=10
+2025-08-02 14:42:25,453 - WARNING - 切换到下一个关键词: 'M3U直播'，等待 38 秒以避免速率限制
+2025-08-02 14:43:15,030 - WARNING - 切换到下一个关键词: 'M3U8直播'，等待 38 秒以避免速率限制
+2025-08-02 14:44:09,026 - WARNING - 切换到下一个关键词: '频道列表'，等待 38 秒以避免速率限制
+2025-08-02 14:45:43,296 - ERROR - 搜索 GitHub 关键词 '频道列表' 失败: 422 Client Error: Unprocessable Entity for url: https://api.github.com/search/code?q=%E9%A2%91%E9%81%93%E5%88%97%E8%A1%A8&sort=indexed&order=desc&per_page=100&page=11
+2025-08-02 14:45:43,296 - WARNING - 切换到下一个关键词: '免费直播'，等待 38 秒以避免速率限制
+2025-08-02 14:47:14,215 - ERROR - GitHub API 速率限制或访问被拒绝，关键词 '免费直播': 403 Client Error: Forbidden for url: https://api.github.com/search/code?q=%E5%85%8D%E8%B4%B9%E7%9B%B4%E6%92%AD&sort=indexed&order=desc&per_page=100&page=10
+2025-08-02 14:47:14,216 - WARNING - 切换到下一个关键词: '公共直播'，等待 38 秒以避免速率限制
+2025-08-02 14:47:54,262 - WARNING - 切换到下一个关键词: '聚合直播'，等待 38 秒以避免速率限制
+2025-08-02 14:49:00,714 - WARNING - 切换到下一个关键词: '直播源.txt'，等待 38 秒以避免速率限制
+2025-08-02 14:49:40,316 - WARNING - 切换到下一个关键词: '电视直播.m3u'，等待 38 秒以避免速率限制
+2025-08-02 14:50:18,861 - WARNING - 切换到下一个关键词: '电视直播.m3u8'，等待 38 秒以避免速率限制
+2025-08-02 14:50:57,311 - WARNING - 切换到下一个关键词: 'iptv源'，等待 38 秒以避免速率限制
+2025-08-02 14:52:26,522 - ERROR - GitHub API 速率限制或访问被拒绝，关键词 'iptv源': 403 Client Error: Forbidden for url: https://api.github.com/search/code?q=iptv%E6%BA%90&sort=indexed&order=desc&per_page=100&page=10
+2025-08-02 14:52:26,522 - WARNING - 切换到下一个关键词: '直播地址'，等待 38 秒以避免速率限制
+2025-08-02 14:53:56,227 - ERROR - GitHub API 速率限制或访问被拒绝，关键词 '直播地址': 403 Client Error: Forbidden for url: https://api.github.com/search/code?q=%E7%9B%B4%E6%92%AD%E5%9C%B0%E5%9D%80&sort=indexed&order=desc&per_page=100&page=10
+2025-08-02 14:53:56,227 - WARNING - 切换到下一个关键词: '网络电视'，等待 38 秒以避免速率限制
+2025-08-02 14:55:32,359 - ERROR - GitHub API 速率限制或访问被拒绝，关键词 '网络电视': 403 Client Error: Forbidden for url: https://api.github.com/search/code?q=%E7%BD%91%E7%BB%9C%E7%94%B5%E8%A7%86&sort=indexed&order=desc&per_page=100&page=10
+2025-08-02 14:55:32,359 - WARNING - 切换到下一个关键词: '节目单'，等待 38 秒以避免速率限制
+2025-08-02 14:57:03,737 - ERROR - GitHub API 速率限制或访问被拒绝，关键词 '节目单': 403 Client Error: Forbidden for url: https://api.github.com/search/code?q=%E8%8A%82%E7%9B%AE%E5%8D%95&sort=indexed&order=desc&per_page=100&page=10
+2025-08-02 14:57:03,737 - WARNING - 切换到下一个关键词: '最新直播源'，等待 38 秒以避免速率限制
+2025-08-02 14:57:45,939 - WARNING - 切换到下一个关键词: '稳定直播源'，等待 38 秒以避免速率限制
+2025-08-02 14:58:25,151 - WARNING - 切换到下一个关键词: '组播源'，等待 38 秒以避免速率限制
+2025-08-02 14:59:54,215 - ERROR - GitHub API 速率限制或访问被拒绝，关键词 '组播源': 403 Client Error: Forbidden for url: https://api.github.com/search/code?q=%E7%BB%84%E6%92%AD%E6%BA%90&sort=indexed&order=desc&per_page=100&page=10
+2025-08-02 14:59:54,215 - WARNING - 切换到下一个关键词: 'iptvbox'，等待 38 秒以避免速率限制
+2025-08-02 15:08:13,604 - ERROR - 搜索 GitHub 关键词 'iptvbox' 失败: 422 Client Error: Unprocessable Entity for url: https://api.github.com/search/code?q=iptvbox&sort=indexed&order=desc&per_page=100&page=11
+2025-08-02 15:08:13,604 - WARNING - 切换到下一个关键词: 'TVBOX'，等待 38 秒以避免速率限制
+2025-08-02 15:09:51,630 - ERROR - GitHub API 速率限制或访问被拒绝，关键词 'TVBOX': 403 Client Error: Forbidden for url: https://api.github.com/search/code?q=TVBOX&sort=indexed&order=desc&per_page=100&page=10
+2025-08-02 15:09:51,630 - WARNING - 切换到下一个关键词: 'EPG'，等待 38 秒以避免速率限制
+2025-08-02 15:11:21,816 - ERROR - GitHub API 速率限制或访问被拒绝，关键词 'EPG': 403 Client Error: Forbidden for url: https://api.github.com/search/code?q=EPG&sort=indexed&order=desc&per_page=100&page=10
+2025-08-02 15:11:21,816 - WARNING - 切换到下一个关键词: 'CCTV1'，等待 38 秒以避免速率限制
+2025-08-02 15:12:39,297 - ERROR - GitHub API 速率限制或访问被拒绝，关键词 'CCTV1': 403 Client Error: Forbidden for url: https://api.github.com/search/code?q=CCTV1&sort=indexed&order=desc&per_page=100&page=10
+2025-08-02 15:12:39,297 - WARNING - 切换到下一个关键词: 'CCTV5'，等待 38 秒以避免速率限制
+2025-08-02 15:13:39,594 - ERROR - GitHub API 速率限制或访问被拒绝，关键词 'CCTV5': 403 Client Error: Forbidden for url: https://api.github.com/search/code?q=CCTV5&sort=indexed&order=desc&per_page=100&page=10
+2025-08-02 15:13:39,595 - WARNING - 切换到下一个关键词: '湖南卫视'，等待 38 秒以避免速率限制
+2025-08-02 15:14:17,647 - ERROR - GitHub API 速率限制或访问被拒绝，关键词 '湖南卫视': 403 Client Error: Forbidden for url: https://api.github.com/search/code?q=%E6%B9%96%E5%8D%97%E5%8D%AB%E8%A7%86&sort=indexed&order=desc&per_page=100&page=1
+2025-08-02 15:14:17,647 - WARNING - 切换到下一个关键词: '凤凰卫视'，等待 38 秒以避免速率限制
+2025-08-02 15:15:42,180 - ERROR - GitHub API 速率限制或访问被拒绝，关键词 '凤凰卫视': 403 Client Error: Forbidden for url: https://api.github.com/search/code?q=%E5%87%A4%E5%87%B0%E5%8D%AB%E8%A7%86&sort=indexed&order=desc&per_page=100&page=10
+2025-08-02 15:15:42,181 - WARNING - 切换到下一个关键词: '港澳台直播'，等待 38 秒以避免速率限制
+2025-08-02 15:16:23,744 - WARNING - 切换到下一个关键词: '海外直播'，等待 38 秒以避免速率限制
+2025-08-02 15:17:56,375 - ERROR - 搜索 GitHub 关键词 '海外直播' 失败: 422 Client Error: Unprocessable Entity for url: https://api.github.com/search/code?q=%E6%B5%B7%E5%A4%96%E7%9B%B4%E6%92%AD&sort=indexed&order=desc&per_page=100&page=11
+2025-08-02 15:17:56,375 - WARNING - 切换到下一个关键词: '体育直播'，等待 38 秒以避免速率限制
+2025-08-02 15:19:28,941 - ERROR - GitHub API 速率限制或访问被拒绝，关键词 '体育直播': 403 Client Error: Forbidden for url: https://api.github.com/search/code?q=%E4%BD%93%E8%82%B2%E7%9B%B4%E6%92%AD&sort=indexed&order=desc&per_page=100&page=10
+2025-08-02 15:19:28,941 - WARNING - 切换到下一个关键词: '电影频道'，等待 38 秒以避免速率限制
+2025-08-02 15:20:49,961 - ERROR - GitHub API 速率限制或访问被拒绝，关键词 '电影频道': 403 Client Error: Forbidden for url: https://api.github.com/search/code?q=%E7%94%B5%E5%BD%B1%E9%A2%91%E9%81%93&sort=indexed&order=desc&per_page=100&page=10
+2025-08-02 15:20:49,961 - WARNING - 切换到下一个关键词: '电视源'，等待 38 秒以避免速率限制
+2025-08-02 15:21:53,567 - WARNING - 切换到下一个关键词: '直播链接'，等待 38 秒以避免速率限制
+2025-08-02 15:23:29,679 - ERROR - GitHub API 速率限制或访问被拒绝，关键词 '直播链接': 403 Client Error: Forbidden for url: https://api.github.com/search/code?q=%E7%9B%B4%E6%92%AD%E9%93%BE%E6%8E%A5&sort=indexed&order=desc&per_page=100&page=10
+2025-08-02 15:23:29,679 - WARNING - 切换到下一个关键词: 'IPTV地址'，等待 38 秒以避免速率限制
+2025-08-02 15:24:09,075 - WARNING - 切换到下一个关键词: '高清直播'，等待 38 秒以避免速率限制
+2025-08-02 15:26:02,005 - ERROR - 搜索 GitHub 关键词 '高清直播' 失败: 422 Client Error: Unprocessable Entity for url: https://api.github.com/search/code?q=%E9%AB%98%E6%B8%85%E7%9B%B4%E6%92%AD&sort=indexed&order=desc&per_page=100&page=11
+2025-08-02 15:26:02,005 - WARNING - 切换到下一个关键词: '超高清直播'，等待 38 秒以避免速率限制
+2025-08-02 15:26:50,208 - WARNING - 切换到下一个关键词: '4K直播'，等待 38 秒以避免速率限制
+2025-08-02 15:27:45,297 - WARNING - 切换到下一个关键词: '直播聚合'，等待 38 秒以避免速率限制
+2025-08-02 15:28:45,463 - WARNING - 切换到下一个关键词: '国内直播'，等待 38 秒以避免速率限制
+2025-08-02 15:30:16,173 - WARNING - 切换到下一个关键词: '国际直播'，等待 38 秒以避免速率限制
+2025-08-02 15:31:01,237 - WARNING - 切换到下一个关键词: '网络直播源'，等待 38 秒以避免速率限制
+2025-08-02 15:31:42,184 - WARNING - 切换到下一个关键词: 'IPTV2025'，等待 38 秒以避免速率限制
+2025-08-02 15:32:22,547 - WARNING - 切换到下一个关键词: '直播源合集'，等待 38 秒以避免速率限制
+2025-08-02 15:33:03,333 - WARNING - 切换到下一个关键词: 'M3U源'，等待 38 秒以避免速率限制
+2025-08-02 15:33:46,463 - WARNING - 切换到下一个关键词: 'M3U8源'，等待 38 秒以避免速率限制
+2025-08-02 15:34:30,883 - WARNING - 切换到下一个关键词: '电视节目单'，等待 38 秒以避免速率限制
+2025-08-02 15:35:15,087 - WARNING - 切换到下一个关键词: '直播流'，等待 38 秒以避免速率限制
+2025-08-02 15:36:50,692 - ERROR - 搜索 GitHub 关键词 '直播流' 失败: 422 Client Error: Unprocessable Entity for url: https://api.github.com/search/code?q=%E7%9B%B4%E6%92%AD%E6%B5%81&sort=indexed&order=desc&per_page=100&page=11
+2025-08-02 15:36:50,692 - WARNING - 切换到下一个关键词: 'HLS直播'，等待 38 秒以避免速率限制
+2025-08-02 15:37:59,526 - WARNING - 切换到下一个关键词: 'DASH直播'，等待 38 秒以避免速率限制
+2025-08-02 15:38:40,160 - WARNING - 切换到下一个关键词: '低延迟源'，等待 38 秒以避免速率限制
+2025-08-02 15:39:18,490 - WARNING - 切换到下一个关键词: 'DASH流'，等待 38 秒以避免速率限制
+2025-08-02 15:40:10,827 - WARNING - 切换到下一个关键词: 'HEVC源'，等待 38 秒以避免速率限制
+2025-08-02 15:40:49,116 - WARNING - 切换到下一个关键词: 'IPv6直播'，等待 38 秒以避免速率限制
+2025-08-02 15:41:33,663 - WARNING - 发现 10965 个新唯一 URL，总计保存 10965 个 URL
+2025-08-02 15:41:33,665 - WARNING - 关键词 'extension:m3u8 in:file' 发现 500 个新 URL
+2025-08-02 15:41:33,665 - WARNING - 关键词 'extension:m3u in:file' 发现 500 个新 URL
+2025-08-02 15:41:33,665 - WARNING - 关键词 'iptv playlist extension:m3u,m3u8 in:file' 发现 0 个新 URL
+2025-08-02 15:41:33,665 - WARNING - 关键词 'raw.githubusercontent.com path:.m3u8' 发现 0 个新 URL
+2025-08-02 15:41:33,665 - WARNING - 关键词 'raw.githubusercontent.com path:.m3u' 发现 1 个新 URL
+2025-08-02 15:41:33,665 - WARNING - 关键词 'tv channels extension:m3u,m3u8 in:file' 发现 0 个新 URL
+2025-08-02 15:41:33,665 - WARNING - 关键词 'live tv extension:m3u,m3u8 in:file' 发现 0 个新 URL
+2025-08-02 15:41:33,665 - WARNING - 关键词 'playlist.m3u8 in:file' 发现 177 个新 URL
+2025-08-02 15:41:33,665 - WARNING - 关键词 'index.m3u8 in:file' 发现 330 个新 URL
+2025-08-02 15:41:33,665 - WARNING - 关键词 'channels.m3u in:file' 发现 221 个新 URL
+2025-08-02 15:41:33,666 - WARNING - 关键词 'iptv links' 发现 116 个新 URL
+2025-08-02 15:41:33,666 - WARNING - 关键词 'm3u8 playlist' 发现 285 个新 URL
+2025-08-02 15:41:33,666 - WARNING - 关键词 'iptv list' 发现 119 个新 URL
+2025-08-02 15:41:33,666 - WARNING - 关键词 'm3u channels' 发现 107 个新 URL
+2025-08-02 15:41:33,666 - WARNING - 关键词 'iptv channels' 发现 92 个新 URL
+2025-08-02 15:41:33,666 - WARNING - 关键词 'live tv playlist' 发现 162 个新 URL
+2025-08-02 15:41:33,666 - WARNING - 关键词 'free iptv' 发现 74 个新 URL
+2025-08-02 15:41:33,666 - WARNING - 关键词 'public iptv' 发现 74 个新 URL
+2025-08-02 15:41:33,666 - WARNING - 关键词 'tv channels list' 发现 99 个新 URL
+2025-08-02 15:41:33,666 - WARNING - 关键词 'stream list' 发现 24 个新 URL
+2025-08-02 15:41:33,666 - WARNING - 关键词 'live stream list' 发现 75 个新 URL
+2025-08-02 15:41:33,666 - WARNING - 关键词 'm3u stream' 发现 230 个新 URL
+2025-08-02 15:41:33,666 - WARNING - 关键词 'm3u8 stream' 发现 53 个新 URL
+2025-08-02 15:41:33,666 - WARNING - 关键词 'raw.githubusercontent.com m3u' 发现 409 个新 URL
+2025-08-02 15:41:33,667 - WARNING - 关键词 'gist.github.com m3u' 发现 108 个新 URL
+2025-08-02 15:41:33,667 - WARNING - 关键词 'cdn.jsdelivr.net m3u' 发现 155 个新 URL
+2025-08-02 15:41:33,667 - WARNING - 关键词 'fastly.net m3u8' 发现 625 个新 URL
+2025-08-02 15:41:33,667 - WARNING - 关键词 'gitee.com m3u' 发现 249 个新 URL
+2025-08-02 15:41:33,667 - WARNING - 关键词 'site:gitlab.com inurl:.m3u' 发现 0 个新 URL
+2025-08-02 15:41:33,667 - WARNING - 关键词 'site:gitlab.com m3u8' 发现 0 个新 URL
+2025-08-02 15:41:33,667 - WARNING - 关键词 'site:bitbucket.org filetype:m3u' 发现 0 个新 URL
+2025-08-02 15:41:33,667 - WARNING - 关键词 'site:bitbucket.org filetype:m3u8' 发现 0 个新 URL
+2025-08-02 15:41:33,667 - WARNING - 关键词 'site:pastebin.com ext:m3u' 发现 0 个新 URL
+2025-08-02 15:41:33,667 - WARNING - 关键词 'site:pastebin.com m3u8' 发现 2 个新 URL
+2025-08-02 15:41:33,667 - WARNING - 关键词 'site:sourcetech.cn iptv' 发现 0 个新 URL
+2025-08-02 15:41:33,667 - WARNING - 关键词 'site:52pojie.cn 直播源' 发现 0 个新 URL
+2025-08-02 15:41:33,667 - WARNING - 关键词 'iptv source' 发现 26 个新 URL
+2025-08-02 15:41:33,667 - WARNING - 关键词 'live stream source' 发现 40 个新 URL
+2025-08-02 15:41:33,667 - WARNING - 关键词 'm3u8 source' 发现 61 个新 URL
+2025-08-02 15:41:33,667 - WARNING - 关键词 'tv stream' 发现 37 个新 URL
+2025-08-02 15:41:33,667 - WARNING - 关键词 'streaming list' 发现 38 个新 URL
+2025-08-02 15:41:33,667 - WARNING - 关键词 'open source iptv' 发现 114 个新 URL
+2025-08-02 15:41:33,668 - WARNING - 关键词 'iptv repository' 发现 123 个新 URL
+2025-08-02 15:41:33,668 - WARNING - 关键词 'm3u playlist 2025' 发现 270 个新 URL
+2025-08-02 15:41:33,668 - WARNING - 关键词 'iptv m3u8 2025' 发现 360 个新 URL
+2025-08-02 15:41:33,668 - WARNING - 关键词 'hls stream' 发现 42 个新 URL
+2025-08-02 15:41:33,668 - WARNING - 关键词 'dash stream' 发现 63 个新 URL
+2025-08-02 15:41:33,668 - WARNING - 关键词 'iptv epg' 发现 134 个新 URL
+2025-08-02 15:41:33,668 - WARNING - 关键词 'iptv github' 发现 69 个新 URL
+2025-08-02 15:41:33,668 - WARNING - 关键词 'm3u8?token=' 发现 467 个新 URL
+2025-08-02 15:41:33,668 - WARNING - 关键词 '直播源' 发现 89 个新 URL
+2025-08-02 15:41:33,668 - WARNING - 关键词 '电视直播' 发现 121 个新 URL
+2025-08-02 15:41:33,668 - WARNING - 关键词 'IPTV直播' 发现 121 个新 URL
+2025-08-02 15:41:33,668 - WARNING - 关键词 'M3U直播' 发现 78 个新 URL
+2025-08-02 15:41:33,668 - WARNING - 关键词 'M3U8直播' 发现 23 个新 URL
+2025-08-02 15:41:33,668 - WARNING - 关键词 '频道列表' 发现 40 个新 URL
+2025-08-02 15:41:33,668 - WARNING - 关键词 '免费直播' 发现 65 个新 URL
+2025-08-02 15:41:33,669 - WARNING - 关键词 '公共直播' 发现 0 个新 URL
+2025-08-02 15:41:33,669 - WARNING - 关键词 '聚合直播' 发现 53 个新 URL
+2025-08-02 15:41:33,669 - WARNING - 关键词 '直播源.txt' 发现 6 个新 URL
+2025-08-02 15:41:33,669 - WARNING - 关键词 '电视直播.m3u' 发现 0 个新 URL
+2025-08-02 15:41:33,669 - WARNING - 关键词 '电视直播.m3u8' 发现 0 个新 URL
+2025-08-02 15:41:33,669 - WARNING - 关键词 'iptv源' 发现 33 个新 URL
+2025-08-02 15:41:33,669 - WARNING - 关键词 '直播地址' 发现 75 个新 URL
+2025-08-02 15:41:33,669 - WARNING - 关键词 '网络电视' 发现 269 个新 URL
+2025-08-02 15:41:33,669 - WARNING - 关键词 '节目单' 发现 175 个新 URL
+2025-08-02 15:41:33,669 - WARNING - 关键词 '最新直播源' 发现 3 个新 URL
+2025-08-02 15:41:33,669 - WARNING - 关键词 '稳定直播源' 发现 1 个新 URL
+2025-08-02 15:41:33,669 - WARNING - 关键词 '组播源' 发现 81 个新 URL
+2025-08-02 15:41:33,669 - WARNING - 关键词 'iptvbox' 发现 750 个新 URL
+2025-08-02 15:41:33,669 - WARNING - 关键词 'TVBOX' 发现 159 个新 URL
+2025-08-02 15:41:33,669 - WARNING - 关键词 'EPG' 发现 95 个新 URL
+2025-08-02 15:41:33,669 - WARNING - 关键词 'CCTV1' 发现 376 个新 URL
+2025-08-02 15:41:33,669 - WARNING - 关键词 'CCTV5' 发现 164 个新 URL
+2025-08-02 15:41:33,670 - WARNING - 关键词 '湖南卫视' 发现 0 个新 URL
+2025-08-02 15:41:33,670 - WARNING - 关键词 '凤凰卫视' 发现 331 个新 URL
+2025-08-02 15:41:33,670 - WARNING - 关键词 '港澳台直播' 发现 4 个新 URL
+2025-08-02 15:41:33,670 - WARNING - 关键词 '海外直播' 发现 57 个新 URL
+2025-08-02 15:41:33,670 - WARNING - 关键词 '体育直播' 发现 152 个新 URL
+2025-08-02 15:41:33,670 - WARNING - 关键词 '电影频道' 发现 318 个新 URL
+2025-08-02 15:41:33,670 - WARNING - 关键词 '电视源' 发现 5 个新 URL
+2025-08-02 15:41:33,670 - WARNING - 关键词 '直播链接' 发现 72 个新 URL
+2025-08-02 15:41:33,670 - WARNING - 关键词 'IPTV地址' 发现 4 个新 URL
+2025-08-02 15:41:33,670 - WARNING - 关键词 '高清直播' 发现 160 个新 URL
+2025-08-02 15:41:33,670 - WARNING - 关键词 '超高清直播' 发现 41 个新 URL
+2025-08-02 15:41:33,670 - WARNING - 关键词 '4K直播' 发现 118 个新 URL
+2025-08-02 15:41:33,670 - WARNING - 关键词 '直播聚合' 发现 31 个新 URL
+2025-08-02 15:41:33,670 - WARNING - 关键词 '国内直播' 发现 85 个新 URL
+2025-08-02 15:41:33,670 - WARNING - 关键词 '国际直播' 发现 19 个新 URL
+2025-08-02 15:41:33,670 - WARNING - 关键词 '网络直播源' 发现 5 个新 URL
+2025-08-02 15:41:33,670 - WARNING - 关键词 'IPTV2025' 发现 23 个新 URL
+2025-08-02 15:41:33,671 - WARNING - 关键词 '直播源合集' 发现 2 个新 URL
+2025-08-02 15:41:33,671 - WARNING - 关键词 'M3U源' 发现 18 个新 URL
+2025-08-02 15:41:33,671 - WARNING - 关键词 'M3U8源' 发现 18 个新 URL
+2025-08-02 15:41:33,671 - WARNING - 关键词 '电视节目单' 发现 11 个新 URL
+2025-08-02 15:41:33,671 - WARNING - 关键词 '直播流' 发现 38 个新 URL
+2025-08-02 15:41:33,671 - WARNING - 关键词 'HLS直播' 发现 26 个新 URL
+2025-08-02 15:41:33,671 - WARNING - 关键词 'DASH直播' 发现 2 个新 URL
+2025-08-02 15:41:33,671 - WARNING - 关键词 '低延迟源' 发现 0 个新 URL
+2025-08-02 15:41:33,671 - WARNING - 关键词 'DASH流' 发现 8 个新 URL
+2025-08-02 15:41:33,671 - WARNING - 关键词 'HEVC源' 发现 0 个新 URL
+2025-08-02 15:41:33,671 - WARNING - 关键词 'IPv6直播' 发现 9 个新 URL
+2025-08-02 15:41:33,676 - WARNING - 无需清理 urls.txt 中的 URL
+2025-08-02 15:41:33,678 - WARNING - 从 'config/urls.txt' 加载 10965 个 URL
+2025-08-02 15:41:33,678 - WARNING - 开始从 10965 个 URL 提取频道
+2025-08-02 15:41:33,678 - WARNING - 调试模式：仅处理前 100 个 URL
+2025-08-02 15:41:40,198 - WARNING - 完成频道提取，过滤前总计提取 34007 个频道
+2025-08-02 15:42:04,743 - WARNING - 过滤和修改后剩余 32539 个频道
+2025-08-02 15:42:05,365 - WARNING - 处理分类: CCTV央视，包含 6457 个频道
+2025-08-02 15:42:05,374 - WARNING - 处理分类: 电影频道，包含 944 个频道
+2025-08-02 15:42:05,376 - WARNING - 处理分类: 电视剧频道，包含 264 个频道
+2025-08-02 15:42:05,376 - WARNING - 处理分类: 少儿频道，包含 512 个频道
+2025-08-02 15:42:05,377 - WARNING - 处理分类: 国际频道，包含 172 个频道
+2025-08-02 15:42:05,378 - WARNING - 处理分类: 港台澳频道，包含 461 个频道
+2025-08-02 15:42:05,379 - WARNING - 处理分类: 省级卫视，包含 9227 个频道
+2025-08-02 15:42:05,391 - WARNING - 处理分类: 市区地方台，包含 218 个频道
+2025-08-02 15:42:05,392 - WARNING - 处理未分类频道: 14284 个频道
+2025-08-02 15:42:05,413 - WARNING - 未分类频道保存到: output/uncategorized_iptv.txt
+2025-08-02 15:42:05,441 - WARNING - 总计 22966 个唯一频道待检查和过滤
+2025-08-02 15:42:05,931 - WARNING - 所有频道列表文件合并、去重、分类完成，输出保存到: output/iptv_list.txt
+2025-08-02 15:42:05,938 - WARNING - 未分类频道保存到: output/uncategorized_iptv.txt
+2025-08-02 15:42:05,949 - WARNING - 最终频道检查状态已保存
+2025-08-02 15:42:05,949 - WARNING - 保留未分类文件 'output/uncategorized_iptv.txt'
+2025-08-02 15:42:05,949 - WARNING - IPTV 处理脚本完成，总耗时 7344.42 秒

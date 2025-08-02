@@ -1,0 +1,199 @@
+#EXTM3U
+
+
+#EXTINF:-1 ,Teleantillas Canal 2
+https://ss4.domint.net:3040/ta2_str/teleantillas/chunklist_w2079720348.m3u8
+
+#EXTINF:-1 ,Tv Plata Canal 3
+https://ss6.domint.net:3104/tvp_str/tvplata/chunklist_w1090009437.m3u8
+
+#EXTINF:-1 ,Certv Canal 4
+http://51.89.152.28:8084/hls/certv.m3u8
+
+#EXTINF:-1 ,Telemicro Canal 5
+http://51.81.106.147:8084/hls/tmicro.m3u8
+
+#EXTINF:-1 ,Antena Latina Canal 7
+http://51.89.152.28:8084/hls/alatina.m3u8
+
+#EXTINF:-1 ,Peravia Vision Canal 8 Bani
+https://ss6.domint.net:3002/pvv_str/peravia/chunklist_w1474521638.m3u8
+
+#EXTINF:-1 ,Color Vision Canal 9
+http://51.81.106.147:8084/hls/color.m3u8
+
+#EXTINF:-1 ,Yuna Vision Canal 10
+https://ss4.domint.net:3004/yv_str/yunavision/chunklist_w1574490.m3u8
+
+#EXTINF:-1 ,TELESISTEMA 11
+https://ss5.domint.net:3016/tv11_str/canal11/chunklist_w100081367.m3u8
+
+#EXTINF:-1 ,Telecentro Canal 13
+http://51.89.152.28:8084/hls/tcentro.m3u8
+
+#EXTINF:-1 ,Digital 15
+http://51.81.106.147:8084/hls/d15.m3u8
+
+#EXTINF:-1 ,Cinevision Canal 19
+https://rctvhdstream.com:8081/cinevision19hd/tracks-v1a1/mono.m3u8
+
+#EXTINF:-1 ,ANTENA 21
+http://51.89.152.28:8084/hls/a21.m3u8
+
+#EXTINF:-1 ,Canal 25 Santiago
+https://ss5.domint.net:3050/c25_str/canal25/chunklist_w517047345.m3u8
+
+#EXTINF:-1 ,RNN Canal 27
+https://ss2.domint.net:3202/rnn_str/canal27/chunklist_w2037244683.m3u8
+
+#EXTINF:-1 ,Teleuniverso Canal 29
+https://cloudflare.streamgato.us:3437/live/teleuniversotvlive.m3u8
+
+#EXTINF:-1 ,Coral 39
+http://190.122.96.188:8888/http/005
+
+#EXTINF:-1 ,ROMANA TV CANAL 42
+http://live.romanatv42.com/hls/live.m3u8
+
+#EXTINF:-1 ,TVO CANAL 49
+https://rctvhdstream.com:8081/tvoromanalive/tracks-v1a1/mono.m3u8
+
+#EXTINF:-1 ,ESPN
+https://live.televisiongratishd.com/tvplus2021/17_.m3u8?token=VgQCADE91hyHtj7D1-MVcA&expires=1609058834&ip=148.101.36.161
+
+#EXTINF:-1 ,ESPN 2
+https://live.televisiongratishd.com/tvplus2021/18_.m3u8?token=fLTwTvt8woc8t4gtMpef-w&expires=1609058955&ip=148.101.36.161
+
+#EXTINF:-1 ,ESPN 3
+https://live.televisiongratishd.com/tvplus2021/19_.m3u8?token=ZSWZ8u6XDpTiQ-8T6li1NQ&expires=1609059165&ip=148.101.36.161
+
+#EXTINF:-1 ,ESPN MEXICO
+https://live.televisiongratishd.com/tvplus2021/27_.m3u8?token=fB41puAl6IQ5Xtw71I_5zw&expires=1609059911&ip=148.101.36.161
+
+#EXTINF:-1 ,ESPN MEXICO 2
+https://live.televisiongratishd.com/tvplus2021/28_.m3u8?token=jgpxUyz7E2giYgmJ1bDzRA&expires=1609060038&ip=148.101.36.161
+
+#EXTINF:-1 ,ESPN MEXICO 3
+https://live.televisiongratishd.com/tvplus2021/29_.m3u8?token=JNhLwziQkNkjFpZGb2t7og&expires=1609060080&ip=148.101.36.161
+
+#EXTINF:-1 ,ESPN EXTRA
+https://live.televisiongratishd.com/tvplus2021/16_.m3u8?token=l7ZC3cZhDQajSavwtWZtkQ&expires=1609060139&ip=148.101.36.161
+
+#EXTINF:-1 ,ESPN DEPORTES
+https://live.televisiongratishd.com/tvplus2021/15_.m3u8?token=zk3loGCoJHAePE-tccP0JQ&expires=1609060173&ip=148.101.36.161
+
+#EXTINF:-1 ,ESPN PLUS
+https://live.televisiongratishd.com/tvplus2021/16_.m3u8?token=zkHb-KOpAEDTppRICSktVA&expires=1609060302&ip=148.101.36.161
+
+#EXTINF:-1 ,FOX SPORTS
+https://live.televisiongratishd.com/tvplus2021/12_.m3u8?token=Dq-qC9iKjv2_kySswce7bA&expires=1609060369&ip=148.101.36.161
+
+#EXTINF:-1 ,FOX SPORTS 2
+https://live.televisiongratishd.com/tvplus2021/13_.m3u8?token=TrZCZEMjGZxgre1WOsXKdw&expires=1609060416&ip=148.101.36.161
+
+#EXTINF:-1 ,FOX SPORTS 3
+https://live.televisiongratishd.com/tvplus2021/14_.m3u8?token=2qluZ9Y_UMErZFFutb4PLA&expires=1609060452&ip=148.101.36.161
+
+#EXTINF:-1 ,FOX SPORTS MEXICO
+https://live.televisiongratishd.com/tvplus2021/24_.m3u8?token=FwxeXaF4uqCZ0otnMP0glw&expires=1609060496&ip=148.101.36.161
+
+#EXTINF:-1 ,FOX SPORTS MEXICO 2
+https://live.televisiongratishd.com/tvplus2021/25_.m3u8?token=U1ZQv-SFRoHhc7n3ydnTRQ&expires=1609060719&ip=148.101.36.161
+
+#EXTINF:-1 ,FOX SPORTS MEXICO 3
+https://live.televisiongratishd.com/tvplus2021/26_.m3u8?token=9BiSSCBku7pc3L5NccQEcg&expires=1609060581&ip=148.101.36.161
+
+#EXTINF:-1 ,FOX PREMIUM ACTION
+https://live.televisiongratishd.com/tvplus2021/138_.m3u8?token=4FZntf19YeYhMHb0VX2ynA&expires=1609060630&ip=148.101.36.161
+
+#EXTINF:-1 ,FOX PREMIUM SERIES
+https://live.televisiongratishd.com/tvplus2021/38_.m3u8?token=toRbo8IRl46vwbOlz_Gj6w&expires=1609060758&ip=148.101.36.161
+
+#EXTINF:-1 ,FOX PREMIUM MOVIES
+https://live.televisiongratishd.com/tvplus2021/68_.m3u8?token=QYa2o5agrgmurszetmUTrQ&expires=1609060801&ip=148.101.36.161
+
+#EXTINF:-1 ,HBO
+https://live.televisiongratishd.com/tvplus2021/31_.m3u8?token=QbqSm_d4d9zVMttIQc4Lqw&expires=1609060865&ip=148.101.36.161
+
+#EXTINF:-1 ,HBO 2
+https://live.televisiongratishd.com/tvplus2021/32_.m3u8?token=A6r-s85bm0uJkZ2ETekStw&expires=1609060914&ip=148.101.36.161
+
+#EXTINF:-1 ,HBO PLUS
+https://live.televisiongratishd.com/tvplus2021/33_.m3u8?token=ILOO_96V-kIAQ8NkWyduAg&expires=1609060991&ip=148.101.36.161
+
+#EXTINF:-1 ,HBO FAMILY
+https://live.televisiongratishd.com/tvplus2021/34_.m3u8?token=oCFMbE4MSgbCXsYWhx06ZQ&expires=1609061048&ip=148.101.36.161
+
+#EXTINF:-1 ,HBO SIGNATURE
+https://live.televisiongratishd.com/tvplus2021/129_.m3u8?token=fschHCar-syGLMDUT7CmKw&expires=1609061084&ip=148.101.36.161
+
+#EXTINF:-1 ,HBO XTREME
+https://live.televisiongratishd.com/tvplus2021/35_.m3u8?token=JBcJHD5j8NJnmGROpIQy5Q&expires=1609061122&ip=148.101.36.161
+
+#EXTINF:-1 ,HBO POP
+https://live.televisiongratishd.com/tvplus2021/36_.m3u8?token=QSvDQU4k2Ow5HKMsYbwWsQ&expires=1609061151&ip=148.101.36.161
+
+#EXTINF:-1 ,TNT
+https://live.televisiongratishd.com/tvplus2021/41_.m3u8?token=ghROFeyJp36tdFsvoDMYAg&expires=1609061183&ip=148.101.36.161
+
+#EXTINF:-1 ,TNT SERIE
+https://live.televisiongratishd.com/tvplus2021/76_.m3u8?token=awhOEibl5wrgxzNCDOjPIg&expires=1609061216&ip=148.101.36.161
+
+#EXTINF:-1 ,TNT SPORTS
+https://live.televisiongratishd.com/tvplus2021/9_.m3u8?token=0afk8bVJc0ZL8hoKZN4ydg&expires=1609061273&ip=148.101.36.161
+
+#EXTINF:-1 ,CINEMAX
+https://live.televisiongratishd.com/tvplus2021/43_.m3u8?token=s5a8Tm1bMmZXxZARpmA9Bg&expires=1609061313&ip=148.101.36.161
+
+#EXTINF:-1 ,WARNER
+https://live.televisiongratishd.com/tvplus2021/40_.m3u8?token=thw3dmzHgAlFwyLrxzd7EQ&expires=1609061354&ip=148.101.36.161
+
+#EXTINF:-1 ,CINECANAL
+https://live.televisiongratishd.com/tvplus2021/44_.m3u8?token=iZJK9N9-ZuQfJk0zjaEF8g&expires=1609061392&ip=148.101.36.161
+
+#EXTINF:-1 ,GOLDEN
+https://live.televisiongratishd.com/tvplus2021/202_.m3u8?token=vKk0kDWoMZhaugfOazGC_A&expires=1609061486&ip=148.101.36.161
+
+#EXTINF:-1 ,GOLDEN PLUS
+https://live.televisiongratishd.com/tvplus2021/73_.m3u8?token=a3VVcV8Gbf0eIfvDwMPjuw&expires=1609061528&ip=148.101.36.161
+
+#EXTINF:-1 ,GOLDEN EDGE
+https://live.televisiongratishd.com/tvplus2021/74_.m3u8?token=OVzs9PuFYQ6fPIDBq-v-Kg&expires=1609061557&ip=148.101.36.161
+
+#EXTINF:-1 ,UNIVERSAL CHANNEL
+https://live.televisiongratishd.com/tvplus2021/79_.m3u8?token=vM8qgcv7ruNwvV6fEbPzAQ&expires=1609061626&ip=148.101.36.161
+
+#EXTINF:-1 ,DISCOVERY A&E
+https://live.televisiongratishd.com/tvplus2021/99_.m3u8?token=eeQTzOlNYOjlGh6fx3tWnA&expires=1609061672&ip=148.101.36.161
+
+#EXTINF:-1 ,AXN
+https://live.televisiongratishd.com/tvplus2021/78_.m3u8?token=xImiK_qWmkv3dv_5HZBsog&expires=1609061806&ip=148.101.36.161
+
+#EXTINF:-1 ,MTV
+https://live.televisiongratishd.com/tvplus2021/87_.m3u8?token=VaWOyaHOsq1eWJO0lC66Cg&expires=1609061847&ip=148.101.36.161
+
+#EXTINF:-1 ,DISNEY CHANNEL
+https://live.televisiongratishd.com/tvplus2021/107_.m3u8?token=qdkFMRQAGC_JJjZAK3qJfg&expires=1609061876&ip=148.101.36.161
+
+#EXTINF:-1 ,DISNEY XD
+https://live.televisiongratishd.com/tvplus2021/108_.m3u8?token=5QvJ1OMLEbPN4cI4J7Giqw&expires=1609061914&ip=148.101.36.161
+
+#EXTINF:-1 ,DISNEY JUNIOR
+https://live.televisiongratishd.com/tvplus2021/109_.m3u8?token=78uwAwo6TZGkdAsKXlHJKg&expires=1609061947&ip=148.101.36.161
+
+#EXTINF:-1 ,EL CHAVO
+https://live.televisiongratishd.com/tvplus2021/150_.m3u8?token=3D9GXTjMCMBNUjjZsPwK9A&expires=1609061986&ip=148.101.36.161
+
+#EXTINF:-1 ,VENUS ADUTOS
+https://live.televisiongratishd.com/tvplus2021/126_.m3u8?token=GI7FXPzyfzNMasB1Fsf3gw&expires=1609062028&ip=148.101.36.161
+
+#EXTINF:-1 ,BRAZZER TV ADULTOS
+https://live.televisiongratishd.com/tvplus2021/135_.m3u8?token=4mouZEWFxvVB7YpHENTfXw&expires=1609062057&ip=148.101.36.161
+
+#EXTINF:-1 ,
+
+
+#EXTINF:-1 ,
+
+
+#EXTINF:-1 ,
